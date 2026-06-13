@@ -1,0 +1,84 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TicketStatus {
+  PENDING_VALIDATION
+  PENDING_PAYMENT
+  VALID
+  REVOKED
+  CONSUMED
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("USER") // e.g., USER, ORGANIZER, STAFF
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tickets   Ticket[]
+  events    Event[]  @relation("EventOrganizer")
+}
+
+model Event {
+  id          String        @id @default(uuid())
+  title       String
+  description String?
+  date        DateTime
+  location    String
+  organizerId String
+  organizer   User          @relation("EventOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
+  batches     TicketBatch[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model TicketBatch {
+  id                String   @id @default(uuid())
+  name              String
+  price             Decimal
+  totalQuantity     Int
+  availableQuantity Int
+  eventId           String
+  event             Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  tickets           Ticket[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Ticket {
+  id        String       @id @default(uuid())
+  buyerId   String
+  buyer     User         @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  batchId   String
+  batch     TicketBatch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  buyerCpf  String
+  status    TicketStatus @default(PENDING_VALIDATION)
+  price     Decimal
+  hmacSignature String?
+  createdAt DateTime     @default(now())
+  expiresAt DateTime
+  updatedAt DateTime     @updatedAt
+}
+
+model OutboxEvent {
+  id            String   @id @default(uuid())
+  aggregateType String
+  aggregateId   String
+  payload       Json
+  status        String   @default("PENDING") // PENDING, PROCESSED
+  createdAt     DateTime @default(now())
+
+  @@index([status])
+}
+

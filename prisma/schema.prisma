@@ -1,0 +1,2 @@
+// O schema principal do Prisma foi movido para packages/database/prisma/schema.prisma
+// A raiz utiliza o arquivo prisma.config.ts apontando para o caminho correto.

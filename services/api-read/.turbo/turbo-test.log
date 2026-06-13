@@ -1,0 +1,13 @@
+
+> @flux/api-read@1.0.0 test
+> jest
+
+'jest' n∆o Ç reconhecido como um comando interno
+ou externo, um programa oper†vel ou um arquivo em lotes.
+npm error Lifecycle script `test` failed with error:
+npm error code 1
+npm error path C:\Users\DRODRIGUES\Documents\flux-ticket\services\api-read
+npm error workspace @flux/api-read@1.0.0
+npm error location C:\Users\DRODRIGUES\Documents\flux-ticket\services\api-read
+npm error command failed
+npm error command C:\WINDOWS\system32\cmd.exe /d /s /c jest

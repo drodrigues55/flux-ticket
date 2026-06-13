@@ -1,0 +1,23 @@
+{
+  "name": "flux-tickets",
+  "version": "1.0.0",
+  "description": "Flux Project Monorepo",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "services/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "test": "turbo run test"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^10.3.2",
+    "prisma": "^5.10.2",
+    "turbo": "^1.12.4",
+    "typescript": "^5.3.3"
+  }
+}

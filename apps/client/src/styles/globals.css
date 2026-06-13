@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-cosmic-dark text-white font-sans antialiased;
+    background-color: #121212;
+  }
+}
+
+/* Custom Scrollbar for premium dark-mode feeling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #121212;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2C2C2C;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #00E5FF;
+}
+
+/* Neon glow animations */
+@keyframes neon-pulse {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(0, 229, 255, 0.4), 0 0 20px rgba(0, 229, 255, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(0, 229, 255, 0.7), 0 0 30px rgba(0, 229, 255, 0.4);
+  }
+}
+
+.animate-neon-glow {
+  animation: neon-pulse 2s infinite ease-in-out;
+}

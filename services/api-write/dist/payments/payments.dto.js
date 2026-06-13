@@ -1,0 +1,22 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.CheckoutPaymentSchema = exports.PaymentMethodCardSchema = exports.PaymentMethodPixSchema = void 0;
+const zod_1 = require("zod");
+exports.PaymentMethodPixSchema = zod_1.z.object({
+    method: zod_1.z.literal('pix'),
+});
+exports.PaymentMethodCardSchema = zod_1.z.object({
+    method: zod_1.z.literal('credit_card'),
+    token: zod_1.z.string().min(1, 'Token do cartão é obrigatório'),
+    installments: zod_1.z.number().int().positive('Parcelas devem ser maiores que zero'),
+    issuerId: zod_1.z.string().min(1, 'Issuer ID é obrigatório'),
+    email: zod_1.z.string().email('E-mail inválido'),
+});
+exports.CheckoutPaymentSchema = zod_1.z.object({
+    ticketId: zod_1.z.string().uuid('ID do ingresso inválido'),
+    paymentMethod: zod_1.z.discriminatedUnion('method', [
+        exports.PaymentMethodPixSchema,
+        exports.PaymentMethodCardSchema,
+    ]),
+});
+//# sourceMappingURL=payments.dto.js.map

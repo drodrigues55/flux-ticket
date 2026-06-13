@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: flux-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: flux_user
+      POSTGRES_PASSWORD: flux_password
+      POSTGRES_DB: flux_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis-node-1:
+    image: redis:7-alpine
+    container_name: flux-redis-1
+    ports:
+      - "6379:6379"
+    command: redis-server --port 6379 --save 60 1 --loglevel warning
+    volumes:
+      - redis_data_1:/data
+    restart: unless-stopped
+
+  redis-node-2:
+    image: redis:7-alpine
+    container_name: flux-redis-2
+    ports:
+      - "6380:6380"
+    command: redis-server --port 6380 --save 60 1 --loglevel warning
+    volumes:
+      - redis_data_2:/data
+    restart: unless-stopped
+
+  redis-node-3:
+    image: redis:7-alpine
+    container_name: flux-redis-3
+    ports:
+      - "6381:6381"
+    command: redis-server --port 6381 --save 60 1 --loglevel warning
+    volumes:
+      - redis_data_3:/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data_1:
+  redis_data_2:
+  redis_data_3:
