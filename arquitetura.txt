@@ -1,0 +1,35 @@
+flux-tickets/
+├── apps/
+│   ├── client/                 # Portal do Consumidor (Next.js)
+│   │   ├── src/
+│   │   │   ├── components/     # UI atômica (Button, Card, Input)
+│   │   │   ├── features/       # Módulos: EventSearch, Checkout, TicketView
+│   │   │   ├── pages/          # Rotas Next.js
+│   │   │   └── hooks/          # Hooks de consumo de API
+│   ├── dashboard/              # Painel do Organizador (Next.js)
+│   │   ├── src/
+│   │   │   ├── components/     # UI atômica
+│   │   │   ├── features/       # Módulos: EventManager, FinancialReports, Validator
+│   │   │   ├── pages/          # Rotas Next.js
+│   │   │   └── hooks/          # Hooks de gerenciamento
+│   └── staff-pwa/              # App de Check-in (PWA)
+│       ├── src/
+│       │   ├── components/     # Scanner, TicketDetail
+│       │   ├── lib/            # Lógica de sincronização offline (Service Workers)
+│       │   └── pages/          # Rotas do scanner
+├── packages/
+│   ├── ui/                     # Biblioteca de componentes (shadcn/ui)
+│   ├── database/               # Prisma schema, migrações e instância do cliente
+│   └── types/                  # Interfaces e schemas de validação (Zod)
+├── services/
+│   ├── api-server/             # Backend (NestJS)
+│   │   ├── src/
+│   │   │   ├── auth/           # RBAC e JWT
+│   │   │   ├── events/         # CRUD de eventos
+│   │   │   ├── tickets/        # Lógica central de reserva e lotes
+│   │   │   └── payments/       # Webhooks de Stripe/Mercado Pago
+│   └── ticket-worker/          # Processamento assíncrono (BullMQ, filas)
+├── .gitignore
+├── docker-compose.yml          # Orquestração (Postgres + Redis Sentinel)
+├── package.json                # Gerenciamento do monorepo (TurboRepo/Nx)
+└── turbo.json                  # Configuração de build/pipeline
