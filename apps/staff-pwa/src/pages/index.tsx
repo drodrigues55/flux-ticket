@@ -3,6 +3,7 @@ import { Button, Input, Card, CardHeader, CardTitle, CardDescription, CardConten
 import db from '../lib/db';
 import { validateTicket } from '../lib/crypto';
 import { syncOfflineMutations, setupNetworkSync } from '../lib/sync';
+import { SyncGate } from '../components/SyncGate';
 
 export default function StaffPortal() {
   const [eventId, setEventId] = useState('event-id-123');
@@ -364,6 +365,8 @@ export default function StaffPortal() {
       <footer className="text-center text-xs text-neutral-500 py-6 relative z-10">
         <p>&copy; {new Date().getFullYear()} Flux Tickets - Portaria Offline. Todos os direitos reservados.</p>
       </footer>
+
+      <SyncGate eventId={eventId} onSyncComplete={updateCounts} />
     </div>
   );
 }
