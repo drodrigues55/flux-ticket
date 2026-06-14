@@ -2,7 +2,7 @@
   "/_app": "pages/_app.js",
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
-  "/api/read/events": "pages/api/read/events.js",
   "/": "pages/index.js",
-  "/checkout/[eventId]": "pages/checkout/[eventId].js"
+  "/checkout/[eventId]": "pages/checkout/[eventId].js",
+  "/api/read/events": "pages/api/read/events.js"
 }

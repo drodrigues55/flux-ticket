@@ -32,6 +32,16 @@ eval("/**\n * Hoists a name from a module or promised module.\n *\n * @param mod
 
 /***/ }),
 
+/***/ "../../node_modules/next/font/google/target.css?{\"path\":\"src\\\\pages\\\\_app.tsx\",\"import\":\"Inter\",\"arguments\":[{\"subsets\":[\"latin\"],\"weight\":[\"400\",\"500\",\"600\",\"700\",\"800\",\"900\"],\"display\":\"swap\"}],\"variableName\":\"inter\"}":
+/*!**********************************************************************************************************************************************************************************************************************************!*\
+  !*** ../../node_modules/next/font/google/target.css?{"path":"src\\pages\\_app.tsx","import":"Inter","arguments":[{"subsets":["latin"],"weight":["400","500","600","700","800","900"],"display":"swap"}],"variableName":"inter"} ***!
+  \**********************************************************************************************************************************************************************************************************************************/
+/***/ ((module) => {
+
+eval("// Exports\nmodule.exports = {\n\t\"style\": {\"fontFamily\":\"'__Inter_d0be19', '__Inter_Fallback_d0be19'\",\"fontStyle\":\"normal\"},\n\t\"className\": \"__className_d0be19\"\n};\n//# sourceURL=[module]\n//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiLi4vLi4vbm9kZV9tb2R1bGVzL25leHQvZm9udC9nb29nbGUvdGFyZ2V0LmNzcz97XCJwYXRoXCI6XCJzcmNcXFxccGFnZXNcXFxcX2FwcC50c3hcIixcImltcG9ydFwiOlwiSW50ZXJcIixcImFyZ3VtZW50c1wiOlt7XCJzdWJzZXRzXCI6W1wibGF0aW5cIl0sXCJ3ZWlnaHRcIjpbXCI0MDBcIixcIjUwMFwiLFwiNjAwXCIsXCI3MDBcIixcIjgwMFwiLFwiOTAwXCJdLFwiZGlzcGxheVwiOlwic3dhcFwifV0sXCJ2YXJpYWJsZU5hbWVcIjpcImludGVyXCJ9IiwibWFwcGluZ3MiOiJBQUFBO0FBQ0E7QUFDQSxXQUFXLGdGQUFnRjtBQUMzRjtBQUNBIiwic291cmNlcyI6WyJ3ZWJwYWNrOi8vQGZsdXgvY2xpZW50Ly4uLy4uL25vZGVfbW9kdWxlcy9uZXh0L2ZvbnQvZ29vZ2xlL3RhcmdldC5jc3M/NzNmMSJdLCJzb3VyY2VzQ29udGVudCI6WyIvLyBFeHBvcnRzXG5tb2R1bGUuZXhwb3J0cyA9IHtcblx0XCJzdHlsZVwiOiB7XCJmb250RmFtaWx5XCI6XCInX19JbnRlcl9kMGJlMTknLCAnX19JbnRlcl9GYWxsYmFja19kMGJlMTknXCIsXCJmb250U3R5bGVcIjpcIm5vcm1hbFwifSxcblx0XCJjbGFzc05hbWVcIjogXCJfX2NsYXNzTmFtZV9kMGJlMTlcIlxufTtcbiJdLCJuYW1lcyI6W10sInNvdXJjZVJvb3QiOiIifQ==\n//# sourceURL=webpack-internal:///../../node_modules/next/font/google/target.css?{\"path\":\"src\\\\pages\\\\_app.tsx\",\"import\":\"Inter\",\"arguments\":[{\"subsets\":[\"latin\"],\"weight\":[\"400\",\"500\",\"600\",\"700\",\"800\",\"900\"],\"display\":\"swap\"}],\"variableName\":\"inter\"}\n");
+
+/***/ }),
+
 /***/ "../../node_modules/next/dist/client/add-base-path.js":
 /*!************************************************************!*\
   !*** ../../node_modules/next/dist/client/add-base-path.js ***!
