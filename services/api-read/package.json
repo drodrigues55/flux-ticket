@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "tsc",
-    "dev": "tsx src/index.ts",
+    "dev": "PORT=3002 tsx src/index.ts",
     "test": "jest"
   },
   "dependencies": {

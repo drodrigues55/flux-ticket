@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "nest build",
-    "dev": "nest start --watch",
+    "dev": "PORT=4000 nest start --watch",
     "test": "jest"
   },
   "dependencies": {
