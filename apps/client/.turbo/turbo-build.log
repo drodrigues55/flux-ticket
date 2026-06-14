@@ -8,15 +8,20 @@
    Creating an optimized production build ...
  ✓ Compiled successfully
    Collecting page data ...
-   Generating static pages (0/3) ...
- ✓ Generating static pages (3/3)
+   Generating static pages (0/4) ...
+   Generating static pages (1/4) 
+   Generating static pages (2/4) 
+   Generating static pages (3/4) 
+ ✓ Generating static pages (4/4)
    Finalizing page optimization ...
    Collecting build traces ...
 
 Route (pages)                             Size     First Load JS
-┌   /_app                                 0 B            79.9 kB
+┌ ○ /                                     3.1 kB           83 kB
+├   /_app                                 0 B            79.9 kB
 ├ ○ /404                                  180 B          80.1 kB
 ├ ƒ /api/payments/checkout                0 B            79.9 kB
+├ ƒ /api/read/events                      0 B            79.9 kB
 ├ ƒ /api/tickets/renew-lock               0 B            79.9 kB
 └ ○ /checkout/[eventId]                   6.33 kB        86.2 kB
 + First Load JS shared by all             80.2 kB

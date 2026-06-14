@@ -5,7 +5,7 @@ const app_module_1 = require("./app.module");
 async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule, { rawBody: true });
     app.enableCors();
-    const port = process.env.PORT || 3001;
+    const port = process.env.PORT || 4000;
     await app.listen(port);
     console.log(`[API-WRITE] NestJS API Server listening on port ${port}`);
 }
