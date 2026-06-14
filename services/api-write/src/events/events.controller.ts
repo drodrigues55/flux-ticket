@@ -13,7 +13,7 @@ export class EventsController {
    */
   @Post()
   async create(
-    @Body() body: { title: string; description?: string; date: string; location: string },
+    @Body() body: { title: string; description?: string; date: string; location: string; categoryId?: number },
     @Req() req: any
   ) {
     const { title, date, location } = body;
@@ -50,16 +50,16 @@ export class EventsController {
   @Post(':eventId/batches')
   async createBatch(
     @Param('eventId') eventId: string,
-    @Body() body: { name: string; price: number; totalQuantity: number }
+    @Body() body: { name: string; price: number; totalQuantity: number; sectorId?: number; sectorName?: string }
   ) {
-    const { name, price, totalQuantity } = body;
+    const { name, price, totalQuantity, sectorId, sectorName } = body;
     if (!name || price === undefined || totalQuantity === undefined) {
       throw new BadRequestException('Os campos name, price e totalQuantity são obrigatórios.');
     }
     if (price < 0 || totalQuantity < 0) {
       throw new BadRequestException('Preço e quantidade total devem ser maiores ou iguais a zero.');
     }
-    return this.eventsService.createBatch(eventId, { name, price, totalQuantity });
+    return this.eventsService.createBatch(eventId, { name, price, totalQuantity, sectorId, sectorName });
   }
 
   /**

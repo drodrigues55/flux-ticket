@@ -52,14 +52,14 @@ let EventsController = class EventsController {
      * Exige token JWT com role STAFF/ORGANIZER.
      */
     async createBatch(eventId, body) {
-        const { name, price, totalQuantity } = body;
+        const { name, price, totalQuantity, sectorId, sectorName } = body;
         if (!name || price === undefined || totalQuantity === undefined) {
             throw new common_1.BadRequestException('Os campos name, price e totalQuantity são obrigatórios.');
         }
         if (price < 0 || totalQuantity < 0) {
             throw new common_1.BadRequestException('Preço e quantidade total devem ser maiores ou iguais a zero.');
         }
-        return this.eventsService.createBatch(eventId, { name, price, totalQuantity });
+        return this.eventsService.createBatch(eventId, { name, price, totalQuantity, sectorId, sectorName });
     }
     /**
      * Rota para listagem de todos os lotes de um determinado evento.

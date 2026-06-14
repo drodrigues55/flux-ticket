@@ -64,6 +64,42 @@ let CheckoutController = class CheckoutController {
             throw new common_1.BadRequestException(error.message || 'Falha ao estender lock do ingresso.');
         }
     }
+    /**
+     * Endpoint de Reserva de Ingresso: Chamado na inicialização da página de checkout para garantir a reserva do lote.
+     */
+    async reserve(body) {
+        const { eventId, batchId, price, isHalfPrice = false } = body;
+        if (!eventId || !batchId || price === undefined) {
+            throw new common_1.BadRequestException('eventId, batchId e price são obrigatórios.');
+        }
+        // 1. Garantir que exista um usuário guest no banco de dados para a reserva
+        let user = await database_1.prisma.user.findUnique({
+            where: { email: 'guest@flux.com' },
+        });
+        if (!user) {
+            user = await database_1.prisma.user.create({
+                data: {
+                    email: 'guest@flux.com',
+                    password: 'guest-password-hash-123',
+                    name: 'Guest Buyer',
+                    role: 'USER',
+                },
+            });
+        }
+        // 2. Chamar o checkout do CheckoutService para criar a reserva no banco/Redis
+        const ticket = await this.checkoutService.checkout({
+            userId: user.id,
+            eventId,
+            batchId,
+            buyerCpf: '000.000.000-00', // Placeholder temporário a ser atualizado no pagamento
+            price,
+            isHalfPrice,
+        });
+        return {
+            ticketId: ticket.id,
+            userId: user.id,
+        };
+    }
 };
 exports.CheckoutController = CheckoutController;
 __decorate([
@@ -82,6 +118,13 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], CheckoutController.prototype, "renewLock", null);
+__decorate([
+    (0, common_1.Post)('tickets/reserve'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], CheckoutController.prototype, "reserve", null);
 exports.CheckoutController = CheckoutController = __decorate([
     (0, common_1.Controller)(),
     __metadata("design:paramtypes", [checkout_service_1.CheckoutService])

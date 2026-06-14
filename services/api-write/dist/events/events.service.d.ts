@@ -11,6 +11,7 @@ export declare class EventsService {
         description?: string;
         date: string;
         location: string;
+        categoryId?: number;
     }, organizerId: string): Promise<{
         id: string;
         createdAt: Date;
@@ -19,6 +20,7 @@ export declare class EventsService {
         description: string | null;
         date: Date;
         location: string;
+        categoryId: number | null;
         organizerId: string;
     }>;
     /**
@@ -32,6 +34,7 @@ export declare class EventsService {
         description: string | null;
         date: Date;
         location: string;
+        categoryId: number | null;
         organizerId: string;
     }[]>;
     /**
@@ -43,6 +46,8 @@ export declare class EventsService {
         name: string;
         price: number;
         totalQuantity: number;
+        sectorId?: number;
+        sectorName?: string;
     }): Promise<{
         id: string;
         price: import("@prisma/client/runtime/library").Decimal;
@@ -52,6 +57,8 @@ export declare class EventsService {
         eventId: string;
         totalQuantity: number;
         availableQuantity: number;
+        sectorId: number | null;
+        sectorName: string | null;
     }>;
     /**
      * Lista todos os lotes cadastrados para um determinado evento.
@@ -65,6 +72,8 @@ export declare class EventsService {
         eventId: string;
         totalQuantity: number;
         availableQuantity: number;
+        sectorId: number | null;
+        sectorName: string | null;
     }[]>;
 }
 //# sourceMappingURL=events.service.d.ts.map

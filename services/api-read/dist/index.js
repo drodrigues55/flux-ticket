@@ -11,15 +11,38 @@ app.use(express_1.default.json());
 // Catalog endpoint (read-only)
 app.get('/events', async (req, res) => {
     try {
+        const { categoryId } = req.query;
+        const where = categoryId
+            ? { categoryId: Number(categoryId) }
+            : {};
         const events = await database_1.prisma.event.findMany({
+            where,
             include: {
                 batches: true,
             },
+            orderBy: { date: 'asc' },
         });
         res.json(events);
     }
     catch (error) {
         res.status(500).json({ error: 'Failed to retrieve events catalog' });
+    }
+});
+app.get('/events/:id', async (req, res) => {
+    try {
+        const event = await database_1.prisma.event.findUnique({
+            where: { id: req.params.id },
+            include: {
+                batches: true,
+            },
+        });
+        if (!event) {
+            return res.status(404).json({ error: 'Event not found' });
+        }
+        res.json(event);
+    }
+    catch (error) {
+        res.status(500).json({ error: 'Failed to retrieve event' });
     }
 });
 const auth_middleware_1 = require("./auth-middleware");

@@ -30,6 +30,7 @@ let EventsService = EventsService_1 = class EventsService {
                 description: data.description,
                 date: new Date(data.date),
                 location: data.location,
+                categoryId: data.categoryId,
                 organizerId: organizerId,
             },
         });
@@ -63,6 +64,8 @@ let EventsService = EventsService_1 = class EventsService {
                 price: priceInCentavos,
                 totalQuantity: data.totalQuantity,
                 availableQuantity: data.totalQuantity,
+                sectorId: data.sectorId,
+                sectorName: data.sectorName || data.name,
             },
         });
         // 3. Inicialização de estoque no cache Redis

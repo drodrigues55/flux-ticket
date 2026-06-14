@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { Header } from '../components/header';
 import { EventCard } from '../components/EventCard';
@@ -19,11 +19,17 @@ export default function EventsCatalog() {
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
+  const eventsRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     async function loadEvents() {
+      setLoading(true);
       try {
-        const response = await fetch('/api/read/events');
+        const url = selectedCategory
+          ? `/api/read/events?categoryId=${selectedCategory}`
+          : '/api/read/events';
+        const response = await fetch(url);
         const data = await response.json();
         setEvents(data);
       } catch (err) {
@@ -33,7 +39,8 @@ export default function EventsCatalog() {
       }
     }
     loadEvents();
-  }, []);
+  }, [selectedCategory]);
+
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F8F9FA] font-sans antialiased text-slate-900">
@@ -72,18 +79,45 @@ export default function EventsCatalog() {
             </div>
 
             {/* CATEGORIES BADGES */}
-            <div className="flex flex-wrap gap-2.5 pt-2">
+            <div id="filtros-categoria" className="flex flex-wrap gap-2.5 pt-2">
               {[
-                { label: 'Shows', icon: <FaMusic className="text-[13px]" /> },
-                { label: 'Teatro', icon: <FaMasksTheater className="text-[13px]" /> },
-                { label: 'Esportes', icon: <FaFutbol className="text-[13px]" /> },
-                { label: 'Infantis', icon: <FaFaceSmile className="text-[13px]" /> },
-              ].map((cat, idx) => (
-                <button key={idx} className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-full text-xs font-semibold backdrop-blur-sm transition-all border border-white/10 cursor-pointer">
-                  {cat.icon}
-                  <span>{cat.label}</span>
-                </button>
-              ))}
+                { id: 1, label: 'Shows', icon: <FaMusic className="text-[13px]" /> },
+                { id: 2, label: 'Teatro', icon: <FaMasksTheater className="text-[13px]" /> },
+                { id: 3, label: 'Esportes', icon: <FaFutbol className="text-[13px]" /> },
+                { id: 4, label: 'Infantis', icon: <FaFaceSmile className="text-[13px]" /> },
+              ].map((cat) => {
+                const isActive = selectedCategory === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      const nextCategory = isActive ? null : cat.id;
+                      setSelectedCategory(nextCategory);
+                      
+                      const filtrosEl = document.getElementById('filtros-categoria');
+                      if (filtrosEl) {
+                        const rect = filtrosEl.getBoundingClientRect();
+                        // O header fixo tem aproximadamente 72px de altura.
+                        // Se os filtros não estiverem alinhados logo abaixo do header (tolerância de 10px),
+                        // rola a página para posicioná-los perfeitamente.
+                        if (Math.abs(rect.top - 72) > 10) {
+                          const targetY = window.pageYOffset + rect.top - 72;
+                          window.scrollTo({ top: targetY, behavior: 'smooth' });
+                        }
+                      }
+                    }}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold backdrop-blur-sm transition-all border cursor-pointer ${
+                      isActive
+                        ? 'bg-white text-[#6200EE] border-white shadow-md scale-105'
+                        : 'bg-white/10 hover:bg-white/20 text-white border-white/10'
+                    }`}
+                  >
+                    {cat.icon}
+                    <span>{cat.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -139,7 +173,7 @@ export default function EventsCatalog() {
       </div>
 
       {/* GRID DE EVENTOS */}
-      <main className="max-w-6xl mx-auto px-6 py-16 flex-grow w-full">
+      <main id="eventos" ref={eventsRef} className="max-w-6xl mx-auto px-6 py-16 flex-grow w-full min-h-[800px]">
         <h2 className="text-2xl font-extrabold text-slate-900 mb-8">Eventos em Destaque</h2>
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 space-y-3">
@@ -156,7 +190,7 @@ export default function EventsCatalog() {
                 location={event.location}
                 price={
                   event.batches && event.batches.length > 0
-                    ? `R$ ${(event.batches[0].price / 100).toFixed(2)}`
+                    ? `R$ ${Math.min(...event.batches.map((b: any) => Number(b.price))).toFixed(2).replace('.', ',')}`
                     : "Consultar"
                 }
                 onBuy={() => setSelectedEvent(event)}

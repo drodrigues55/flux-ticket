@@ -22,5 +22,17 @@ export declare class CheckoutController {
     }): Promise<{
         success: boolean;
     }>;
+    /**
+     * Endpoint de Reserva de Ingresso: Chamado na inicialização da página de checkout para garantir a reserva do lote.
+     */
+    reserve(body: {
+        eventId: string;
+        batchId: string;
+        price: number;
+        isHalfPrice?: boolean;
+    }): Promise<{
+        ticketId: string;
+        userId: string;
+    }>;
 }
 //# sourceMappingURL=checkout.controller.d.ts.map

@@ -13,12 +13,20 @@ interface InstallmentOption {
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { eventId, ticketId: queryTicketId, userId: queryUserId } = router.query;
+  const { eventId, ticketId: queryTicketId, userId: queryUserId, batchId: queryBatchId } = router.query;
 
-  // Fallbacks para permitir visualização direta ou testes
-  const ticketId = (queryTicketId as string) || 'mock-ticket-id';
-  const userId = (queryUserId as string) || 'mock-user-id';
-  const activeEventId = (eventId as string) || 'mock-event-id';
+  // Estados de Identidade da Reserva
+  const [ticketId, setTicketId] = useState<string>('');
+  const [userId, setUserId] = useState<string>('');
+
+  const activeEventId = (eventId as string) || '';
+  const activeBatchId = (queryBatchId as string) || '';
+
+  // Sincroniza parâmetros de query se disponíveis
+  useEffect(() => {
+    if (queryTicketId) setTicketId(queryTicketId as string);
+    if (queryUserId) setUserId(queryUserId as string);
+  }, [queryTicketId, queryUserId]);
 
   // Estados de Pagamento
   const [paymentStatus, setPaymentStatus] = useState<
@@ -36,8 +44,8 @@ export default function CheckoutPage() {
   const [cardCvc, setCardCvc] = useState('');
   const [issuerId, setIssuerId] = useState('visa');
   const [installments, setInstallments] = useState(1);
-  const [ticketPrice, setTicketPrice] = useState(100.0); // em reais (padrão)
-  const [eventTitle, setEventTitle] = useState('Mega Show Concorrente');
+  const [ticketPrice, setTicketPrice] = useState(100.0); // em reais (dinâmico)
+  const [eventTitle, setEventTitle] = useState('Carregando evento...');
 
   // Dados do PIX recebidos do MP
   const [pixCode, setPixCode] = useState('');
@@ -59,34 +67,67 @@ export default function CheckoutPage() {
     userId,
     ticketId,
     eventId: activeEventId,
+    batchId: activeBatchId,
     onExpired: handleLockExpired,
   });
 
   // Progresso do temporizador (180 segundos)
   const progressPercent = (timeLeft / 180) * 100;
 
-  // Carrega informações simuladas ou reais do ticket
+  // Carrega informações reais do evento, preço e cria a reserva no mount
   useEffect(() => {
-    if (!ticketId || ticketId === 'mock-ticket-id') {
-      calculateInstallments(100.0);
-      return;
-    }
+    if (!activeEventId || !activeBatchId) return;
 
-    const fetchTicketDetails = async () => {
+    const fetchDetailsAndReserve = async () => {
       try {
-        // Busca direto da API Next de eventos (ou simulado se falhar)
+        // 1. Busca detalhes do evento para preencher título e valor do lote
         const res = await fetch(`/api/events/${activeEventId}`);
-        if (res.ok) {
-          const data = await res.json();
-          setEventTitle(data.title);
+        if (!res.ok) {
+          throw new Error('Falha ao obter detalhes do evento.');
         }
-      } catch (err) {
-        console.error('Falha ao carregar detalhes do evento', err);
+        const data = await res.json();
+        setEventTitle(data.title);
+
+        const matchingBatch = data.batches?.find((b: any) => b.id === activeBatchId);
+        if (!matchingBatch) {
+          throw new Error('Lote não encontrado para este evento.');
+        }
+
+        const priceInReais = Number(matchingBatch.price) / 100;
+        setTicketPrice(priceInReais);
+        calculateInstallments(priceInReais);
+
+        // 2. Cria a reserva do ingresso no backend se não vier da URL
+        if (!queryTicketId && !ticketId) {
+          const reserveRes = await fetch('/api/tickets/reserve', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              eventId: activeEventId,
+              batchId: activeBatchId,
+              price: priceInReais,
+            }),
+          });
+
+          if (!reserveRes.ok) {
+            const errData = await reserveRes.json();
+            throw new Error(errData.message || 'Erro ao realizar a reserva de ingresso.');
+          }
+
+          const reserveData = await reserveRes.json();
+          setTicketId(reserveData.ticketId);
+          setUserId(reserveData.userId);
+        }
+      } catch (err: any) {
+        console.error('[CHECKOUT INITIALIZE ERROR]', err);
+        setErrorMessage(err.message || 'Erro ao inicializar página de pagamento.');
       }
     };
-    fetchTicketDetails();
-    calculateInstallments(100.0); // valor padrão base
-  }, [ticketId, activeEventId]);
+
+    fetchDetailsAndReserve();
+  }, [activeEventId, activeBatchId, queryTicketId, ticketId]);
 
   // Calcula opções de parcelamento com base no valor
   const calculateInstallments = (price: number) => {
@@ -153,6 +194,7 @@ export default function CheckoutPage() {
     try {
       let payload: any = {
         ticketId,
+        buyerCpf,
         paymentMethod: {
           method: paymentMethod,
         },
@@ -486,7 +528,7 @@ export default function CheckoutPage() {
                       type="submit"
                       variant="primary"
                       className="w-full py-3 hover:scale-[1.01] hover:shadow-[0_0_15px_rgba(0,229,255,0.3)] transition-all"
-                      disabled={paymentStatus === 'processing'}
+                      disabled={paymentStatus === 'processing' || !ticketId}
                     >
                       {paymentStatus === 'processing' ? (
                         <span className="flex items-center space-x-2">
@@ -496,8 +538,10 @@ export default function CheckoutPage() {
                           </svg>
                           Processando com Mercado Pago...
                         </span>
+                      ) : !ticketId ? (
+                        'Inicializando Reserva...'
                       ) : paymentMethod === 'pix' ? (
-                        'Gerar Código PIX e Reservar'
+                        'Gerar Código PIX e Pagar'
                       ) : (
                         `Pagar R$ ${ticketPrice.toFixed(2)} com Cartão`
                       )}

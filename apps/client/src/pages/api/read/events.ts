@@ -8,9 +8,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const apiReadUrl = process.env.API_READ_URL || 'http://localhost:3002';
-    const response = await fetch(`${apiReadUrl}/events`, {
-      method: 'GET',
-    });
+
+    // Forward query params (e.g. ?categoryId=1) to the upstream api-read service
+    const params = new URLSearchParams();
+    if (req.query.categoryId) {
+      params.set('categoryId', String(req.query.categoryId));
+    }
+    const queryString = params.toString();
+    const upstreamUrl = queryString
+      ? `${apiReadUrl}/events?${queryString}`
+      : `${apiReadUrl}/events`;
+
+    const response = await fetch(upstreamUrl, { method: 'GET' });
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -18,6 +27,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const data = await response.json();
+
+    // Prevent browser from caching filtered responses
+    res.setHeader('Cache-Control', 'no-store');
     return res.status(200).json(data);
   } catch (error: any) {
     console.error('[PROXY ERROR] Failed to fetch events from api-read:', error);

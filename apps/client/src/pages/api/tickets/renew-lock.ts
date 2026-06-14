@@ -6,10 +6,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { userId, ticketId } = req.body;
+  const { userId, ticketId, batchId } = req.body;
 
-  if (!userId || !ticketId) {
-    return res.status(400).json({ error: 'userId and ticketId are required' });
+  if (!userId || !ticketId || !batchId) {
+    return res.status(400).json({ error: 'userId, ticketId and batchId are required' });
   }
 
   try {
@@ -19,7 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ userId, ticketId }),
+      body: JSON.stringify({ userId, ticketId, batchId }),
     });
 
     const data = await response.json();

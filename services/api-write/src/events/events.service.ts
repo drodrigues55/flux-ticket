@@ -12,7 +12,7 @@ export class EventsService {
    * Cria um novo evento vinculando-o ao organizerId recebido do JWT.
    */
   async createEvent(
-    data: { title: string; description?: string; date: string; location: string },
+    data: { title: string; description?: string; date: string; location: string; categoryId?: number },
     organizerId: string
   ) {
     return prisma.event.create({
@@ -21,6 +21,7 @@ export class EventsService {
         description: data.description,
         date: new Date(data.date),
         location: data.location,
+        categoryId: data.categoryId,
         organizerId: organizerId,
       },
     });
@@ -47,7 +48,7 @@ export class EventsService {
    */
   async createBatch(
     eventId: string,
-    data: { name: string; price: number; totalQuantity: number }
+    data: { name: string; price: number; totalQuantity: number; sectorId?: number; sectorName?: string }
   ) {
     // 1. Converter preço para centavos inteiros
     const priceInCentavos = Math.round(data.price * 100);
@@ -60,6 +61,8 @@ export class EventsService {
         price: priceInCentavos,
         totalQuantity: data.totalQuantity,
         availableQuantity: data.totalQuantity,
+        sectorId: data.sectorId,
+        sectorName: data.sectorName || data.name,
       },
     });
 

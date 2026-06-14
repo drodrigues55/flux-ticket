@@ -63,4 +63,50 @@ export class CheckoutController {
       throw new BadRequestException(error.message || 'Falha ao estender lock do ingresso.');
     }
   }
+
+  /**
+   * Endpoint de Reserva de Ingresso: Chamado na inicialização da página de checkout para garantir a reserva do lote.
+   */
+  @Post('tickets/reserve')
+  async reserve(
+    @Body() body: { eventId: string; batchId: string; price: number; isHalfPrice?: boolean }
+  ) {
+    const { eventId, batchId, price, isHalfPrice = false } = body;
+    
+    if (!eventId || !batchId || price === undefined) {
+      throw new BadRequestException('eventId, batchId e price são obrigatórios.');
+    }
+    
+    // 1. Garantir que exista um usuário guest no banco de dados para a reserva
+    let user = await prisma.user.findUnique({
+      where: { email: 'guest@flux.com' },
+    });
+    
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          email: 'guest@flux.com',
+          password: 'guest-password-hash-123',
+          name: 'Guest Buyer',
+          role: 'USER',
+        },
+      });
+    }
+    
+    // 2. Chamar o checkout do CheckoutService para criar a reserva no banco/Redis
+    const ticket = await this.checkoutService.checkout({
+      userId: user.id,
+      eventId,
+      batchId,
+      buyerCpf: '000.000.000-00', // Placeholder temporário a ser atualizado no pagamento
+      price,
+      isHalfPrice,
+    });
+    
+    return {
+      ticketId: ticket.id,
+      userId: user.id,
+    };
+  }
 }
+

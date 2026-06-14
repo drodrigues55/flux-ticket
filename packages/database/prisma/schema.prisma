@@ -36,6 +36,7 @@ model Event {
   description String?
   date        DateTime
   location    String
+  categoryId  Int?
   organizerId String
   organizer   User          @relation("EventOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
   batches     TicketBatch[]
@@ -49,6 +50,8 @@ model TicketBatch {
   price             Decimal
   totalQuantity     Int
   availableQuantity Int
+  sectorId          Int?
+  sectorName        String?
   eventId           String
   event             Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   tickets           Ticket[]

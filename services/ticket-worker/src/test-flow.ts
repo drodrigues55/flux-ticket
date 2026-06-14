@@ -61,6 +61,8 @@ async function runTest() {
       price: 50.00,
       totalQuantity: 1,
       availableQuantity: 1, // Começa com 1
+      sectorId: 1,
+      sectorName: 'Lote Único Meia-Entrada',
       eventId: event.id,
     },
   });

@@ -11,6 +11,7 @@ export declare class EventsController {
         description?: string;
         date: string;
         location: string;
+        categoryId?: number;
     }, req: any): Promise<{
         id: string;
         createdAt: Date;
@@ -19,6 +20,7 @@ export declare class EventsController {
         description: string | null;
         date: Date;
         location: string;
+        categoryId: number | null;
         organizerId: string;
     }>;
     /**
@@ -33,6 +35,7 @@ export declare class EventsController {
         description: string | null;
         date: Date;
         location: string;
+        categoryId: number | null;
         organizerId: string;
     }[]>;
     /**
@@ -43,6 +46,8 @@ export declare class EventsController {
         name: string;
         price: number;
         totalQuantity: number;
+        sectorId?: number;
+        sectorName?: string;
     }): Promise<{
         id: string;
         price: import("@prisma/client/runtime/library").Decimal;
@@ -52,6 +57,8 @@ export declare class EventsController {
         eventId: string;
         totalQuantity: number;
         availableQuantity: number;
+        sectorId: number | null;
+        sectorName: string | null;
     }>;
     /**
      * Rota para listagem de todos os lotes de um determinado evento.
@@ -66,6 +73,8 @@ export declare class EventsController {
         eventId: string;
         totalQuantity: number;
         availableQuantity: number;
+        sectorId: number | null;
+        sectorName: string | null;
     }[]>;
 }
 //# sourceMappingURL=events.controller.d.ts.map

@@ -13,20 +13,21 @@ export declare const PaymentMethodCardSchema: z.ZodObject<{
     issuerId: z.ZodString;
     email: z.ZodString;
 }, "strip", z.ZodTypeAny, {
+    email: string;
     method: "credit_card";
     token: string;
     installments: number;
     issuerId: string;
-    email: string;
 }, {
+    email: string;
     method: "credit_card";
     token: string;
     installments: number;
     issuerId: string;
-    email: string;
 }>;
 export declare const CheckoutPaymentSchema: z.ZodObject<{
     ticketId: z.ZodString;
+    buyerCpf: z.ZodString;
     paymentMethod: z.ZodDiscriminatedUnion<"method", [z.ZodObject<{
         method: z.ZodLiteral<"pix">;
     }, "strip", z.ZodTypeAny, {
@@ -40,39 +41,41 @@ export declare const CheckoutPaymentSchema: z.ZodObject<{
         issuerId: z.ZodString;
         email: z.ZodString;
     }, "strip", z.ZodTypeAny, {
+        email: string;
         method: "credit_card";
         token: string;
         installments: number;
         issuerId: string;
-        email: string;
     }, {
+        email: string;
         method: "credit_card";
         token: string;
         installments: number;
         issuerId: string;
-        email: string;
     }>]>;
 }, "strip", z.ZodTypeAny, {
+    buyerCpf: string;
     ticketId: string;
     paymentMethod: {
         method: "pix";
     } | {
+        email: string;
         method: "credit_card";
         token: string;
         installments: number;
         issuerId: string;
-        email: string;
     };
 }, {
+    buyerCpf: string;
     ticketId: string;
     paymentMethod: {
         method: "pix";
     } | {
+        email: string;
         method: "credit_card";
         token: string;
         installments: number;
         issuerId: string;
-        email: string;
     };
 }>;
 export type CheckoutPaymentDto = z.infer<typeof CheckoutPaymentSchema>;

@@ -4,6 +4,7 @@ export interface UseTicketLockOptions {
   userId: string;
   ticketId: string;
   eventId: string;
+  batchId: string; // Lote do ingresso necessário para a chave de lock no Redis
   onExpired: () => void;
 }
 
@@ -11,7 +12,7 @@ export interface UseTicketLockOptions {
  * Hook customizado para gerenciar a contagem regressiva do ingresso e disparar
  * renovações periódicas (heartbeats) para evitar que o lock expire no Redis.
  */
-export function useTicketLock({ userId, ticketId, eventId, onExpired }: UseTicketLockOptions) {
+export function useTicketLock({ userId, ticketId, eventId, batchId, onExpired }: UseTicketLockOptions) {
   const [timeLeft, setTimeLeft] = useState(180); // 3 minutos em segundos
   const onExpiredRef = useRef(onExpired);
 
@@ -35,6 +36,9 @@ export function useTicketLock({ userId, ticketId, eventId, onExpired }: UseTicke
 
   // Heartbeat de renovação a cada 50 segundos
   useEffect(() => {
+    // Evita heartbeats se a reserva real ainda não tiver sido criada no mount
+    if (!userId || !ticketId || !batchId || ticketId === 'mock-ticket-id') return;
+
     const renewLock = async () => {
       try {
         const response = await fetch('/api/tickets/renew-lock', {
@@ -42,7 +46,7 @@ export function useTicketLock({ userId, ticketId, eventId, onExpired }: UseTicke
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ userId, ticketId }),
+          body: JSON.stringify({ userId, ticketId, batchId }),
         });
 
         if (!response.ok) {
@@ -67,7 +71,7 @@ export function useTicketLock({ userId, ticketId, eventId, onExpired }: UseTicke
     const heartbeatInterval = setInterval(renewLock, 50 * 1000);
 
     return () => clearInterval(heartbeatInterval);
-  }, [userId, ticketId]);
+  }, [userId, ticketId, batchId]);
 
   return {
     timeLeft,

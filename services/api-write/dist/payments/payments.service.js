@@ -125,6 +125,12 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
         if (ticket.expiresAt.getTime() < Date.now()) {
             throw new common_1.BadRequestException('Sua reserva expirou e o ingresso foi liberado de volta ao estoque.');
         }
+        // 1.5. Atualiza o CPF temporário com o CPF real inserido no formulário de pagamento
+        await database_1.prisma.ticket.update({
+            where: { id: ticket.id },
+            data: { buyerCpf: dto.buyerCpf },
+        });
+        ticket.buyerCpf = dto.buyerCpf;
         // 2. Calcula o valor em reais (o banco guarda em centavos inteiros)
         const amount = Number(ticket.price) / 100;
         let mpStatus = 'approved';

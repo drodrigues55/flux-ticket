@@ -83,6 +83,8 @@ async function runStressTest() {
       price: 100.00,
       totalQuantity: totalTickets,
       availableQuantity: totalTickets,
+      sectorId: 1,
+      sectorName: 'Lote de Ingressos Concorrente',
       eventId: event.id,
     },
   });

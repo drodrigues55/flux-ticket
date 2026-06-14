@@ -3,20 +3,19 @@ import {
   FaCalendarDays,
   FaClock,
   FaLocationDot,
-  FaCreditCard,
-  FaShieldHalved,
-  FaTicket,
-  FaHeadset,
   FaXmark,
   FaShareNodes,
   FaChevronDown,
-  FaChevronUp
+  FaChevronUp,
+  FaArrowUpRightFromSquare
 } from 'react-icons/fa6';
 
 interface Batch {
   id: string;
   name: string;
-  price: number; // in cents
+  price: number; // in cents or normal decimals depending on DB serialization
+  sectorId?: number;
+  sectorName?: string;
 }
 
 interface EventData {
@@ -39,7 +38,7 @@ interface EventPopupProps {
 export function EventPopup({ isOpen, onClose, event, onBuy }: EventPopupProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const [showFullDesc, setShowFullDesc] = useState(false);
-  const [selectedSector, setSelectedSector] = useState<'PREMIUM' | 'VIP' | 'SUPERIOR'>('PREMIUM');
+  const [selectedSectorId, setSelectedSectorId] = useState<number>(3); // Default to Premium (ID 3)
 
   // Handle click outside
   useEffect(() => {
@@ -97,20 +96,39 @@ export function EventPopup({ isOpen, onClose, event, onBuy }: EventPopupProps) {
 
   const displayImage = event.image || "https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&q=80&w=800";
 
-  // Check pricing
-  const minPrice = 110;
-  const maxPrice = 320;
+  // Dynamically resolve sector prices from event.batches if available
+  const getSectorPrice = (sectorId: number, fallbackPrice: string) => {
+    if (event.batches && event.batches.length > 0) {
+      const matchingBatch = event.batches.find(b => b.sectorId === sectorId);
+      if (matchingBatch) {
+        return `R$ ${Number(matchingBatch.price).toFixed(2).replace('.', ',')}`;
+      }
+      const minPrice = Math.min(...event.batches.map(b => Number(b.price)));
+      return `R$ ${minPrice.toFixed(2).replace('.', ',')}`;
+    }
+    return fallbackPrice;
+  };
+
+  const getSectorName = (sectorId: number, fallbackName: string) => {
+    if (event.batches && event.batches.length > 0) {
+      const matchingBatch = event.batches.find(b => b.sectorId === sectorId);
+      if (matchingBatch && matchingBatch.sectorName) {
+        return matchingBatch.sectorName.toUpperCase();
+      }
+    }
+    return fallbackName;
+  };
 
   // Selected Sector details
-  const sectorPrices = {
-    PREMIUM: { range: 'R$ 160,00 e R$ 320,00', color: '#3B82F6' },
-    VIP: { range: 'R$ 140,00 e R$ 280,00', color: '#EF4444' },
-    SUPERIOR: { range: 'R$ 110,00 e R$ 220,00', color: '#A855F7' }
+  const sectorPrices: Record<number, { name: string; price: string; textColor: string }> = {
+    3: { name: getSectorName(3, 'PLATEIA PREMIUM'), price: getSectorPrice(3, 'R$ 160,00'), textColor: 'text-blue-600' },
+    2: { name: getSectorName(2, 'PLATEIA VIP'), price: getSectorPrice(2, 'R$ 140,00'), textColor: 'text-red-600' },
+    1: { name: getSectorName(1, 'PLATEIA SUPERIOR'), price: getSectorPrice(1, 'R$ 110,00'), textColor: 'text-purple-600' }
   };
 
   const handleBuyClick = () => {
     // If dynamic batches are available, pick the matching one or first
-    const selectedBatch = event.batches?.find(b => b.name.toUpperCase().includes(selectedSector));
+    const selectedBatch = event.batches?.find(b => b.sectorId === selectedSectorId) || event.batches?.[0];
     onBuy(event.id, selectedBatch?.id);
   };
 
@@ -145,7 +163,7 @@ export function EventPopup({ isOpen, onClose, event, onBuy }: EventPopupProps) {
 
                 <div className="flex flex-col md:flex-row md:items-start gap-5 pt-1">
                   {/* Date */}
-                  <div className="flex items-start gap-2 text-xs.5 text-slate-300">
+                  <div className="flex items-start gap-2 text-sm text-slate-300">
                     <FaCalendarDays className="w-3.5 h-3.5 text-purple-400 shrink-0 mt-0.5" />
                     <div>
                       <span className="font-semibold block whitespace-nowrap">{displayDateStr}</span>
@@ -154,7 +172,7 @@ export function EventPopup({ isOpen, onClose, event, onBuy }: EventPopupProps) {
                   </div>
 
                   {/* Time */}
-                  <div className="flex items-start gap-2 text-xs.5 text-slate-300">
+                  <div className="flex items-start gap-2 text-sm text-slate-300">
                     <FaClock className="w-3.5 h-3.5 text-purple-400 shrink-0 mt-0.5" />
                     <div>
                       <span className="font-semibold block whitespace-nowrap">{displayTime}</span>
@@ -163,13 +181,21 @@ export function EventPopup({ isOpen, onClose, event, onBuy }: EventPopupProps) {
                   </div>
 
                   {/* Location */}
-                  <div className="flex items-start gap-2 text-xs.5 text-slate-300">
-                    <FaLocationDot className="w-3.5 h-3.5 text-purple-400 shrink-0 mt-0.5" />
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(displayLocation + ', ' + displayAddress)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-start gap-2 text-sm text-slate-300 hover:text-white transition-colors group cursor-pointer"
+                  >
+                    <FaLocationDot className="w-3.5 h-3.5 text-purple-400 shrink-0 mt-0.5 group-hover:text-purple-300 transition-colors" />
                     <div>
-                      <span className="font-semibold block whitespace-nowrap">{displayLocation}</span>
-                      <span className="text-[10px] text-slate-400 block leading-tight">{displayAddress}</span>
+                      <span className="font-semibold flex items-center gap-1.5 leading-tight">
+                        {displayLocation}
+                        <FaArrowUpRightFromSquare className="w-2.5 h-2.5 opacity-60 group-hover:opacity-100 transition-all" />
+                      </span>
+                      <span className="text-[10px] text-slate-400 block leading-tight group-hover:text-slate-300 transition-colors">{displayAddress}</span>
                     </div>
-                  </div>
+                  </a>
                 </div>
 
                 <div className="flex flex-wrap gap-2 pt-2">
@@ -191,7 +217,6 @@ export function EventPopup({ isOpen, onClose, event, onBuy }: EventPopupProps) {
               {/* Right Header banner image */}
               <div className="lg:col-span-5 flex flex-col items-center">
                 <div className="relative rounded-xl overflow-hidden aspect-[16/9] w-full max-w-[280px] shadow-lg border border-white/10">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={displayImage}
                     alt={displayTitle}
@@ -211,7 +236,7 @@ export function EventPopup({ isOpen, onClose, event, onBuy }: EventPopupProps) {
             {/* Grid: Description & Quick Checkout */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               {/* Description */}
-              <div className="lg:col-span-8 bg-white p-5 rounded-2xl border border-neutral-200/50 shadow-sm space-y-3.5 flex flex-col justify-between">
+              <div className="lg:col-span-8 bg-white p-5 rounded-2xl border border-neutral-200/50 shadow-sm flex flex-col justify-between min-h-[160px]">
                 <div className="space-y-2">
                   <h3 className="text-base font-bold text-slate-900">Descrição do evento</h3>
                   <div className="text-sm text-slate-600 space-y-2 whitespace-pre-line leading-relaxed">
@@ -220,7 +245,7 @@ export function EventPopup({ isOpen, onClose, event, onBuy }: EventPopupProps) {
                 </div>
                 <button
                   onClick={() => setShowFullDesc(!showFullDesc)}
-                  className="text-blue-600 hover:text-blue-800 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors mt-2"
+                  className="text-blue-600 hover:text-blue-800 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors mt-2 w-fit"
                 >
                   {showFullDesc ? (
                     <>Ver menos <FaChevronUp className="w-3 h-3" /></>
@@ -231,23 +256,27 @@ export function EventPopup({ isOpen, onClose, event, onBuy }: EventPopupProps) {
               </div>
 
               {/* Price Box */}
-              <div className="lg:col-span-4 bg-white p-5 rounded-2xl border border-neutral-200/50 shadow-sm flex flex-col justify-between">
+              <div className="lg:col-span-4 bg-white p-5 rounded-2xl border border-neutral-200/50 shadow-sm flex flex-col justify-between min-h-[160px]">
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-slate-500 text-xs font-semibold">
-                    <FaTicket className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>PREÇO DOS INGRESSOS</span>
+                  <div className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">
+                    Setor Selecionado
                   </div>
-                  <h4 className="text-sm font-bold text-slate-700 leading-normal">
-                    R$ {minPrice.toFixed(2).replace('.', ',')} e R$ {maxPrice.toFixed(2).replace('.', ',')}
+                  <h4 className="text-base font-extrabold text-slate-800 leading-tight">
+                    {sectorPrices[selectedSectorId].name}
                   </h4>
-                  <p className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded w-fit">
-                    Parcele em até 4x
-                  </p>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className={`text-2xl font-black ${sectorPrices[selectedSectorId].textColor}`}>
+                      {sectorPrices[selectedSectorId].price}
+                    </span>
+                  </div>
+                  <div className="inline-flex items-center gap-1.5 text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded w-fit">
+                    Parcele em até 4x sem juros
+                  </div>
                 </div>
 
                 <button
                   onClick={handleBuyClick}
-                  className="bg-[#4CAF50] hover:bg-[#43A047] text-white w-full py-3 rounded-xl font-bold transition-all shadow-md hover:shadow-lg active:scale-[0.98] mt-4 text-sm cursor-pointer"
+                  className="bg-[#4CAF50] hover:bg-[#43A047] text-white w-full py-2.5 rounded-xl font-bold transition-all shadow-md hover:shadow-lg active:scale-[0.98] text-sm cursor-pointer mt-3"
                 >
                   Comprar ingressos
                 </button>
@@ -262,78 +291,110 @@ export function EventPopup({ isOpen, onClose, event, onBuy }: EventPopupProps) {
                 {/* Sector selector buttons */}
                 <div className="md:col-span-5 space-y-3.5">
                   {[
-                    { id: 'PREMIUM' as const, label: 'PLATEIA PREMIUM', priceRange: 'R$ 160,00 e R$ 320,00', border: 'border-blue-500', activeBg: 'bg-blue-50/20' },
-                    { id: 'VIP' as const, label: 'PLATEIA VIP', priceRange: 'R$ 140,00 e R$ 280,00', border: 'border-red-500', activeBg: 'bg-red-50/20' },
-                    { id: 'SUPERIOR' as const, label: 'PLATEIA SUPERIOR', priceRange: 'R$ 110,00 e R$ 220,00', border: 'border-purple-500', activeBg: 'bg-purple-50/20' }
+                    { id: 3, label: sectorPrices[3].name, border: 'border-blue-500', activeBg: 'bg-blue-50/20' },
+                    { id: 2, label: sectorPrices[2].name, border: 'border-red-500', activeBg: 'bg-red-50/20' },
+                    { id: 1, label: sectorPrices[1].name, border: 'border-purple-500', activeBg: 'bg-purple-50/20' }
                   ].map(sector => (
                     <div
                       key={sector.id}
-                      onClick={() => setSelectedSector(sector.id)}
-                      className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex items-center justify-between ${selectedSector === sector.id
+                      onClick={() => setSelectedSectorId(sector.id)}
+                      className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex items-center justify-between ${selectedSectorId === sector.id
                         ? `${sector.border} ${sector.activeBg} shadow-sm`
                         : 'border-slate-200 hover:border-slate-300'
                         }`}
                     >
                       <div className="space-y-1">
                         <span className="font-bold text-sm text-slate-900 block">{sector.label}</span>
-                        <span className="text-xs text-slate-500 block">Preços entre {sector.priceRange}</span>
+                        <span className="text-xs text-slate-500 block">Preço: {sectorPrices[sector.id].price}</span>
                         <span className="text-[10px] text-emerald-600 font-bold block">Pague em até 12x</span>
                       </div>
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${selectedSector === sector.id ? 'border-blue-600' : 'border-slate-300'
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${selectedSectorId === sector.id ? 'border-blue-600' : 'border-slate-300'
                         }`}>
-                        {selectedSector === sector.id && (
-                          <div className="w-2.5 h-2.5 rounded-full bg-blue-600" />
-                        )}
                       </div>
                     </div>
                   ))}
                 </div>
 
                 {/* Seating Map SVG */}
-                <div className="md:col-span-7 flex justify-center bg-slate-50/50 p-4 rounded-2xl border border-dashed border-slate-200">
-                  <svg viewBox="0 0 400 240" className="w-full max-w-sm h-auto drop-shadow-md">
+                <div className="md:col-span-7 flex justify-center bg-slate-50 p-6 rounded-2xl border border-dashed border-slate-200">
+                  <svg viewBox="0 0 400 240" className="w-full max-w-sm h-auto drop-shadow-md overflow-visible">
                     {/* Stage */}
-                    <rect x="130" y="10" width="140" height="25" rx="4" fill="#E2E8F0" stroke="#CBD5E1" strokeWidth="1.5" />
-                    <text x="200" y="26" textAnchor="middle" fontSize="10" fontWeight="bold" fill="#64748B" letterSpacing="1">PALCO</text>
+                    <rect x="130" y="10" width="140" height="25" rx="6" fill="#1E293B" stroke="#0F172A" strokeWidth="1.5" />
+                    <text x="200" y="26" textAnchor="middle" fontSize="10" fontWeight="bold" fill="#F8FAFC" letterSpacing="1.5">PALCO</text>
 
                     {/* Plateia Premium */}
                     <path
                       d="M 90 90 A 240 240 0 0 1 310 90 L 325 55 A 280 280 0 0 0 75 55 Z"
-                      fill={selectedSector === 'PREMIUM' ? '#60A5FA' : '#93C5FD/40'}
-                      stroke={selectedSector === 'PREMIUM' ? '#2563EB' : '#93C5FD/70'}
-                      strokeWidth="1.5"
-                      className="cursor-pointer transition-all duration-300"
-                      onClick={() => setSelectedSector('PREMIUM')}
+                      fill="#3B82F6"
+                      fillOpacity={selectedSectorId === 3 ? '0.85' : '0.15'}
+                      stroke="#3B82F6"
+                      strokeWidth={selectedSectorId === 3 ? '3' : '1.5'}
+                      strokeDasharray={selectedSectorId === 3 ? '0' : '3 3'}
+                      className="cursor-pointer transition-all duration-300 hover:fill-opacity-40 hover:scale-[1.01] origin-center"
+                      onClick={() => setSelectedSectorId(3)}
                     />
-                    <text x="200" y="76" textAnchor="middle" fontSize="9" fontWeight="bold" fill={selectedSector === 'PREMIUM' ? '#1E3A8A' : '#1E3A8A/50'} className="pointer-events-none">PLATEIA PREMIUM</text>
+                    <text
+                      x="200"
+                      y="76"
+                      textAnchor="middle"
+                      fontSize="9"
+                      fontWeight="bold"
+                      fill={selectedSectorId === 3 ? '#FFFFFF' : '#1E40AF'}
+                      className="pointer-events-none transition-colors duration-300"
+                    >
+                      {sectorPrices[3].name}
+                    </text>
 
                     {/* Plateia VIP */}
                     <path
                       d="M 75 145 A 280 280 0 0 1 325 145 L 340 100 A 320 320 0 0 0 60 100 Z"
-                      fill={selectedSector === 'VIP' ? '#F87171' : '#FCA5A5/40'}
-                      stroke={selectedSector === 'VIP' ? '#DC2626' : '#FCA5A5/70'}
-                      strokeWidth="1.5"
-                      className="cursor-pointer transition-all duration-300"
-                      onClick={() => setSelectedSector('VIP')}
+                      fill="#EF4444"
+                      fillOpacity={selectedSectorId === 2 ? '0.85' : '0.15'}
+                      stroke="#EF4444"
+                      strokeWidth={selectedSectorId === 2 ? '3' : '1.5'}
+                      strokeDasharray={selectedSectorId === 2 ? '0' : '3 3'}
+                      className="cursor-pointer transition-all duration-300 hover:fill-opacity-40 hover:scale-[1.01] origin-center"
+                      onClick={() => setSelectedSectorId(2)}
                     />
-                    <text x="200" y="126" textAnchor="middle" fontSize="9" fontWeight="bold" fill={selectedSector === 'VIP' ? '#7F1D1D' : '#7F1D1D/50'} className="pointer-events-none">PLATEIA VIP</text>
+                    <text
+                      x="200"
+                      y="126"
+                      textAnchor="middle"
+                      fontSize="9"
+                      fontWeight="bold"
+                      fill={selectedSectorId === 2 ? '#FFFFFF' : '#991B1B'}
+                      className="pointer-events-none transition-colors duration-300"
+                    >
+                      {sectorPrices[2].name}
+                    </text>
 
                     {/* Plateia Superior */}
                     <path
                       d="M 60 200 A 320 320 0 0 1 340 200 L 355 155 A 360 360 0 0 0 45 155 Z"
-                      fill={selectedSector === 'SUPERIOR' ? '#C084FC' : '#E9D5FF/40'}
-                      stroke={selectedSector === 'SUPERIOR' ? '#9333EA' : '#E9D5FF/70'}
-                      strokeWidth="1.5"
-                      className="cursor-pointer transition-all duration-300"
-                      onClick={() => setSelectedSector('SUPERIOR')}
+                      fill="#A855F7"
+                      fillOpacity={selectedSectorId === 1 ? '0.85' : '0.15'}
+                      stroke="#A855F7"
+                      strokeWidth={selectedSectorId === 1 ? '3' : '1.5'}
+                      strokeDasharray={selectedSectorId === 1 ? '0' : '3 3'}
+                      className="cursor-pointer transition-all duration-300 hover:fill-opacity-40 hover:scale-[1.01] origin-center"
+                      onClick={() => setSelectedSectorId(1)}
                     />
-                    <text x="200" y="181" textAnchor="middle" fontSize="9" fontWeight="bold" fill={selectedSector === 'SUPERIOR' ? '#581C87' : '#581C87/50'} className="pointer-events-none">PLATEIA SUPERIOR</text>
+                    <text
+                      x="200"
+                      y="181"
+                      textAnchor="middle"
+                      fontSize="9"
+                      fontWeight="bold"
+                      fill={selectedSectorId === 1 ? '#FFFFFF' : '#6B21A8'}
+                      className="pointer-events-none transition-colors duration-300"
+                    >
+                      {sectorPrices[1].name}
+                    </text>
                   </svg>
                 </div>
               </div>
             </div>
           </div>
-
         </div>
       </div>
     </div>

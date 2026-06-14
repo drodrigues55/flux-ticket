@@ -49,6 +49,8 @@ async function runCryptoTest() {
             price: 150.00,
             totalQuantity: 5,
             availableQuantity: 5,
+            sectorId: 1,
+            sectorName: 'Lote VIP Cripto',
             eventId: event.id,
         },
     });
