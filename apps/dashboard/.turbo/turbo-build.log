@@ -26,11 +26,11 @@ Route (pages)                             Size     First Load JS
 ├ ○ /events                               3.41 kB        85.8 kB
 ├ ○ /events/[eventId]                     3.63 kB          86 kB
 ├ ○ /events/[eventId]/batches/new         3.69 kB        86.1 kB
-└ ○ /events/new                           3.27 kB        85.7 kB
-+ First Load JS shared by all             80.1 kB
+└ ○ /events/new (315 ms)                  3.27 kB        85.7 kB
++ First Load JS shared by all             84.3 kB
   ├ chunks/framework-e82a91356956e6c8.js  44.8 kB
   ├ chunks/main-ebe18a874d1c2ea2.js       34 kB
-  └ other shared chunks (total)           1.26 kB
+  └ other shared chunks (total)           5.48 kB
 
 ○  (Static)   prerendered as static content
 ƒ  (Dynamic)  server-rendered on demand

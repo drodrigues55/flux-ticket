@@ -23,11 +23,11 @@ Route (pages)                             Size     First Load JS
 ├ ƒ /api/payments/checkout                0 B            79.9 kB
 ├ ƒ /api/read/events                      0 B            79.9 kB
 ├ ƒ /api/tickets/renew-lock               0 B            79.9 kB
-└ ○ /checkout/[eventId]                   6.33 kB        86.2 kB
-+ First Load JS shared by all             80.2 kB
+└ ○ /checkout/[eventId] (312 ms)          6.33 kB        86.2 kB
++ First Load JS shared by all             85 kB
   ├ chunks/framework-e82a91356956e6c8.js  44.8 kB
   ├ chunks/main-ebe18a874d1c2ea2.js       34 kB
-  └ other shared chunks (total)           1.37 kB
+  └ other shared chunks (total)           6.12 kB
 
 ○  (Static)   prerendered as static content
 ƒ  (Dynamic)  server-rendered on demand

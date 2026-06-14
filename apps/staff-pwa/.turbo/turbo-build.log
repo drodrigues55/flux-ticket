@@ -19,10 +19,10 @@ Route (pages)                             Size     First Load JS
 ├ ○ /404                                  180 B          80.3 kB
 ├ ƒ /api/events/[id]/staff-mutation       0 B            80.1 kB
 └ ƒ /api/events/[id]/staff-sync           0 B            80.1 kB
-+ First Load JS shared by all             80.4 kB
++ First Load JS shared by all             84.5 kB
   ├ chunks/framework-e82a91356956e6c8.js  44.8 kB
   ├ chunks/main-ebe18a874d1c2ea2.js       34 kB
-  └ other shared chunks (total)           1.58 kB
+  └ other shared chunks (total)           5.64 kB
 
 ○  (Static)   prerendered as static content
 ƒ  (Dynamic)  server-rendered on demand
