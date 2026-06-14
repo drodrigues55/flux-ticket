@@ -38,7 +38,7 @@ interface EventPopupProps {
 export function EventPopup({ isOpen, onClose, event, onBuy }: EventPopupProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const [showFullDesc, setShowFullDesc] = useState(false);
-  const [selectedSectorId, setSelectedSectorId] = useState<number>(3); // Default to Premium (ID 3)
+  const [selectedSectorId, setSelectedSectorId] = useState<number | null>(null);
 
   // Handle click outside
   useEffect(() => {
@@ -119,17 +119,20 @@ export function EventPopup({ isOpen, onClose, event, onBuy }: EventPopupProps) {
     return fallbackName;
   };
 
-  // Selected Sector details
   const sectorPrices: Record<number, { name: string; price: string; textColor: string }> = {
     3: { name: getSectorName(3, 'PLATEIA PREMIUM'), price: getSectorPrice(3, 'R$ 160,00'), textColor: 'text-blue-600' },
     2: { name: getSectorName(2, 'PLATEIA VIP'), price: getSectorPrice(2, 'R$ 140,00'), textColor: 'text-red-600' },
     1: { name: getSectorName(1, 'PLATEIA SUPERIOR'), price: getSectorPrice(1, 'R$ 110,00'), textColor: 'text-purple-600' }
   };
 
+  const selectedSector = selectedSectorId !== null ? sectorPrices[selectedSectorId] : null;
+
   const handleBuyClick = () => {
-    // If dynamic batches are available, pick the matching one or first
-    const selectedBatch = event.batches?.find(b => b.sectorId === selectedSectorId) || event.batches?.[0];
-    onBuy(event.id, selectedBatch?.id);
+    if (selectedSectorId === null) return;
+    const selectedBatch = event.batches?.find(b => b.sectorId === selectedSectorId);
+    if (selectedBatch) {
+      onBuy(event.id, selectedBatch.id);
+    }
   };
 
   return (
@@ -262,11 +265,11 @@ export function EventPopup({ isOpen, onClose, event, onBuy }: EventPopupProps) {
                     Setor Selecionado
                   </div>
                   <h4 className="text-base font-extrabold text-slate-800 leading-tight">
-                    {sectorPrices[selectedSectorId].name}
+                    {selectedSector ? selectedSector.name : 'Nenhum selecionado'}
                   </h4>
                   <div className="flex items-baseline gap-1.5">
-                    <span className={`text-2xl font-black ${sectorPrices[selectedSectorId].textColor}`}>
-                      {sectorPrices[selectedSectorId].price}
+                    <span className={`text-2xl font-black ${selectedSector ? selectedSector.textColor : 'text-slate-400'}`}>
+                      {selectedSector ? selectedSector.price : `A partir de ${getSectorPrice(1, 'R$ 110,00')}`}
                     </span>
                   </div>
                   <div className="inline-flex items-center gap-1.5 text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded w-fit">
@@ -276,9 +279,14 @@ export function EventPopup({ isOpen, onClose, event, onBuy }: EventPopupProps) {
 
                 <button
                   onClick={handleBuyClick}
-                  className="bg-[#4CAF50] hover:bg-[#43A047] text-white w-full py-2.5 rounded-xl font-bold transition-all shadow-md hover:shadow-lg active:scale-[0.98] text-sm cursor-pointer mt-3"
+                  disabled={selectedSectorId === null}
+                  className={`w-full py-2.5 rounded-xl font-bold transition-all text-sm block text-center mt-3 ${
+                    selectedSectorId === null
+                      ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed border border-transparent shadow-none'
+                      : 'bg-[#2E7D32] hover:bg-[#1b5e20] text-white cursor-pointer hover:shadow-lg shadow-emerald-600/30 border border-transparent active:scale-[0.98]'
+                  }`}
                 >
-                  Comprar ingressos
+                  {selectedSectorId === null ? 'Selecione um setor abaixo' : 'Comprar ingressos'}
                 </button>
               </div>
             </div>
@@ -289,35 +297,41 @@ export function EventPopup({ isOpen, onClose, event, onBuy }: EventPopupProps) {
 
               <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
                 {/* Sector selector buttons */}
-                <div className="md:col-span-5 space-y-3.5">
+                <div className="md:col-span-5 space-y-2.5">
                   {[
-                    { id: 3, label: sectorPrices[3].name, border: 'border-blue-500', activeBg: 'bg-blue-50/20' },
-                    { id: 2, label: sectorPrices[2].name, border: 'border-red-500', activeBg: 'bg-red-50/20' },
-                    { id: 1, label: sectorPrices[1].name, border: 'border-purple-500', activeBg: 'bg-purple-50/20' }
+                    { id: 3, label: sectorPrices[3].name, border: 'border-blue-500', text: 'text-blue-600', dot: 'bg-blue-600', activeBg: 'bg-blue-50/30' },
+                    { id: 2, label: sectorPrices[2].name, border: 'border-red-500', text: 'text-red-600', dot: 'bg-red-600', activeBg: 'bg-red-50/30' },
+                    { id: 1, label: sectorPrices[1].name, border: 'border-purple-500', text: 'text-purple-600', dot: 'bg-purple-600', activeBg: 'bg-purple-50/30' }
                   ].map(sector => (
                     <div
                       key={sector.id}
                       onClick={() => setSelectedSectorId(sector.id)}
-                      className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex items-center justify-between ${selectedSectorId === sector.id
-                        ? `${sector.border} ${sector.activeBg} shadow-sm`
-                        : 'border-slate-200 hover:border-slate-300'
-                        }`}
+                      className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex items-center justify-between ${
+                        selectedSectorId === sector.id
+                          ? `${sector.border} ${sector.activeBg} shadow-sm`
+                          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
+                      }`}
                     >
                       <div className="space-y-1">
-                        <span className="font-bold text-sm text-slate-900 block">{sector.label}</span>
-                        <span className="text-xs text-slate-500 block">Preço: {sectorPrices[sector.id].price}</span>
-                        <span className="text-[10px] text-emerald-600 font-bold block">Pague em até 12x</span>
-                      </div>
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${selectedSectorId === sector.id
-                        ? `${sector.border}`
-                        : 'border-slate-300'
+                        <span className="font-bold text-xs uppercase tracking-wider text-slate-400 block">
+                          {sector.label}
+                        </span>
+                        <span className={`text-xl font-extrabold block leading-tight transition-colors ${
+                          selectedSectorId === sector.id ? sector.text : 'text-slate-900'
                         }`}>
+                          {sectorPrices[sector.id].price}
+                        </span>
+                        <span className="text-[10px] text-emerald-600 font-bold block">
+                          Pague em até 12x
+                        </span>
+                      </div>
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                        selectedSectorId === sector.id
+                          ? `${sector.border} bg-white`
+                          : 'border-slate-300 bg-white'
+                      }`}>
                         {selectedSectorId === sector.id && (
-                          <div className={`w-2.5 h-2.5 rounded-full ${
-                            sector.id === 3 ? 'bg-blue-500' :
-                            sector.id === 2 ? 'bg-red-500' :
-                            'bg-purple-500'
-                          }`} />
+                          <div className={`w-2.5 h-2.5 rounded-full ${sector.dot}`} />
                         )}
                       </div>
                     </div>

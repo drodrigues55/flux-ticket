@@ -41,6 +41,33 @@ export default function EventsCatalog() {
     loadEvents();
   }, [selectedCategory]);
 
+  // Abre o popup do evento correspondente se o eventId vier na query string
+  useEffect(() => {
+    if (!router.isReady) return;
+    const { eventId } = router.query;
+    if (eventId) {
+      // Tenta encontrar o evento localmente na lista já carregada para abrir instantaneamente
+      const localEvent = events.find(e => e.id === eventId);
+      if (localEvent) {
+        setSelectedEvent(localEvent);
+      } else if (!loading) {
+        // Se não achou na lista e já terminou o loading, busca via API como fallback
+        async function loadSpecificEvent() {
+          try {
+            const res = await fetch(`/api/events/${eventId}`);
+            if (res.ok) {
+              const data = await res.json();
+              setSelectedEvent(data);
+            }
+          } catch (err) {
+            console.error('[LOAD SPECIFIC EVENT ERROR]', err);
+          }
+        }
+        loadSpecificEvent();
+      }
+    }
+  }, [router.isReady, router.query, events, loading]);
+
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F8F9FA] font-sans antialiased text-slate-900">

@@ -4,9 +4,5 @@
   "/_document": "pages/_document.js",
   "/checkout/[eventId]": "pages/checkout/[eventId].js",
   "/": "pages/index.js",
-  "/api/events/[id]": "pages/api/events/[id].js",
-  "/api/payments/checkout": "pages/api/payments/checkout.js",
-  "/api/tickets/renew-lock": "pages/api/tickets/renew-lock.js",
-  "/api/read/events": "pages/api/read/events.js",
-  "/api/tickets/reserve": "pages/api/tickets/reserve.js"
+  "/api/read/events": "pages/api/read/events.js"
 }

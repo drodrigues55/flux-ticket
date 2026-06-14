@@ -12,7 +12,8 @@ import {
   FaArrowLeft,
   FaCircleCheck,
   FaCopy,
-  FaPix
+  FaPix,
+  FaLock
 } from 'react-icons/fa6';
 
 interface InstallmentOption {
@@ -71,6 +72,16 @@ export default function CheckoutPage() {
 
   // Validador de E-mail
   const [emailError, setEmailError] = useState('');
+
+  // Cupom de Desconto
+  const [couponCode, setCouponCode] = useState('');
+
+  // Estados touched para validação visual
+  const [nameTouched, setNameTouched] = useState(false);
+  const [cpfTouched, setCpfTouched] = useState(false);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [buttonAlertText, setButtonAlertText] = useState('');
+
   const validateEmail = () => {
     if (!email) {
       setEmailError('E-mail é obrigatório');
@@ -84,18 +95,31 @@ export default function CheckoutPage() {
     }
   };
 
-  // Validador de Formulário Completo
-  const isFormComplete =
+  // Helper flags
+  const isBuyerInfoComplete =
     buyerName.trim().length > 3 &&
     email.trim().length > 5 &&
     !emailError &&
-    (buyerCpf.length === 14 || buyerCpf.length === 18) &&
-    (paymentMethod === 'pix' ||
-      (paymentMethod === 'credit_card' &&
-        cardNumber.length === 19 &&
-        cardholderName.trim().length > 3 &&
-        cardExpiry.length === 5 &&
-        cardCvc.length >= 3));
+    (buyerCpf.length === 14 || buyerCpf.length === 18);
+
+  const isCardInfoComplete =
+    cardNumber.length === 19 &&
+    cardholderName.trim().length > 3 &&
+    cardExpiry.length === 5 &&
+    cardCvc.length >= 3;
+
+  // Validador de Formulário Completo
+  const isFormComplete =
+    isBuyerInfoComplete &&
+    (paymentMethod === 'pix' || (paymentMethod === 'credit_card' && isCardInfoComplete));
+
+  const isNameInvalid = (nameTouched || submitAttempted) && buyerName.trim().length <= 3;
+  const isCpfInvalid = (cpfTouched || submitAttempted) && buyerCpf.length !== 14 && buyerCpf.length !== 18;
+
+  const isCardNumberInvalid = submitAttempted && cardNumber.length !== 19;
+  const isCardholderNameInvalid = submitAttempted && cardholderName.trim().length <= 3;
+  const isCardExpiryInvalid = submitAttempted && cardExpiry.length !== 5;
+  const isCardCvcInvalid = submitAttempted && cardCvc.length < 3;
 
   // Rola a página para cima automaticamente quando o formulário é completamente preenchido
   const [hasScrolledUp, setHasScrolledUp] = useState(false);
@@ -229,7 +253,7 @@ export default function CheckoutPage() {
   const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value.replace(/\D/g, '');
     let formatted = '';
-    
+
     if (raw.length <= 11) {
       // Format as CPF: 000.000.000-00
       formatted = raw
@@ -283,7 +307,29 @@ export default function CheckoutPage() {
 
   const handlePaymentSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (paymentStatus === 'expired' || !isFormComplete) return;
+    if (paymentStatus === 'expired') return;
+    if (paymentMethod === null) return;
+
+    if (!isFormComplete) {
+      setSubmitAttempted(true);
+      setNameTouched(true);
+      setCpfTouched(true);
+      validateEmail();
+
+      if (paymentMethod === null) {
+        setButtonAlertText('Escolha uma forma de pagamento');
+      } else if (!isBuyerInfoComplete) {
+        setButtonAlertText('Preencha os dados do comprador');
+      } else if (paymentMethod === 'credit_card' && !isCardInfoComplete) {
+        setButtonAlertText('Preencha os dados do cartão');
+      }
+
+      setTimeout(() => {
+        setButtonAlertText('');
+      }, 3000);
+      return;
+    }
+
     setPaymentStatus('processing');
     setErrorMessage('');
 
@@ -366,7 +412,7 @@ export default function CheckoutPage() {
       <main className="max-w-6xl mx-auto w-full px-6 py-12 flex-grow">
         {/* Voltar para eventos */}
         <button
-          onClick={() => router.push('/')}
+          onClick={() => router.push(activeEventId ? `/?eventId=${activeEventId}` : '/')}
           className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-[#6200EE] transition-colors mb-8 cursor-pointer border-none bg-transparent"
         >
           <FaArrowLeft className="w-4 h-4" />
@@ -379,10 +425,10 @@ export default function CheckoutPage() {
             <div className="bg-white rounded-3xl border border-neutral-200/60 shadow-sm overflow-hidden">
               <div className="p-6 md:p-8 border-b border-neutral-100 bg-gradient-to-r from-purple-50/50 to-indigo-50/30">
                 <h2 className="text-2xl font-extrabold text-slate-900 leading-tight">
-                  Dados do Comprador e Pagamento
+                  Finalize sua compra
                 </h2>
                 <p className="text-slate-500 text-sm mt-1">
-                  Insira seus dados de acesso, selecione o método de pagamento e conclua sua compra com segurança.
+                  Confirme seus dados e escolha a forma de pagamento.
                 </p>
               </div>
 
@@ -444,11 +490,10 @@ export default function CheckoutPage() {
                       />
                       <button
                         onClick={copyToClipboard}
-                        className={`flex items-center gap-1.5 px-4 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer ${
-                          copied
-                            ? 'bg-emerald-600 text-white shadow-sm'
-                            : 'bg-[#6200EE] hover:bg-[#5000c7] text-white shadow-sm'
-                        }`}
+                        className={`flex items-center gap-1.5 px-4 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer ${copied
+                          ? 'bg-emerald-600 text-white shadow-sm'
+                          : 'bg-[#6200EE] hover:bg-[#5000c7] text-white shadow-sm'
+                          }`}
                       >
                         {copied ? (
                           <>
@@ -481,9 +526,9 @@ export default function CheckoutPage() {
                   <div className="p-6 md:p-8 space-y-4">
                     <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                       <span className="w-6 h-6 rounded-full bg-[#6200EE]/10 text-[#6200EE] text-xs font-bold flex items-center justify-center">1</span>
-                      Dados de Acesso
+                      Dados do comprador
                     </h3>
-                    
+
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Nome Completo *</label>
                       <input
@@ -491,12 +536,22 @@ export default function CheckoutPage() {
                         placeholder="Nome Completo do Comprador"
                         required
                         value={buyerName}
-                        onChange={(e) => setBuyerName(e.target.value)}
+                        onChange={(e) => {
+                          setBuyerName(e.target.value);
+                          if (nameTouched && e.target.value.trim().length > 3) {
+                            setNameTouched(false);
+                          }
+                        }}
+                        onBlur={() => setNameTouched(true)}
                         disabled={paymentStatus === 'processing'}
-                        className="w-full bg-[#F8F9FA] border border-neutral-200 rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 focus:border-[#6200EE] focus:bg-white transition-all duration-200"
+                        className={`w-full bg-[#F8F9FA] border rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 transition-all duration-200 ${isNameInvalid ? 'border-red-500 focus:border-red-500' : 'border-neutral-200 focus:border-[#6200EE] focus:bg-white'
+                          }`}
                       />
+                      {isNameInvalid && (
+                        <p className="text-red-500 text-xs font-medium mt-1">Insira seu nome completo (mínimo 4 caracteres)</p>
+                      )}
                     </div>
-                    
+
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold uppercase tracking-wider text-slate-500">E-mail *</label>
                       <input
@@ -515,9 +570,8 @@ export default function CheckoutPage() {
                         }}
                         onBlur={validateEmail}
                         disabled={paymentStatus === 'processing'}
-                        className={`w-full bg-[#F8F9FA] border rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 transition-all duration-200 ${
-                          emailError ? 'border-red-500 focus:border-red-500' : 'border-neutral-200 focus:border-[#6200EE] focus:bg-white'
-                        }`}
+                        className={`w-full bg-[#F8F9FA] border rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 transition-all duration-200 ${emailError ? 'border-red-500 focus:border-red-500' : 'border-neutral-200 focus:border-[#6200EE] focus:bg-white'
+                          }`}
                       />
                       {emailError && (
                         <p className="text-red-500 text-xs font-medium mt-1">{emailError}</p>
@@ -531,10 +585,21 @@ export default function CheckoutPage() {
                         placeholder="000.000.000-00"
                         required
                         value={buyerCpf}
-                        onChange={handleCpfChange}
+                        onChange={(e) => {
+                          handleCpfChange(e);
+                          const len = e.target.value.replace(/\D/g, '').length;
+                          if (cpfTouched && (len === 11 || len === 14)) {
+                            setCpfTouched(false);
+                          }
+                        }}
+                        onBlur={() => setCpfTouched(true)}
                         disabled={paymentStatus === 'processing'}
-                        className="w-full bg-[#F8F9FA] border border-neutral-200 rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 focus:border-[#6200EE] focus:bg-white transition-all duration-200"
+                        className={`w-full bg-[#F8F9FA] border rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 transition-all duration-200 ${isCpfInvalid ? 'border-red-500 focus:border-red-500' : 'border-neutral-200 focus:border-[#6200EE] focus:bg-white'
+                          }`}
                       />
+                      {isCpfInvalid && (
+                        <p className="text-red-500 text-xs font-medium mt-1">Insira um CPF (11 dígitos) ou CNPJ (14 dígitos) válido</p>
+                      )}
                     </div>
                   </div>
 
@@ -543,42 +608,47 @@ export default function CheckoutPage() {
                     <div className="p-6 md:px-8 bg-slate-50/50">
                       <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
                         <span className="w-6 h-6 rounded-full bg-[#6200EE]/10 text-[#6200EE] text-xs font-bold flex items-center justify-center">2</span>
-                        Método de Pagamento
+                        Forma de Pagamento
                       </h3>
-                      
+
                       <div className="grid grid-cols-2 gap-4">
                         <button
                           type="button"
                           onClick={() => setPaymentMethod('credit_card')}
-                          className={`flex items-center justify-center p-3.5 rounded-xl border-2 font-bold text-sm transition-all cursor-pointer ${
-                            paymentMethod === 'credit_card'
-                              ? 'border-[#6200EE] bg-purple-50/30 text-[#6200EE] shadow-md ring-2 ring-[#6200EE]/20'
-                              : 'border-neutral-200 bg-white text-slate-500 hover:text-slate-800'
-                          }`}
+                          className={`relative flex items-center justify-between p-4 rounded-2xl border-2 transition-all cursor-pointer text-left ${paymentMethod === 'credit_card'
+                            ? 'border-[#6200EE] bg-[#6200EE]/5 text-[#6200EE] shadow-md shadow-[#6200EE]/5'
+                            : 'border-neutral-200 bg-white text-slate-600 hover:border-neutral-300 hover:text-slate-800 hover:bg-slate-50/50'
+                            }`}
                         >
-                          <svg className="w-5 h-5 mr-2 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="2" y="5" width="20" height="14" rx="2" />
-                            <line x1="2" y1="10" x2="22" y2="10" />
-                          </svg>
-                          <span>Cartão de Crédito</span>
-                          {paymentMethod === 'credit_card' && (
-                            <span className="ml-2 w-4 h-4 rounded-full bg-[#6200EE] text-white flex items-center justify-center text-[10px] shrink-0 font-sans">✓</span>
-                          )}
+                          <div className="flex items-center gap-3">
+                            <FaCreditCard className="w-5 h-5 shrink-0" />
+                            <span className="font-bold text-sm">Cartão de Crédito</span>
+                          </div>
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${paymentMethod === 'credit_card'
+                            ? 'border-[#6200EE] bg-[#6200EE] text-white scale-110'
+                            : 'border-neutral-300 bg-white'
+                            }`}>
+                            {paymentMethod === 'credit_card' && <FaCircleCheck className="w-4 h-4 text-white" />}
+                          </div>
                         </button>
                         <button
                           type="button"
                           onClick={() => setPaymentMethod('pix')}
-                          className={`flex items-center justify-center p-3.5 rounded-xl border-2 font-bold text-sm transition-all cursor-pointer ${
-                            paymentMethod === 'pix'
-                              ? 'border-[#6200EE] bg-purple-50/30 text-[#6200EE] shadow-md ring-2 ring-[#6200EE]/20'
-                              : 'border-neutral-200 bg-white text-slate-500 hover:text-slate-800'
-                          }`}
+                          className={`relative flex items-center justify-between p-4 rounded-2xl border-2 transition-all cursor-pointer text-left ${paymentMethod === 'pix'
+                            ? 'border-[#6200EE] bg-[#6200EE]/5 text-[#6200EE] shadow-md shadow-[#6200EE]/5'
+                            : 'border-neutral-200 bg-white text-slate-600 hover:border-neutral-300 hover:text-slate-800 hover:bg-slate-50/50'
+                            }`}
                         >
-                          <FaPix className="w-5 h-5 mr-2 shrink-0" />
-                          <span>PIX Instantâneo</span>
-                          {paymentMethod === 'pix' && (
-                            <span className="ml-2 w-4 h-4 rounded-full bg-[#6200EE] text-white flex items-center justify-center text-[10px] shrink-0 font-sans">✓</span>
-                          )}
+                          <div className="flex items-center gap-3">
+                            <FaPix className="w-5 h-5 shrink-0" />
+                            <span className="font-bold text-sm">PIX Instantâneo</span>
+                          </div>
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${paymentMethod === 'pix'
+                            ? 'border-[#6200EE] bg-[#6200EE] text-white scale-110'
+                            : 'border-neutral-300 bg-white'
+                            }`}>
+                            {paymentMethod === 'pix' && <FaCircleCheck className="w-4 h-4 text-white" />}
+                          </div>
                         </button>
                       </div>
                     </div>
@@ -603,12 +673,16 @@ export default function CheckoutPage() {
                                   value={cardNumber}
                                   onChange={handleCardNumberChange}
                                   disabled={paymentStatus === 'processing'}
-                                  className="w-full bg-[#F8F9FA] border border-neutral-200 rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 focus:border-[#6200EE] focus:bg-white transition-all duration-200"
+                                  className={`w-full bg-[#F8F9FA] border rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 transition-all duration-200 ${isCardNumberInvalid ? 'border-red-500 focus:border-red-500' : 'border-neutral-200 focus:border-[#6200EE] focus:bg-white'
+                                    }`}
                                 />
                                 <div className="absolute right-4 top-3.5 text-slate-400 text-xs font-bold uppercase font-mono select-none">
                                   {issuerId}
                                 </div>
                               </div>
+                              {isCardNumberInvalid && (
+                                <p className="text-red-500 text-xs font-medium mt-1">Insira um número de cartão válido (16 dígitos)</p>
+                              )}
                             </div>
 
                             <div className="space-y-1.5">
@@ -620,8 +694,12 @@ export default function CheckoutPage() {
                                 value={cardholderName}
                                 onChange={(e) => setCardholderName(e.target.value)}
                                 disabled={paymentStatus === 'processing'}
-                                className="w-full bg-[#F8F9FA] border border-neutral-200 rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 focus:border-[#6200EE] focus:bg-white transition-all duration-200 uppercase"
+                                className={`w-full bg-[#F8F9FA] border rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 transition-all duration-200 uppercase ${isCardholderNameInvalid ? 'border-red-500 focus:border-red-500' : 'border-neutral-200 focus:border-[#6200EE] focus:bg-white'
+                                  }`}
                               />
+                              {isCardholderNameInvalid && (
+                                <p className="text-red-500 text-xs font-medium mt-1">Insira o nome impresso no cartão (mínimo 4 caracteres)</p>
+                              )}
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
@@ -634,8 +712,12 @@ export default function CheckoutPage() {
                                   value={cardExpiry}
                                   onChange={handleExpiryChange}
                                   disabled={paymentStatus === 'processing'}
-                                  className="w-full bg-[#F8F9FA] border border-neutral-200 rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 focus:border-[#6200EE] focus:bg-white transition-all duration-200"
+                                  className={`w-full bg-[#F8F9FA] border rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 transition-all duration-200 ${isCardExpiryInvalid ? 'border-red-500 focus:border-red-500' : 'border-neutral-200 focus:border-[#6200EE] focus:bg-white'
+                                    }`}
                                 />
+                                {isCardExpiryInvalid && (
+                                  <p className="text-red-500 text-xs font-medium mt-1">Validade inválida (MM/AA)</p>
+                                )}
                               </div>
                               <div className="space-y-1.5">
                                 <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Código CVC *</label>
@@ -646,8 +728,12 @@ export default function CheckoutPage() {
                                   value={cardCvc}
                                   onChange={handleCvcChange}
                                   disabled={paymentStatus === 'processing'}
-                                  className="w-full bg-[#F8F9FA] border border-neutral-200 rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 focus:border-[#6200EE] focus:bg-white transition-all duration-200"
+                                  className={`w-full bg-[#F8F9FA] border rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 transition-all duration-200 ${isCardCvcInvalid ? 'border-red-500 focus:border-red-500' : 'border-neutral-200 focus:border-[#6200EE] focus:bg-white'
+                                    }`}
                                 />
+                                {isCardCvcInvalid && (
+                                  <p className="text-red-500 text-xs font-medium mt-1">CVC inválido (3 ou 4 dígitos)</p>
+                                )}
                               </div>
                             </div>
 
@@ -675,9 +761,9 @@ export default function CheckoutPage() {
                               Pagamento PIX Instantâneo
                             </h4>
                             <ul className="text-slate-600 text-xs space-y-2 list-disc list-inside">
-                              <li>O QR code e o código copia-e-cola serão gerados após confirmar a compra.</li>
-                              <li>O estoque do ingresso ficará garantido por 15 minutos após a geração do PIX.</li>
-                              <li>A validação de compensação é automática e instantânea.</li>
+                              <li>O QR Code e o código "copia e cola" serão exibidos após a confirmação.</li>
+                              <li>Após gerar o código, você terá 15 minutos para concluir o pagamento e garantir seu ingresso.</li>
+                              <li>A confirmação do pagamento é automática e você receberá seu ingresso logo em seguida.</li>
                             </ul>
                           </div>
                         )}
@@ -693,10 +779,10 @@ export default function CheckoutPage() {
                         Informações Relevantes
                       </h3>
                       <div className="text-xs text-slate-500 space-y-2 leading-relaxed">
-                        <p>• O ingresso gerado é **nominal** e fica vinculado ao CPF informado nos dados de acesso.</p>
-                        <p>• A liberação do ingresso em formato digital (com assinatura HMAC anti-fraude) ocorre imediatamente após a confirmação do pagamento no gateway do Mercado Pago.</p>
-                        <p>• O tempo restante acima garante a reserva do ingresso no estoque. Caso expire, seu ingresso será devolvido ao estoque do evento automaticamente.</p>
-                        <p>• Ao prosseguir com a compra, você concorda com os termos de compra e políticas de reembolso da plataforma.</p>
+                        <p>• Seu ingresso será gerado automaticamente com o nome e CPF informados acima.</p>
+                        <p>• O ingresso digital será liberado imediatamente após a confirmação do pagamento.</p>
+                        <p>• O tempo exibido garante a sua reserva. Se o tempo expirar, o ingresso retorna ao sistema para venda.</p>
+                        <p>• Ao finalizar, você concorda com os nossos termos de uso e política de reembolso.</p>
                       </div>
                     </div>
                   )}
@@ -709,11 +795,10 @@ export default function CheckoutPage() {
           <div className="lg:col-span-5 space-y-6">
             {/* Bloco de Contagem Regressiva */}
             <div className="bg-white rounded-3xl border border-neutral-200/60 shadow-sm p-6 flex flex-col items-center space-y-4">
-              <span className={`text-xs font-bold uppercase tracking-wider rounded-full px-4 py-1.5 border transition-all duration-300 ${
-                timeLeft < 60 
-                  ? 'text-amber-600 bg-amber-50 border-amber-200 animate-pulse' 
-                  : 'text-[#6200EE] bg-[#6200EE]/10 border-[#6200EE]/20'
-              }`}>
+              <span className={`text-xs font-bold uppercase tracking-wider rounded-full px-4 py-1.5 border transition-all duration-300 ${timeLeft < 60
+                ? 'text-amber-600 bg-amber-50 border-amber-200 animate-pulse'
+                : 'text-[#6200EE] bg-[#6200EE]/10 border-[#6200EE]/20'
+                }`}>
                 {timeLeft < 60 ? 'Atenção: Tempo Esgotando!' : 'Tempo Restante'}
               </span>
 
@@ -732,9 +817,8 @@ export default function CheckoutPage() {
                     cx="72"
                     cy="72"
                     r="64"
-                    className={`transition-all duration-1000 ease-linear ${
-                      timeLeft < 60 ? 'stroke-amber-500 animate-pulse' : 'stroke-[#6200EE]'
-                    }`}
+                    className={`transition-all duration-1000 ease-linear ${timeLeft < 60 ? 'stroke-amber-500 animate-pulse' : 'stroke-[#6200EE]'
+                      }`}
                     strokeWidth="6"
                     strokeLinecap="round"
                     fill="transparent"
@@ -743,9 +827,8 @@ export default function CheckoutPage() {
                   />
                 </svg>
                 <div className="text-center">
-                  <span className={`text-3xl font-sans font-black tracking-wider transition-colors duration-300 ${
-                    timeLeft < 60 ? 'text-amber-600' : 'text-slate-800'
-                  }`}>
+                  <span className={`text-3xl font-sans font-black tracking-wider transition-colors duration-300 ${timeLeft < 60 ? 'text-amber-600' : 'text-slate-800'
+                    }`}>
                     {formattedTime}
                   </span>
                   <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest mt-1">
@@ -755,9 +838,9 @@ export default function CheckoutPage() {
               </div>
 
               <div className="text-center space-y-1 max-w-[240px]">
-                <h4 className="text-sm font-bold text-slate-800">Reserva de Inventário Ativa</h4>
+                <h4 className="text-sm font-bold text-slate-800">Seus ingressos estão reservados</h4>
                 <p className="text-xs text-slate-400 leading-normal">
-                  Seu ingresso está temporariamente bloqueado para você. O cronômetro se renovará automaticamente enquanto você digita.
+                  O tempo é renovado enquanto você preenche os dados.
                 </p>
               </div>
             </div>
@@ -821,23 +904,32 @@ export default function CheckoutPage() {
                     <input
                       type="text"
                       placeholder="Cupom de desconto"
+                      value={couponCode}
+                      onChange={(e) => setCouponCode(e.target.value)}
                       className="flex-1 bg-slate-50 border border-neutral-200 rounded-xl px-3 py-1.5 text-xs text-slate-700 outline-none focus:border-[#6200EE] uppercase"
                     />
-                    <button type="button" className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer">
+                    <button
+                      type="button"
+                      disabled={!couponCode.trim()}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border-none ${!couponCode.trim()
+                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                        : 'bg-[#6200EE] hover:bg-[#5000c7] text-white cursor-pointer shadow-sm hover:shadow'
+                        }`}
+                    >
                       Aplicar
                     </button>
                   </div>
                 </div>
 
                 {/* Selo de Segurança */}
-                <div className="flex items-center justify-center space-x-2 text-[10px] text-emerald-600 bg-emerald-50/50 border border-emerald-100 rounded-xl py-2 px-3 border-t border-neutral-100">
-                  <FaShieldHalved className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span className="font-bold uppercase tracking-wider">Ambiente 100% Seguro</span>
+                <div className="flex items-center justify-center space-x-2 text-[11px] text-[#2E7D32] bg-[#E8F5E9] border border-[#C8E6C9] rounded-xl py-2.5 px-3">
+                  <FaLock className="w-3.5 h-3.5 text-[#2E7D32] shrink-0" />
+                  <span className="font-extrabold uppercase tracking-wider">Ambiente 100% Seguro</span>
                 </div>
 
-                <div className="flex justify-between items-center pt-3 border-t border-neutral-100 font-bold">
-                  <span className="text-slate-800">Total</span>
-                  <span className="text-2xl font-sans text-[#6200EE] font-black">R$ {ticketPrice.toFixed(2).replace('.', ',')}</span>
+                <div className="flex justify-between items-center pt-4 border-t border-neutral-100">
+                  <span className="text-base font-extrabold text-slate-800">Total</span>
+                  <span className="text-3xl font-sans text-[#6200EE] font-black tracking-tight">R$ {ticketPrice.toFixed(2).replace('.', ',')}</span>
                 </div>
               </div>
 
@@ -845,16 +937,20 @@ export default function CheckoutPage() {
               {paymentStatus !== 'success' && paymentStatus !== 'pending_pix' && paymentStatus !== 'pending_card_review' && paymentStatus !== 'expired' && (
                 <div className="pt-2 flex flex-col gap-3">
                   <button
-                    type="submit"
+                    type={paymentMethod === null ? 'button' : 'submit'}
                     form="checkout-form"
                     disabled={paymentStatus === 'processing' || !ticketId}
-                    className={`w-full py-4 rounded-2xl font-bold transition-all shadow-md active:scale-[0.98] text-sm border-none text-center block text-white ${
-                      paymentStatus === 'processing' || !ticketId
-                        ? 'bg-slate-300 cursor-not-allowed shadow-none'
-                        : !isFormComplete
-                        ? 'bg-[#6200EE] hover:bg-[#5000c7] cursor-pointer hover:shadow-lg shadow-purple-600/20'
-                        : 'bg-[#2E7D32] hover:bg-[#1b5e20] cursor-pointer hover:shadow-lg shadow-emerald-600/20'
-                    }`}
+                    className={`w-full py-4 rounded-2xl font-bold transition-all text-sm text-center block ${paymentMethod !== null && paymentStatus !== 'processing' && ticketId ? 'active:scale-[0.98]' : ''
+                      } ${paymentStatus === 'processing' || !ticketId
+                        ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed shadow-none border border-transparent'
+                        : paymentMethod === null
+                          ? 'bg-transparent text-[#6200EE] border-2 border-[#6200EE] shadow-none pointer-events-none'
+                          : paymentMethod === 'pix'
+                            ? 'bg-[#2E7D32] text-white hover:bg-[#1b5e20] cursor-pointer hover:shadow-lg shadow-emerald-600/30 border border-transparent'
+                            : !isFormComplete
+                              ? 'bg-neutral-200 text-neutral-400 cursor-pointer shadow-none border border-transparent hover:bg-neutral-300/80'
+                              : 'bg-[#2E7D32] text-white hover:bg-[#1b5e20] cursor-pointer hover:shadow-lg shadow-emerald-600/30 border border-transparent'
+                      }`}
                   >
                     {paymentStatus === 'processing' ? (
                       <span className="flex items-center justify-center space-x-2">
@@ -867,11 +963,15 @@ export default function CheckoutPage() {
                     ) : !ticketId ? (
                       'Inicializando Reserva...'
                     ) : paymentMethod === null ? (
-                      'Selecione o Método'
-                    ) : !isFormComplete ? (
-                      'Preencha as Informações'
+                      'Escolha uma forma de pagamento'
+                    ) : buttonAlertText ? (
+                      buttonAlertText
+                    ) : !isBuyerInfoComplete ? (
+                      'Preencha os dados do comprador'
                     ) : paymentMethod === 'pix' ? (
-                      'Gerar QR Code PIX'
+                      'Gerar Código Pix'
+                    ) : !isCardInfoComplete ? (
+                      'Preencha os dados do cartão'
                     ) : (
                       'Finalizar Compra'
                     )}
