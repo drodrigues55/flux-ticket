@@ -10,10 +10,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const apiWriteUrl = process.env.API_WRITE_URL || 'http://localhost:4000';
+
+    // Gera um token JWT mockado com a role 'STAFF' para autenticar no backend
+    const mockPayload = Buffer.from(JSON.stringify({ role: 'STAFF', userId: 'staff-mock' })).toString('base64')
+      .replace(/=/g, '')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_');
+    const mockToken = `eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.${mockPayload}.mock-signature`;
+
     const response = await fetch(`${apiWriteUrl}/events/${id}/staff-mutation`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${mockToken}`
       },
       body: JSON.stringify(req.body),
     });

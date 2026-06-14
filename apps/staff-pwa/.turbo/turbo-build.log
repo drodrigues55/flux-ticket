@@ -14,7 +14,7 @@
    Collecting build traces ...
 
 Route (pages)                             Size     First Load JS
-┌ ○ /                                     35.7 kB         116 kB
+┌ ○ /                                     35.8 kB         116 kB
 ├   /_app                                 0 B            80.1 kB
 ├ ○ /404                                  180 B          80.3 kB
 ├ ƒ /api/events/[id]/staff-mutation       0 B            80.1 kB

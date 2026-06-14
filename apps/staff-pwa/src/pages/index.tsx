@@ -116,11 +116,18 @@ export default function StaffPortal() {
   };
 
   // Preenche dados simulados de QR Code para facilidade de testes
-  const handleFillMockQR = (type: 'valid' | 'invalid' | 'tampered') => {
+  const handleFillMockQR = async (type: 'valid' | 'invalid' | 'tampered') => {
     const validMockTicketId = '8ea03604-942c-4597-b1bf-99dc3b1a67fe';
     const validMockSignature = '2b08cf7ae4ec289bca97fc796f321ca1d04d768b567167e4cb3dc0dcb89d8fa3';
     
     if (type === 'valid') {
+      // Garante que o ingresso de teste esteja registrado localmente como válido
+      await db.validTickets.put({
+        ticket_id: validMockTicketId,
+        hmacSignature: validMockSignature
+      });
+      await updateCounts();
+
       setScannedInput(JSON.stringify({
         ticket_id: validMockTicketId,
         buyer_cpf: '12345678909',
@@ -128,6 +135,10 @@ export default function StaffPortal() {
         signature: validMockSignature
       }, null, 2));
     } else if (type === 'invalid') {
+      // Remove o ingresso do banco local para garantir que seja detectado como não cadastrado
+      await db.validTickets.delete('ticket-inexistente-xyz');
+      await updateCounts();
+
       setScannedInput(JSON.stringify({
         ticket_id: 'ticket-inexistente-xyz',
         buyer_cpf: '11122233344',
@@ -135,6 +146,13 @@ export default function StaffPortal() {
         signature: 'assinatura-qualquer-123'
       }, null, 2));
     } else {
+      // Insere o ingresso com a assinatura válida local, mas no QR escaneado passamos uma assinatura inválida/forjada
+      await db.validTickets.put({
+        ticket_id: validMockTicketId,
+        hmacSignature: validMockSignature
+      });
+      await updateCounts();
+
       setScannedInput(JSON.stringify({
         ticket_id: validMockTicketId,
         buyer_cpf: '12345678909',

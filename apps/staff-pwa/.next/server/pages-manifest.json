@@ -1,1 +1,8 @@
-{}
+{
+  "/_app": "pages/_app.js",
+  "/_error": "pages/_error.js",
+  "/_document": "pages/_document.js",
+  "/": "pages/index.js",
+  "/api/events/[id]/staff-mutation": "pages/api/events/[id]/staff-mutation.js",
+  "/api/events/[id]/staff-sync": "pages/api/events/[id]/staff-sync.js"
+}
