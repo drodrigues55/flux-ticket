@@ -15,6 +15,8 @@ export const PaymentMethodCardSchema = z.object({
 export const CheckoutPaymentSchema = z.object({
   ticketId: z.string().uuid('ID do ingresso inválido'),
   buyerCpf: z.string().min(11, 'CPF do comprador é obrigatório (mínimo 11 caracteres)'),
+  email: z.string().email('E-mail do comprador é obrigatório'),
+  buyerName: z.string().min(3, 'Nome do comprador é obrigatório (mínimo 3 caracteres)'),
   paymentMethod: z.discriminatedUnion('method', [
     PaymentMethodPixSchema,
     PaymentMethodCardSchema,

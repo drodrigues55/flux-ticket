@@ -1,9 +1,19 @@
 import express from 'express';
 import { prisma } from '@flux/database';
+import rateLimit from 'express-rate-limit';
 
 const app = express();
 const port = process.env.PORT || 3002;
 
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 300, // Limit each IP to 300 requests per window
+  standardHeaders: true, // Return rate limit info in standard headers
+  legacyHeaders: false, // Disable legacy X-RateLimit headers
+  message: { error: 'Too many requests from this IP, please try again later.' }
+});
+
+app.use(limiter);
 app.use(express.json());
 
 // Catalog endpoint (read-only)

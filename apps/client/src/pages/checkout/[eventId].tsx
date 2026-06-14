@@ -197,6 +197,7 @@ export default function CheckoutPage() {
               eventId: activeEventId,
               batchId: activeBatchId,
               price: priceInReais,
+              isHalfPrice: !!matchingBatch.meiaEntrada,
             }),
           });
 
@@ -337,6 +338,8 @@ export default function CheckoutPage() {
       let payload: any = {
         ticketId,
         buyerCpf,
+        email,
+        buyerName,
         paymentMethod: {
           method: paymentMethod,
         },
@@ -376,6 +379,7 @@ export default function CheckoutPage() {
 
       if (data.status === 'approved') {
         setPaymentStatus('success');
+        router.push(`/checkout/success?ticketId=${ticketId || data.ticketId}`);
       } else if (data.status === 'pending' || data.status === 'in_process') {
         if (paymentMethod === 'pix') {
           setPixCode(data.qrCode);

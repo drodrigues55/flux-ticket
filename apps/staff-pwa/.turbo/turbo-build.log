@@ -1,3 +1,4 @@
+npm warn Unknown env config "filter". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
 
 > @flux/staff-pwa@1.0.0 build
 > next build

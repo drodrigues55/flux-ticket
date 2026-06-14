@@ -14,13 +14,86 @@ import {
   FaHeart
 } from 'react-icons/fa6';
 
+const EVENT_DECORATIONS: Record<string, { imageUrl: string; badge?: string; isTrending?: boolean }> = {
+  'Bee Gees Alive - Anapolis': {
+    imageUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=600',
+    badge: 'Tributo Especial',
+    isTrending: false,
+  },
+  'Rock in Rio 2026': {
+    imageUrl: 'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&q=80&w=600',
+    badge: 'Últimos Ingressos',
+    isTrending: true,
+  },
+  'Coldplay | Music of the Spheres': {
+    imageUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&q=80&w=600',
+    badge: 'Data Extra Adicionada',
+    isTrending: true,
+  },
+  'Hamlet - O Musical': {
+    imageUrl: 'https://images.unsplash.com/photo-1507676184212-d03ab07a01bf?auto=format&fit=crop&q=80&w=600',
+    badge: 'Clássico Imperial',
+    isTrending: false,
+  },
+  'Chicago - O Musical': {
+    imageUrl: 'https://images.unsplash.com/photo-1460723237483-7a6dc9d0b212?auto=format&fit=crop&q=80&w=600',
+    badge: 'Sucesso de Bilheteria',
+    isTrending: true,
+  },
+  'Final da Copa do Brasil 2026': {
+    imageUrl: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&q=80&w=600',
+    badge: 'Alta Demanda',
+    isTrending: true,
+  },
+  'UFC Fight Night Brasil': {
+    imageUrl: 'https://images.unsplash.com/photo-1599058917212-d750089bc07e?auto=format&fit=crop&q=80&w=600',
+    badge: 'Cadeira VIP Disponível',
+    isTrending: false,
+  },
+  'Turma da Mônica em Cena': {
+    imageUrl: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&q=80&w=600',
+    badge: 'Diversão em Família',
+    isTrending: false,
+  },
+  'Galinha Pintadinha ao Vivo': {
+    imageUrl: 'https://images.unsplash.com/photo-1485546246426-74dc88dec4d9?auto=format&fit=crop&q=80&w=600',
+    badge: 'Para Crianças',
+    isTrending: false,
+  },
+};
+
+const CATEGORY_FALLBACK_IMAGES: Record<number, string> = {
+  1: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&q=80&w=600', // Shows
+  2: 'https://images.unsplash.com/photo-1503095391755-1414e86720d0?auto=format&fit=crop&q=80&w=600', // Teatro
+  3: 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&q=80&w=600', // Esportes
+  4: 'https://images.unsplash.com/photo-1516627145497-ae6968895b74?auto=format&fit=crop&q=80&w=600', // Infantis
+};
+
+function getEventDecorations(event: any) {
+  const dec = EVENT_DECORATIONS[event.title];
+  if (dec) return dec;
+  return {
+    imageUrl: CATEGORY_FALLBACK_IMAGES[event.categoryId] || 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?auto=format&fit=crop&q=80&w=600',
+    badge: undefined,
+    isTrending: false
+  };
+}
+
 export default function EventsCatalog() {
   const router = useRouter();
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [activeSearch, setActiveSearch] = useState('');
   const eventsRef = useRef<HTMLElement>(null);
+
+  const handleSearchSubmit = () => {
+    // Sanitise query to remove tag characters and quotes
+    const sanitized = searchTerm.replace(/[<>'"&/]/g, '').trim();
+    setActiveSearch(sanitized);
+  };
 
   useEffect(() => {
     async function loadEvents() {
@@ -40,6 +113,15 @@ export default function EventsCatalog() {
     }
     loadEvents();
   }, [selectedCategory]);
+
+  const filteredEvents = events.filter(event => {
+    if (!activeSearch) return true;
+    const query = activeSearch.toLowerCase();
+    return (
+      (event.title && event.title.toLowerCase().includes(query)) ||
+      (event.location && event.location.toLowerCase().includes(query))
+    );
+  });
 
   // Abre o popup do evento correspondente se o eventId vier na query string
   useEffect(() => {
@@ -74,160 +156,173 @@ export default function EventsCatalog() {
       <Header />
 
       {/* HERO SECTION WITH SLANTED/CLIPPED BOTTOM */}
-      <section className="bg-gradient-to-br from-[#4A148C] via-[#6200EE] to-[#3700B3] text-white pt-20 pb-24 px-6 relative overflow-hidden">
+      <section className="bg-gradient-to-br from-[#4A148C] via-[#6200EE] to-[#3700B3] text-white pt-20 pb-8 px-6 relative overflow-hidden">
         {/* Subtle decorative lights to simulate stage overlay */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-500/20 via-purple-500/5 to-transparent pointer-events-none" />
 
-        <div className="max-w-6xl mx-auto relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-          <div className="lg:col-span-7 space-y-6">
+        <div className="max-w-4xl mx-auto relative z-10 text-center flex flex-col items-center justify-center space-y-6">
+          <div className="space-y-4">
             <span className="text-xs font-normal tracking-widest text-[#B388FF] uppercase block">
               VIVA EXPERIÊNCIAS INESQUECÍVEIS
             </span>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.25]">
-              Sua próxima experiência inesquecível<br />começa aqui
+              Sua próxima experiência <br />inesquecível começa aqui
             </h1>
-            <p className="text-slate-200 text-base md:text-lg max-w-xl font-light">
+            <p className="mx-auto text-slate-200 text-base md:text-lg max-w-xl font-light">
               Encontre shows, teatros, esportes e muito mais. Compre com segurança e aproveite cada momento.
             </p>
-
-            {/* SEARCH BAR MD3 COMPLIANT */}
-            <div className="flex items-center bg-white p-2 rounded-2xl shadow-xl max-w-2xl border border-neutral-200/20">
-              <svg className="w-5 h-5 text-slate-400 ml-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              <input
-                type="text"
-                placeholder="Busque por artistas, eventos ou locais"
-                className="flex-grow bg-transparent outline-none text-slate-800 px-2 py-3 text-sm placeholder-neutral-400"
-              />
-              <button className="bg-[#6200EE] hover:bg-[#5000c7] text-white px-8 py-3 rounded-xl font-bold transition-all shadow-md active:scale-95">
-                Buscar
-              </button>
-            </div>
-
-            {/* CATEGORIES BADGES */}
-            <div id="filtros-categoria" className="flex flex-wrap gap-2.5 pt-2">
-              {[
-                { id: 1, label: 'Shows', icon: <FaMusic className="text-[13px]" /> },
-                { id: 2, label: 'Teatro', icon: <FaMasksTheater className="text-[13px]" /> },
-                { id: 3, label: 'Esportes', icon: <FaFutbol className="text-[13px]" /> },
-                { id: 4, label: 'Infantis', icon: <FaFaceSmile className="text-[13px]" /> },
-              ].map((cat) => {
-                const isActive = selectedCategory === cat.id;
-                return (
-                  <button
-                    key={cat.id}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      const nextCategory = isActive ? null : cat.id;
-                      setSelectedCategory(nextCategory);
-
-                      const filtrosEl = document.getElementById('filtros-categoria');
-                      if (filtrosEl) {
-                        const rect = filtrosEl.getBoundingClientRect();
-                        // O header fixo tem aproximadamente 72px de altura.
-                        // Se os filtros não estiverem alinhados logo abaixo do header (tolerância de 10px),
-                        // rola a página para posicioná-los perfeitamente.
-                        if (Math.abs(rect.top - 72) > 10) {
-                          const targetY = window.pageYOffset + rect.top - 72;
-                          window.scrollTo({ top: targetY, behavior: 'smooth' });
-                        }
-                      }
-                    }}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold backdrop-blur-sm transition-all border cursor-pointer ${isActive
-                        ? 'bg-white text-[#6200EE] border-white shadow-md scale-105'
-                        : 'bg-white/10 hover:bg-white/20 text-white border-white/10'
-                      }`}
-                  >
-                    {cat.icon}
-                    <span>{cat.label}</span>
-                  </button>
-                );
-              })}
-            </div>
           </div>
 
-          {/* Visual stage right panel simulator */}
-          <div className="hidden lg:col-span-5 h-80 rounded-3xl bg-[url('https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&q=80&w=800')] bg-cover bg-center shadow-2xl border border-white/10 relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-t from-[#4A148C]/90 via-transparent to-transparent" />
+          {/* SEARCH BAR MD3 COMPLIANT */}
+          <div className="flex items-center bg-white p-2 rounded-2xl shadow-xl w-full max-w-2xl border border-neutral-200/20 mx-auto">
+            <svg className="w-5 h-5 text-slate-400 ml-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Busque por artistas, eventos ou locais"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleSearchSubmit();
+                }
+              }}
+              className="flex-grow bg-transparent outline-none text-slate-800 px-2 py-3 text-sm placeholder-neutral-400"
+            />
+            <button
+              onClick={handleSearchSubmit}
+              className="bg-[#6200EE] hover:bg-[#5000c7] text-white px-8 py-3 rounded-xl font-bold transition-all shadow-md active:scale-95 cursor-pointer"
+            >
+              Buscar
+            </button>
+          </div>
+
+          {/* CATEGORIES BADGES */}
+          <div id="filtros-categoria" className="flex flex-wrap justify-center gap-2.5 pt-2">
+            {[
+              { id: 1, label: 'Shows', icon: <FaMusic className="text-[13px]" /> },
+              { id: 2, label: 'Teatro', icon: <FaMasksTheater className="text-[13px]" /> },
+              { id: 3, label: 'Esportes', icon: <FaFutbol className="text-[13px]" /> },
+              { id: 4, label: 'Infantis', icon: <FaFaceSmile className="text-[13px]" /> },
+            ].map((cat) => {
+              const isActive = selectedCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    const nextCategory = isActive ? null : cat.id;
+                    setSelectedCategory(nextCategory);
+
+                    const filtrosEl = document.getElementById('filtros-categoria');
+                    if (filtrosEl) {
+                      const rect = filtrosEl.getBoundingClientRect();
+                      // O header fixo tem aproximadamente 72px de altura.
+                      // Se os filtros não estiverem alinhados logo abaixo do header (tolerância de 10px),
+                      // rola a página para posicioná-los perfeitamente.
+                      if (Math.abs(rect.top - 72) > 10) {
+                        const targetY = window.pageYOffset + rect.top - 72;
+                        window.scrollTo({ top: targetY, behavior: 'smooth' });
+                      }
+                    }
+                  }}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold backdrop-blur-sm transition-all border cursor-pointer ${isActive
+                    ? 'bg-white text-[#6200EE] border-white shadow-md scale-105'
+                    : 'bg-white/10 hover:bg-white/20 text-white border-white/10'
+                    }`}
+                >
+                  {cat.icon}
+                  <span>{cat.label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       </section>
 
-      {/* BENEFIT CARDS SECTION (OVERLAPPING BOTTOM OF HERO) */}
-      <div className="max-w-6xl mx-auto px-6 -mt-16 relative z-20 w-full grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          {
-            title: 'Compra segura',
-            description: 'Seus dados protegidos do início ao fim.',
-            icon: <FaShieldHalved className="text-lg" />,
-            bgColor: 'bg-purple-50',
-            textColor: 'text-purple-600'
-          },
-          {
-            title: 'Ingressos garantidos',
-            description: 'Receba seus ingressos de forma 100% digital.',
-            icon: <FaTicket className="text-lg" />,
-            bgColor: 'bg-blue-50',
-            textColor: 'text-blue-600'
-          },
-          {
-            title: 'Variedade de eventos',
-            description: 'Opções para todos os gostos e idades.',
-            icon: <FaCalendarDays className="text-lg" />,
-            bgColor: 'bg-emerald-50',
-            textColor: 'text-emerald-600'
-          },
-          {
-            title: 'Experiências que ficam',
-            description: 'Momentos únicos que você vai lembrar.',
-            icon: <FaHeart className="text-lg" />,
-            bgColor: 'bg-rose-50',
-            textColor: 'text-rose-600'
-          }
-        ].map((benefit, i) => (
-          <div key={i} className="bg-white p-5 rounded-2xl shadow-sm border border-neutral-100/90 flex items-start gap-4 hover:shadow-md transition-shadow duration-300">
-            <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${benefit.bgColor} ${benefit.textColor}`}>
-              {benefit.icon}
-            </div>
-            <div className="space-y-0.5">
-              <h3 className="font-bold text-sm text-slate-900">{benefit.title}</h3>
-              <p className="text-xs text-slate-500 leading-normal">{benefit.description}</p>
-            </div>
-          </div>
-        ))}
-      </div>
 
       {/* GRID DE EVENTOS */}
-      <main id="eventos" ref={eventsRef} className="max-w-6xl mx-auto px-6 py-16 flex-grow w-full min-h-[800px]">
-        <h2 className="text-2xl font-extrabold text-slate-900 mb-8">Eventos em Destaque</h2>
+      <main id="eventos" ref={eventsRef} className="max-w-7xl mx-auto px-6 pt-8 pb-16 flex-grow w-full min-h-[800px] space-y-12">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 space-y-3">
             <div className="w-8 h-8 border-4 border-slate-200 border-t-[#6200EE] rounded-full animate-spin" />
             <p className="text-sm font-semibold text-slate-400">Carregando catálogo...</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {events.map(event => (
-              <EventCard
-                key={event.id}
-                title={event.title}
-                date={new Date(event.date).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })}
-                location={event.location}
-                price={
-                  event.batches && event.batches.length > 0
-                    ? `R$ ${Math.min(...event.batches.map((b: any) => Number(b.price))).toFixed(2).replace('.', ',')}`
-                    : "Consultar"
-                }
-                onBuy={() => setSelectedEvent(event)}
-              />
-            ))}
-          </div>
+          <>
+            {/* Seção Trending Now (Apenas na página inicial sem filtros/busca) */}
+            {!selectedCategory && !activeSearch && (
+              <div>
+                <h2 className="text-2xl font-extrabold text-slate-900 mb-6 flex items-center gap-2">
+                  Trending Now
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                  {filteredEvents
+                    .filter(event => getEventDecorations(event).isTrending)
+                    .map(event => {
+                      const dec = getEventDecorations(event);
+                      return (
+                        <EventCard
+                          key={`trending-${event.id}`}
+                          title={event.title}
+                          date={new Date(event.date).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          location={event.location}
+                          price={
+                            event.batches && event.batches.length > 0
+                              ? `R$ ${Math.min(...event.batches.map((b: any) => Number(b.price))).toFixed(2).replace('.', ',')}`
+                              : "Consultar"
+                          }
+                          imageUrl={dec.imageUrl}
+                          badge={dec.badge}
+                          onBuy={() => setSelectedEvent({ ...event, image: dec.imageUrl })}
+                        />
+                      );
+                    })}
+                </div>
+              </div>
+            )}
+
+            {/* Seção Listagem Geral */}
+            <div>
+              <h2 className="text-2xl font-extrabold text-slate-900 mb-6">
+                {activeSearch
+                  ? `Resultados para: "${activeSearch}"`
+                  : (selectedCategory ? 'Eventos Encontrados' : 'Todos os Eventos')}
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {filteredEvents.map(event => {
+                  const dec = getEventDecorations(event);
+                  return (
+                    <EventCard
+                      key={event.id}
+                      title={event.title}
+                      date={new Date(event.date).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      location={event.location}
+                      price={
+                        event.batches && event.batches.length > 0
+                          ? `R$ ${Math.min(...event.batches.map((b: any) => Number(b.price))).toFixed(2).replace('.', ',')}`
+                          : "Consultar"
+                      }
+                      imageUrl={dec.imageUrl}
+                      badge={dec.badge}
+                      onBuy={() => setSelectedEvent({ ...event, image: dec.imageUrl })}
+                    />
+                  );
+                })}
+              </div>
+              {filteredEvents.length === 0 && (
+                <div className="text-center py-12 text-slate-400">
+                  Nenhum evento encontrado para a busca realizada.
+                </div>
+              )}
+            </div>
+          </>
         )}
       </main>
 
       {/* Footer Simples */}
-      <footer className="py-8 text-center text-slate-400 text-sm border-t border-neutral-200/60 max-w-6xl mx-auto w-full">
+      <footer className="py-8 text-center text-slate-400 text-sm border-t border-neutral-200/60 max-w-7xl mx-auto w-full">
         &copy; {new Date().getFullYear()} Flux Tickets. Todos os direitos reservados.
       </footer>
 

@@ -15,6 +15,8 @@ exports.PaymentMethodCardSchema = zod_1.z.object({
 exports.CheckoutPaymentSchema = zod_1.z.object({
     ticketId: zod_1.z.string().uuid('ID do ingresso inválido'),
     buyerCpf: zod_1.z.string().min(11, 'CPF do comprador é obrigatório (mínimo 11 caracteres)'),
+    email: zod_1.z.string().email('E-mail do comprador é obrigatório'),
+    buyerName: zod_1.z.string().min(3, 'Nome do comprador é obrigatório (mínimo 3 caracteres)'),
     paymentMethod: zod_1.z.discriminatedUnion('method', [
         exports.PaymentMethodPixSchema,
         exports.PaymentMethodCardSchema,

@@ -56,6 +56,7 @@ export declare class EventsService {
         availableQuantity: number;
         sectorId: number | null;
         sectorName: string | null;
+        meiaEntrada: boolean;
         eventId: string;
         createdAt: Date;
         updatedAt: Date;
@@ -71,6 +72,7 @@ export declare class EventsService {
         availableQuantity: number;
         sectorId: number | null;
         sectorName: string | null;
+        meiaEntrada: boolean;
         eventId: string;
         createdAt: Date;
         updatedAt: Date;

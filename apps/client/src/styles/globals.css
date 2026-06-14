@@ -41,3 +41,25 @@
 .animate-neon-glow {
   animation: neon-pulse 2s infinite ease-in-out;
 }
+
+/* CD Player Marquee effect on card hover */
+@keyframes marquee-scroll {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee-hover {
+  display: inline-block;
+  will-change: transform;
+}
+
+@media (hover: hover) {
+  .group:hover .animate-marquee-hover {
+    animation: marquee-scroll 10s linear infinite;
+  }
+}
+

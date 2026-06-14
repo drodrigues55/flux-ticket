@@ -95,12 +95,31 @@ export class PaymentsService {
       throw new BadRequestException('Sua reserva expirou e o ingresso foi liberado de volta ao estoque.');
     }
 
-    // 1.5. Atualiza o CPF temporário com o CPF real inserido no formulário de pagamento
+    // 1.5. Busca ou cria o usuário com o e-mail real do comprador
+    let user = await prisma.user.findUnique({
+      where: { email: dto.email },
+    });
+    
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          email: dto.email,
+          name: dto.buyerName,
+          password: crypto.randomBytes(8).toString('hex'),
+          role: 'USER',
+        },
+      });
+    }
+
     await prisma.ticket.update({
       where: { id: ticket.id },
-      data: { buyerCpf: dto.buyerCpf },
+      data: { 
+        buyerCpf: dto.buyerCpf,
+        buyerId: user.id,
+      },
     });
     ticket.buyerCpf = dto.buyerCpf;
+    ticket.buyerId = user.id;
 
     // 2. Calcula o valor em reais (o banco guarda em valor decimal normal)
     const amount = Number(ticket.price);
@@ -188,10 +207,7 @@ export class PaymentsService {
   private async handlePaymentState(ticket: any, status: string, meta: { qrCode: string; qrCodeBase64: string; paymentId: string }) {
     if (status === 'approved') {
       // 1. Aprovado: Verifica se é estudante (meia-entrada)
-      const outbox = await prisma.outboxEvent.findFirst({
-        where: { aggregateId: ticket.id, aggregateType: 'TICKET_RESERVED' },
-      });
-      const isStudent = (outbox?.payload as any)?.isHalfPrice === true;
+      const isStudent = ticket.meiaEntrada === true;
 
       // 2. Gera a assinatura HMAC
       const signature = this.ticketCryptoService.generateSignature(

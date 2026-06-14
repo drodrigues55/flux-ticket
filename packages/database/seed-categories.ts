@@ -30,22 +30,31 @@ async function main() {
     date: string,
     location: string,
     categoryId: number,
-    prices: { superior: number; vip: number; premium: number }
+    prices: { superior: number; vip: number; premium: number },
+    supportsHalfPrice: boolean = false
   ) {
     const event = await prisma.event.create({
       data: { title, description, date: new Date(date), location, categoryId, organizerId },
     });
 
     const eventBatches = [
-      { name: 'PLATEIA SUPERIOR', price: prices.superior, totalQuantity: 300, availableQuantity: 300, sectorId: 1, sectorName: 'PLATEIA SUPERIOR' },
-      { name: 'PLATEIA VIP',      price: prices.vip, totalQuantity: 200, availableQuantity: 200, sectorId: 2, sectorName: 'PLATEIA VIP' },
-      { name: 'PLATEIA PREMIUM',  price: prices.premium, totalQuantity: 150, availableQuantity: 150, sectorId: 3, sectorName: 'PLATEIA PREMIUM' },
+      { name: 'PLATEIA SUPERIOR', price: prices.superior, totalQuantity: 300, availableQuantity: 300, sectorId: 1, sectorName: 'PLATEIA SUPERIOR', meiaEntrada: false },
+      { name: 'PLATEIA VIP',      price: prices.vip, totalQuantity: 200, availableQuantity: 200, sectorId: 2, sectorName: 'PLATEIA VIP', meiaEntrada: false },
+      { name: 'PLATEIA PREMIUM',  price: prices.premium, totalQuantity: 150, availableQuantity: 150, sectorId: 3, sectorName: 'PLATEIA PREMIUM', meiaEntrada: false },
     ];
+
+    if (supportsHalfPrice) {
+      eventBatches.push(
+        { name: 'PLATEIA SUPERIOR - MEIA', price: prices.superior * 0.5, totalQuantity: 300, availableQuantity: 300, sectorId: 1, sectorName: 'PLATEIA SUPERIOR', meiaEntrada: true },
+        { name: 'PLATEIA VIP - MEIA',      price: prices.vip * 0.5, totalQuantity: 200, availableQuantity: 200, sectorId: 2, sectorName: 'PLATEIA VIP', meiaEntrada: true },
+        { name: 'PLATEIA PREMIUM - MEIA',  price: prices.premium * 0.5, totalQuantity: 150, availableQuantity: 150, sectorId: 3, sectorName: 'PLATEIA PREMIUM', meiaEntrada: true }
+      );
+    }
 
     for (const batch of eventBatches) {
       await prisma.ticketBatch.create({ data: { ...batch, eventId: event.id } });
     }
-    console.log(`  ✅ "${title}" cadastrado (Superior: R$ ${prices.superior}, VIP: R$ ${prices.vip}, Premium: R$ ${prices.premium})`);
+    console.log(`  ✅ "${title}" cadastrado (Superior: R$ ${prices.superior}, VIP: R$ ${prices.vip}, Premium: R$ ${prices.premium}, Meia: ${supportsHalfPrice ? 'Sim' : 'Não'})`);
     return event;
   }
 
@@ -56,7 +65,8 @@ async function main() {
     '2026-06-14T20:00:00Z',
     'Teatro São Francisco',
     1,
-    { superior: 110.00, vip: 140.00, premium: 160.00 }
+    { superior: 110.00, vip: 140.00, premium: 160.00 },
+    true
   );
 
   await createEvent(
@@ -65,7 +75,8 @@ async function main() {
     '2026-10-01T19:00:00Z',
     'Cidade do Rock - Rio de Janeiro RJ',
     1,
-    { superior: 220.00, vip: 380.00, premium: 490.00 }
+    { superior: 220.00, vip: 380.00, premium: 490.00 },
+    true
   );
 
   await createEvent(
@@ -74,7 +85,8 @@ async function main() {
     '2026-11-15T20:00:00Z',
     'Allianz Parque - São Paulo SP',
     1,
-    { superior: 250.00, vip: 420.00, premium: 580.00 }
+    { superior: 250.00, vip: 420.00, premium: 580.00 },
+    false
   );
 
   // 4. Cadastrar Teatro (Categoria 2)
@@ -84,7 +96,8 @@ async function main() {
     '2026-08-20T19:30:00Z',
     'Teatro Municipal - São Paulo SP',
     2,
-    { superior: 80.00, vip: 120.00, premium: 160.00 }
+    { superior: 80.00, vip: 120.00, premium: 160.00 },
+    false
   );
 
   await createEvent(
@@ -93,7 +106,8 @@ async function main() {
     '2026-09-12T20:00:00Z',
     'Teatro Alfa - São Paulo SP',
     2,
-    { superior: 90.00, vip: 130.00, premium: 180.00 }
+    { superior: 90.00, vip: 130.00, premium: 180.00 },
+    true
   );
 
   // 5. Cadastrar Esportes (Categoria 3)
@@ -103,7 +117,8 @@ async function main() {
     '2026-12-06T17:00:00Z',
     'Estádio Mané Garrincha - Brasília DF',
     3,
-    { superior: 150.00, vip: 280.00, premium: 450.00 }
+    { superior: 150.00, vip: 280.00, premium: 450.00 },
+    false
   );
 
   await createEvent(
@@ -112,7 +127,8 @@ async function main() {
     '2026-11-28T18:00:00Z',
     'Arena Carioca 1 - Rio de Janeiro RJ',
     3,
-    { superior: 120.00, vip: 220.00, premium: 350.00 }
+    { superior: 120.00, vip: 220.00, premium: 350.00 },
+    false
   );
 
   // 6. Cadastrar Infantis (Categoria 4)
@@ -122,7 +138,8 @@ async function main() {
     '2026-10-12T15:00:00Z',
     'Teatro das Artes - Rio de Janeiro RJ',
     4,
-    { superior: 50.00, vip: 80.00, premium: 110.00 }
+    { superior: 50.00, vip: 80.00, premium: 110.00 },
+    false
   );
 
   await createEvent(
@@ -131,7 +148,8 @@ async function main() {
     '2026-07-19T16:00:00Z',
     'Ginásio Nilson Nelson - Brasília DF',
     4,
-    { superior: 60.00, vip: 95.00, premium: 130.00 }
+    { superior: 60.00, vip: 95.00, premium: 130.00 },
+    false
   );
 
   console.log('\n✅ Novo Seed Concluído com Sucesso!');

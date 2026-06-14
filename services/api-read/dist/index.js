@@ -5,8 +5,17 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const database_1 = require("@flux/database");
+const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const app = (0, express_1.default)();
 const port = process.env.PORT || 3002;
+const limiter = (0, express_rate_limit_1.default)({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 300, // Limit each IP to 300 requests per window
+    standardHeaders: true, // Return rate limit info in standard headers
+    legacyHeaders: false, // Disable legacy X-RateLimit headers
+    message: { error: 'Too many requests from this IP, please try again later.' }
+});
+app.use(limiter);
 app.use(express_1.default.json());
 // Catalog endpoint (read-only)
 app.get('/events', async (req, res) => {

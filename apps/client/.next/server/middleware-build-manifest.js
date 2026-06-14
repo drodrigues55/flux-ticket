@@ -28,6 +28,16 @@ self.__BUILD_MANIFEST = {
       "static/chunks/webpack.js",
       "static/chunks/main.js",
       "static/chunks/pages/checkout/[eventId].js"
+    ],
+    "/checkout/success": [
+      "static/chunks/webpack.js",
+      "static/chunks/main.js",
+      "static/chunks/pages/checkout/success.js"
+    ],
+    "/profile": [
+      "static/chunks/webpack.js",
+      "static/chunks/main.js",
+      "static/chunks/pages/profile.js"
     ]
   },
   "ampFirstPages": []

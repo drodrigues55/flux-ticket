@@ -97,6 +97,7 @@ let CheckoutService = class CheckoutService {
                         buyerCpf: data.buyerCpf,
                         price: data.price,
                         status: 'PENDING_VALIDATION',
+                        meiaEntrada: data.isHalfPrice,
                         expiresAt: new Date(Date.now() + 180 * 1000), // Válido por 3 minutos
                     },
                 });

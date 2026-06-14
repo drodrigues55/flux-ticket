@@ -125,12 +125,29 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
         if (ticket.expiresAt.getTime() < Date.now()) {
             throw new common_1.BadRequestException('Sua reserva expirou e o ingresso foi liberado de volta ao estoque.');
         }
-        // 1.5. Atualiza o CPF temporário com o CPF real inserido no formulário de pagamento
+        // 1.5. Busca ou cria o usuário com o e-mail real do comprador
+        let user = await database_1.prisma.user.findUnique({
+            where: { email: dto.email },
+        });
+        if (!user) {
+            user = await database_1.prisma.user.create({
+                data: {
+                    email: dto.email,
+                    name: dto.buyerName,
+                    password: crypto.randomBytes(8).toString('hex'),
+                    role: 'USER',
+                },
+            });
+        }
         await database_1.prisma.ticket.update({
             where: { id: ticket.id },
-            data: { buyerCpf: dto.buyerCpf },
+            data: {
+                buyerCpf: dto.buyerCpf,
+                buyerId: user.id,
+            },
         });
         ticket.buyerCpf = dto.buyerCpf;
+        ticket.buyerId = user.id;
         // 2. Calcula o valor em reais (o banco guarda em valor decimal normal)
         const amount = Number(ticket.price);
         let mpStatus = 'approved';
@@ -214,10 +231,7 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
     async handlePaymentState(ticket, status, meta) {
         if (status === 'approved') {
             // 1. Aprovado: Verifica se é estudante (meia-entrada)
-            const outbox = await database_1.prisma.outboxEvent.findFirst({
-                where: { aggregateId: ticket.id, aggregateType: 'TICKET_RESERVED' },
-            });
-            const isStudent = outbox?.payload?.isHalfPrice === true;
+            const isStudent = ticket.meiaEntrada === true;
             // 2. Gera a assinatura HMAC
             const signature = this.ticketCryptoService.generateSignature(ticket.id, ticket.buyerCpf, ticket.batchId);
             // 3. Atualiza o status e a assinatura

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   FaCalendarDays,
   FaClock,
@@ -13,9 +13,10 @@ import {
 interface Batch {
   id: string;
   name: string;
-  price: number; // in cents or normal decimals depending on DB serialization
+  price: number;
   sectorId?: number;
   sectorName?: string;
+  meiaEntrada: boolean;
 }
 
 interface EventData {
@@ -39,6 +40,60 @@ export function EventPopup({ isOpen, onClose, event, onBuy }: EventPopupProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const [showFullDesc, setShowFullDesc] = useState(false);
   const [selectedSectorId, setSelectedSectorId] = useState<number | null>(null);
+  const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
+
+  // Sync selected batch and sector when event loads
+  useEffect(() => {
+    if (event?.batches && event.batches.length > 0) {
+      const sorted = [...event.batches].sort((a, b) => {
+        const secA = a.sectorId || 0;
+        const secB = b.sectorId || 0;
+        if (secB !== secA) return secB - secA;
+        return (a.meiaEntrada ? 1 : 0) - (b.meiaEntrada ? 1 : 0);
+      });
+      const defaultBatch = sorted.find(b => !b.meiaEntrada) || sorted[0];
+      setSelectedBatchId(defaultBatch.id);
+      setSelectedSectorId(defaultBatch.sectorId || null);
+    } else {
+      setSelectedBatchId(null);
+      setSelectedSectorId(null);
+    }
+  }, [event]);
+
+  const sortedBatches = useMemo(() => {
+    if (!event?.batches) return [];
+    return [...event.batches].sort((a, b) => {
+      const secA = a.sectorId || 0;
+      const secB = b.sectorId || 0;
+      if (secB !== secA) return secB - secA;
+      return (a.meiaEntrada ? 1 : 0) - (b.meiaEntrada ? 1 : 0);
+    });
+  }, [event]);
+
+  const selectedBatch = useMemo(() => {
+    return event?.batches?.find(b => b.id === selectedBatchId) || null;
+  }, [event, selectedBatchId]);
+
+  const handleSvgSectorClick = (sectorId: number) => {
+    setSelectedSectorId(sectorId);
+    if (event?.batches) {
+      const matchingBatch = event.batches.find(b => b.sectorId === sectorId && !b.meiaEntrada)
+        || event.batches.find(b => b.sectorId === sectorId);
+      if (matchingBatch) {
+        setSelectedBatchId(matchingBatch.id);
+      }
+    }
+  };
+
+  const getSectorStyles = (sectorId?: number) => {
+    if (sectorId === 3) {
+      return { border: 'border-blue-500', text: 'text-blue-600', dot: 'bg-blue-600', activeBg: 'bg-blue-50/30' };
+    }
+    if (sectorId === 2) {
+      return { border: 'border-red-500', text: 'text-red-600', dot: 'bg-red-600', activeBg: 'bg-red-50/30' };
+    }
+    return { border: 'border-purple-500', text: 'text-purple-600', dot: 'bg-purple-600', activeBg: 'bg-purple-50/30' };
+  };
 
   // Handle click outside
   useEffect(() => {
@@ -80,6 +135,35 @@ export function EventPopup({ isOpen, onClose, event, onBuy }: EventPopupProps) {
     };
   }, [isOpen, onClose]);
 
+  // Dynamically resolve sector prices from event.batches if available
+  const getSectorPrice = (sectorId: number, fallbackPrice: string) => {
+    if (event && event.batches && event.batches.length > 0) {
+      const matchingBatch = event.batches.find(b => b.sectorId === sectorId);
+      if (matchingBatch) {
+        return `R$ ${Number(matchingBatch.price).toFixed(2).replace('.', ',')}`;
+      }
+      const minPrice = Math.min(...event.batches.map(b => Number(b.price)));
+      return `R$ ${minPrice.toFixed(2).replace('.', ',')}`;
+    }
+    return fallbackPrice;
+  };
+
+  const getSectorName = (sectorId: number, fallbackName: string) => {
+    if (event && event.batches && event.batches.length > 0) {
+      const matchingBatch = event.batches.find(b => b.sectorId === sectorId);
+      if (matchingBatch && matchingBatch.sectorName) {
+        return matchingBatch.sectorName.toUpperCase();
+      }
+    }
+    return fallbackName;
+  };
+
+  const sectorPrices = useMemo<Record<number, { name: string; price: string; textColor: string }>>(() => ({
+    3: { name: getSectorName(3, 'PLATEIA PREMIUM'), price: getSectorPrice(3, 'R$ 160,00'), textColor: 'text-blue-600' },
+    2: { name: getSectorName(2, 'PLATEIA VIP'), price: getSectorPrice(2, 'R$ 140,00'), textColor: 'text-red-600' },
+    1: { name: getSectorName(1, 'PLATEIA SUPERIOR'), price: getSectorPrice(1, 'R$ 110,00'), textColor: 'text-purple-600' }
+  }), [event]);
+
   if (!isOpen || !event) return null;
 
   // Placeholder fallbacks based on reference image
@@ -96,42 +180,9 @@ export function EventPopup({ isOpen, onClose, event, onBuy }: EventPopupProps) {
 
   const displayImage = event.image || "https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&q=80&w=800";
 
-  // Dynamically resolve sector prices from event.batches if available
-  const getSectorPrice = (sectorId: number, fallbackPrice: string) => {
-    if (event.batches && event.batches.length > 0) {
-      const matchingBatch = event.batches.find(b => b.sectorId === sectorId);
-      if (matchingBatch) {
-        return `R$ ${Number(matchingBatch.price).toFixed(2).replace('.', ',')}`;
-      }
-      const minPrice = Math.min(...event.batches.map(b => Number(b.price)));
-      return `R$ ${minPrice.toFixed(2).replace('.', ',')}`;
-    }
-    return fallbackPrice;
-  };
-
-  const getSectorName = (sectorId: number, fallbackName: string) => {
-    if (event.batches && event.batches.length > 0) {
-      const matchingBatch = event.batches.find(b => b.sectorId === sectorId);
-      if (matchingBatch && matchingBatch.sectorName) {
-        return matchingBatch.sectorName.toUpperCase();
-      }
-    }
-    return fallbackName;
-  };
-
-  const sectorPrices: Record<number, { name: string; price: string; textColor: string }> = {
-    3: { name: getSectorName(3, 'PLATEIA PREMIUM'), price: getSectorPrice(3, 'R$ 160,00'), textColor: 'text-blue-600' },
-    2: { name: getSectorName(2, 'PLATEIA VIP'), price: getSectorPrice(2, 'R$ 140,00'), textColor: 'text-red-600' },
-    1: { name: getSectorName(1, 'PLATEIA SUPERIOR'), price: getSectorPrice(1, 'R$ 110,00'), textColor: 'text-purple-600' }
-  };
-
-  const selectedSector = selectedSectorId !== null ? sectorPrices[selectedSectorId] : null;
-
   const handleBuyClick = () => {
-    if (selectedSectorId === null) return;
-    const selectedBatch = event.batches?.find(b => b.sectorId === selectedSectorId);
-    if (selectedBatch) {
-      onBuy(event.id, selectedBatch.id);
+    if (selectedBatchId) {
+      onBuy(event.id, selectedBatchId);
     }
   };
 
@@ -265,11 +316,11 @@ export function EventPopup({ isOpen, onClose, event, onBuy }: EventPopupProps) {
                     Setor Selecionado
                   </div>
                   <h4 className="text-base font-extrabold text-slate-800 leading-tight">
-                    {selectedSector ? selectedSector.name : 'Nenhum selecionado'}
+                    {selectedBatch ? selectedBatch.name : 'Nenhum selecionado'}
                   </h4>
                   <div className="flex items-baseline gap-1.5">
-                    <span className={`text-2xl font-black ${selectedSector ? selectedSector.textColor : 'text-slate-400'}`}>
-                      {selectedSector ? selectedSector.price : `A partir de ${getSectorPrice(1, 'R$ 110,00')}`}
+                    <span className={`text-2xl font-black ${selectedBatch ? getSectorStyles(selectedBatch.sectorId).text : 'text-slate-400'}`}>
+                      {selectedBatch ? `R$ ${Number(selectedBatch.price).toFixed(2).replace('.', ',')}` : `A partir de ${getSectorPrice(1, 'R$ 110,00')}`}
                     </span>
                   </div>
                   <div className="inline-flex items-center gap-1.5 text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded w-fit">
@@ -279,63 +330,73 @@ export function EventPopup({ isOpen, onClose, event, onBuy }: EventPopupProps) {
 
                 <button
                   onClick={handleBuyClick}
-                  disabled={selectedSectorId === null}
+                  disabled={selectedBatchId === null}
                   className={`w-full py-2.5 rounded-xl font-bold transition-all text-sm block text-center mt-3 ${
-                    selectedSectorId === null
+                    selectedBatchId === null
                       ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed border border-transparent shadow-none'
                       : 'bg-[#2E7D32] hover:bg-[#1b5e20] text-white cursor-pointer hover:shadow-lg shadow-emerald-600/30 border border-transparent active:scale-[0.98]'
                   }`}
                 >
-                  {selectedSectorId === null ? 'Selecione um setor abaixo' : 'Comprar ingressos'}
+                  {selectedBatchId === null ? 'Selecione um lote abaixo' : 'Comprar ingressos'}
                 </button>
               </div>
             </div>
 
             {/* Sector Selection */}
             <div className="bg-white p-5 rounded-2xl border border-neutral-200/50 shadow-sm space-y-4">
-              <h3 className="text-base font-bold text-slate-900">Selecione um setor</h3>
+              <h3 className="text-base font-bold text-slate-900">Selecione o seu ingresso</h3>
 
               <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
-                {/* Sector selector buttons */}
-                <div className="md:col-span-5 space-y-2.5">
-                  {[
-                    { id: 3, label: sectorPrices[3].name, border: 'border-blue-500', text: 'text-blue-600', dot: 'bg-blue-600', activeBg: 'bg-blue-50/30' },
-                    { id: 2, label: sectorPrices[2].name, border: 'border-red-500', text: 'text-red-600', dot: 'bg-red-600', activeBg: 'bg-red-50/30' },
-                    { id: 1, label: sectorPrices[1].name, border: 'border-purple-500', text: 'text-purple-600', dot: 'bg-purple-600', activeBg: 'bg-purple-50/30' }
-                  ].map(sector => (
-                    <div
-                      key={sector.id}
-                      onClick={() => setSelectedSectorId(sector.id)}
-                      className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex items-center justify-between ${
-                        selectedSectorId === sector.id
-                          ? `${sector.border} ${sector.activeBg} shadow-sm`
-                          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
-                      }`}
-                    >
-                      <div className="space-y-1">
-                        <span className="font-bold text-xs uppercase tracking-wider text-slate-400 block">
-                          {sector.label}
-                        </span>
-                        <span className={`text-xl font-extrabold block leading-tight transition-colors ${
-                          selectedSectorId === sector.id ? sector.text : 'text-slate-900'
+                {/* Batches selector list */}
+                <div className="md:col-span-5 space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
+                  {sortedBatches.map(batch => {
+                    const styles = getSectorStyles(batch.sectorId);
+                    const isSelected = selectedBatchId === batch.id;
+                    return (
+                      <div
+                        key={batch.id}
+                        onClick={() => {
+                          setSelectedBatchId(batch.id);
+                          setSelectedSectorId(batch.sectorId || null);
+                        }}
+                        className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex items-center justify-between ${
+                          isSelected
+                            ? `${styles.border} ${styles.activeBg} shadow-sm`
+                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
+                        }`}
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-[10px] uppercase tracking-wider text-slate-400 block">
+                              {batch.sectorName || 'SETOR'}
+                            </span>
+                            {batch.meiaEntrada && (
+                              <span className="bg-[#B388FF]/25 text-[#6200EE] px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wide">
+                                Meia
+                              </span>
+                            )}
+                          </div>
+                          <span className={`text-sm font-extrabold block leading-tight transition-colors ${
+                            isSelected ? styles.text : 'text-slate-900'
+                          }`}>
+                            {batch.name}
+                          </span>
+                          <span className={`text-base font-black block leading-tight ${isSelected ? styles.text : 'text-slate-700'}`}>
+                            R$ {Number(batch.price).toFixed(2).replace('.', ',')}
+                          </span>
+                        </div>
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                          isSelected
+                            ? `${styles.border} bg-white`
+                            : 'border-slate-300 bg-white'
                         }`}>
-                          {sectorPrices[sector.id].price}
-                        </span>
-                        <span className="text-[10px] text-emerald-600 font-bold block">
-                          Pague em até 12x
-                        </span>
+                          {isSelected && (
+                            <div className={`w-2.5 h-2.5 rounded-full ${styles.dot}`} />
+                          )}
+                        </div>
                       </div>
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
-                        selectedSectorId === sector.id
-                          ? `${sector.border} bg-white`
-                          : 'border-slate-300 bg-white'
-                      }`}>
-                        {selectedSectorId === sector.id && (
-                          <div className={`w-2.5 h-2.5 rounded-full ${sector.dot}`} />
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {/* Seating Map SVG */}
@@ -353,8 +414,8 @@ export function EventPopup({ isOpen, onClose, event, onBuy }: EventPopupProps) {
                       stroke="#3B82F6"
                       strokeWidth={selectedSectorId === 3 ? '3' : '1.5'}
                       strokeDasharray={selectedSectorId === 3 ? '0' : '3 3'}
-                      className="cursor-pointer transition-all duration-300 hover:fill-opacity-40 hover:scale-[1.01] origin-center"
-                      onClick={() => setSelectedSectorId(3)}
+                      className="cursor-pointer transition-[fill-opacity,transform] duration-300 hover:fill-opacity-40 hover:scale-[1.01] origin-center"
+                      onClick={() => handleSvgSectorClick(3)}
                     />
                     <text
                       x="200"
@@ -376,8 +437,8 @@ export function EventPopup({ isOpen, onClose, event, onBuy }: EventPopupProps) {
                       stroke="#EF4444"
                       strokeWidth={selectedSectorId === 2 ? '3' : '1.5'}
                       strokeDasharray={selectedSectorId === 2 ? '0' : '3 3'}
-                      className="cursor-pointer transition-all duration-300 hover:fill-opacity-40 hover:scale-[1.01] origin-center"
-                      onClick={() => setSelectedSectorId(2)}
+                      className="cursor-pointer transition-[fill-opacity,transform] duration-300 hover:fill-opacity-40 hover:scale-[1.01] origin-center"
+                      onClick={() => handleSvgSectorClick(2)}
                     />
                     <text
                       x="200"
@@ -399,8 +460,8 @@ export function EventPopup({ isOpen, onClose, event, onBuy }: EventPopupProps) {
                       stroke="#A855F7"
                       strokeWidth={selectedSectorId === 1 ? '3' : '1.5'}
                       strokeDasharray={selectedSectorId === 1 ? '0' : '3 3'}
-                      className="cursor-pointer transition-all duration-300 hover:fill-opacity-40 hover:scale-[1.01] origin-center"
-                      onClick={() => setSelectedSectorId(1)}
+                      className="cursor-pointer transition-[fill-opacity,transform] duration-300 hover:fill-opacity-40 hover:scale-[1.01] origin-center"
+                      onClick={() => handleSvgSectorClick(1)}
                     />
                     <text
                       x="200"

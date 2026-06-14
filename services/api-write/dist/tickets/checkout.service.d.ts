@@ -17,6 +17,7 @@ export declare class CheckoutService {
     }): Promise<{
         id: string;
         price: import("@prisma/client/runtime/library").Decimal;
+        meiaEntrada: boolean;
         createdAt: Date;
         updatedAt: Date;
         buyerCpf: string;
@@ -32,6 +33,7 @@ export declare class CheckoutService {
     approveTicketPayment(ticketId: string): Promise<{
         id: string;
         price: import("@prisma/client/runtime/library").Decimal;
+        meiaEntrada: boolean;
         createdAt: Date;
         updatedAt: Date;
         buyerCpf: string;

@@ -28,6 +28,8 @@ export declare const PaymentMethodCardSchema: z.ZodObject<{
 export declare const CheckoutPaymentSchema: z.ZodObject<{
     ticketId: z.ZodString;
     buyerCpf: z.ZodString;
+    email: z.ZodString;
+    buyerName: z.ZodString;
     paymentMethod: z.ZodDiscriminatedUnion<"method", [z.ZodObject<{
         method: z.ZodLiteral<"pix">;
     }, "strip", z.ZodTypeAny, {
@@ -56,6 +58,8 @@ export declare const CheckoutPaymentSchema: z.ZodObject<{
 }, "strip", z.ZodTypeAny, {
     buyerCpf: string;
     ticketId: string;
+    email: string;
+    buyerName: string;
     paymentMethod: {
         method: "pix";
     } | {
@@ -68,6 +72,8 @@ export declare const CheckoutPaymentSchema: z.ZodObject<{
 }, {
     buyerCpf: string;
     ticketId: string;
+    email: string;
+    buyerName: string;
     paymentMethod: {
         method: "pix";
     } | {

@@ -52,6 +52,7 @@ model TicketBatch {
   availableQuantity Int
   sectorId          Int?
   sectorName        String?
+  meiaEntrada       Boolean  @default(false)
   eventId           String
   event             Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   tickets           Ticket[]
@@ -68,6 +69,7 @@ model Ticket {
   buyerCpf  String
   status    TicketStatus @default(PENDING_VALIDATION)
   price     Decimal
+  meiaEntrada       Boolean  @default(false)
   hmacSignature String?
   createdAt DateTime     @default(now())
   expiresAt DateTime
