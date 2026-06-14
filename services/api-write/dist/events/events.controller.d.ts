@@ -50,15 +50,15 @@ export declare class EventsController {
         sectorName?: string;
     }): Promise<{
         id: string;
-        price: import("@prisma/client/runtime/library").Decimal;
-        createdAt: Date;
-        updatedAt: Date;
         name: string;
-        eventId: string;
+        price: import("@prisma/client/runtime/library").Decimal;
         totalQuantity: number;
         availableQuantity: number;
         sectorId: number | null;
         sectorName: string | null;
+        eventId: string;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     /**
      * Rota para listagem de todos os lotes de um determinado evento.
@@ -66,15 +66,15 @@ export declare class EventsController {
      */
     findAllBatches(eventId: string): Promise<{
         id: string;
-        price: import("@prisma/client/runtime/library").Decimal;
-        createdAt: Date;
-        updatedAt: Date;
         name: string;
-        eventId: string;
+        price: import("@prisma/client/runtime/library").Decimal;
         totalQuantity: number;
         availableQuantity: number;
         sectorId: number | null;
         sectorName: string | null;
+        eventId: string;
+        createdAt: Date;
+        updatedAt: Date;
     }[]>;
 }
 //# sourceMappingURL=events.controller.d.ts.map

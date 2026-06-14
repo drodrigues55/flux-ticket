@@ -141,6 +141,14 @@ let FluxEngineService = FluxEngineService_1 = class FluxEngineService {
         }
     }
     /**
+     * Verifica se o estoque de um lote já foi inicializado no Redis.
+     */
+    async isStockInitialized(batchId) {
+        const stockKey = `stock:{${batchId}}`;
+        const result = await this.redisClient.exists(stockKey);
+        return result === 1;
+    }
+    /**
      * Inicializa o estoque de um lote no Redis.
      */
     async setBatchStock(batchId, quantity) {

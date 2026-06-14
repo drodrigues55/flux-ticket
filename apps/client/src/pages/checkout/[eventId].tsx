@@ -1,8 +1,19 @@
 import { useRouter } from 'next/router';
 import { useTicketLock } from '../../hooks/useTicketLock';
-import { Button, Input, Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@flux/ui';
 import { useState, useEffect } from 'react';
 import Script from 'next/script';
+import { Header } from '../../components/header';
+import {
+  FaCreditCard,
+  FaShieldHalved,
+  FaClock,
+  FaCalendarDays,
+  FaLocationDot,
+  FaTicket,
+  FaArrowLeft,
+  FaCircleCheck,
+  FaCopy
+} from 'react-icons/fa6';
 
 interface InstallmentOption {
   installments: number;
@@ -18,6 +29,8 @@ export default function CheckoutPage() {
   // Estados de Identidade da Reserva
   const [ticketId, setTicketId] = useState<string>('');
   const [userId, setUserId] = useState<string>('');
+  const [event, setEvent] = useState<any>(null);
+  const [selectedBatch, setSelectedBatch] = useState<any>(null);
 
   const activeEventId = (eventId as string) || '';
   const activeBatchId = (queryBatchId as string) || '';
@@ -35,17 +48,19 @@ export default function CheckoutPage() {
   const [errorMessage, setErrorMessage] = useState('');
 
   // Estado do Formulário
-  const [paymentMethod, setPaymentMethod] = useState<'credit_card' | 'pix'>('credit_card');
+  const [buyerName, setBuyerName] = useState('');
   const [email, setEmail] = useState('');
   const [buyerCpf, setBuyerCpf] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'credit_card' | 'pix' | null>(null);
   const [cardholderName, setCardholderName] = useState('');
   const [cardNumber, setCardNumber] = useState('');
   const [cardExpiry, setCardExpiry] = useState('');
   const [cardCvc, setCardCvc] = useState('');
   const [issuerId, setIssuerId] = useState('visa');
   const [installments, setInstallments] = useState(1);
-  const [ticketPrice, setTicketPrice] = useState(100.0); // em reais (dinâmico)
+  const [ticketPrice, setTicketPrice] = useState(100.0); // em reais
   const [eventTitle, setEventTitle] = useState('Carregando evento...');
+  const [copied, setCopied] = useState(false);
 
   // Dados do PIX recebidos do MP
   const [pixCode, setPixCode] = useState('');
@@ -54,12 +69,44 @@ export default function CheckoutPage() {
   // Opções de parcelamento dinâmico
   const [installmentOptions, setInstallmentOptions] = useState<InstallmentOption[]>([]);
 
+  // Validador de Formulário Completo
+  const isFormComplete =
+    buyerName.trim().length > 3 &&
+    email.trim().length > 5 &&
+    buyerCpf.length === 14 &&
+    (paymentMethod === 'pix' ||
+      (paymentMethod === 'credit_card' &&
+        cardNumber.length === 19 &&
+        cardholderName.trim().length > 3 &&
+        cardExpiry.length === 5 &&
+        cardCvc.length >= 3));
+
+  // Rola a página para cima automaticamente quando o formulário é completamente preenchido
+  const [hasScrolledUp, setHasScrolledUp] = useState(false);
+  useEffect(() => {
+    if (isFormComplete) {
+      if (!hasScrolledUp) {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        setHasScrolledUp(true);
+      }
+    } else {
+      setHasScrolledUp(false);
+    }
+  }, [isFormComplete, hasScrolledUp]);
+
+  // Rola a página para cima quando o status do pagamento muda
+  useEffect(() => {
+    if (paymentStatus !== 'idle') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [paymentStatus]);
+
   // Lógica quando o lock expira no hook
   const handleLockExpired = () => {
     setPaymentStatus('expired');
     setErrorMessage('Sua sessão de reserva expirou. O ingresso foi liberado de volta ao estoque.');
     setTimeout(() => {
-      router.push(`/events`);
+      router.push(`/`);
     }, 4000);
   };
 
@@ -86,14 +133,16 @@ export default function CheckoutPage() {
           throw new Error('Falha ao obter detalhes do evento.');
         }
         const data = await res.json();
+        setEvent(data);
         setEventTitle(data.title);
 
         const matchingBatch = data.batches?.find((b: any) => b.id === activeBatchId);
         if (!matchingBatch) {
           throw new Error('Lote não encontrado para este evento.');
         }
+        setSelectedBatch(matchingBatch);
 
-        const priceInReais = Number(matchingBatch.price) / 100;
+        const priceInReais = Number(matchingBatch.price);
         setTicketPrice(priceInReais);
         calculateInstallments(priceInReais);
 
@@ -129,41 +178,62 @@ export default function CheckoutPage() {
     fetchDetailsAndReserve();
   }, [activeEventId, activeBatchId, queryTicketId, ticketId]);
 
-  // Calcula opções de parcelamento com base no valor
+  // Calcula opções de parcelamento com base no valor (máximo 4x com taxas fictícias/juros)
   const calculateInstallments = (price: number) => {
     const options: InstallmentOption[] = [
       {
         installments: 1,
         installment_amount: price,
         total_amount: price,
-        recommended_message: `1x de R$ ${price.toFixed(2)} sem juros`,
+        recommended_message: `1x de R$ ${price.toFixed(2).replace('.', ',')}`,
       },
       {
         installments: 2,
-        installment_amount: price / 2,
-        total_amount: price,
-        recommended_message: `2x de R$ ${(price / 2).toFixed(2)} sem juros`,
+        installment_amount: (price * 1.03) / 2,
+        total_amount: price * 1.03,
+        recommended_message: `2x de R$ ${((price * 1.03) / 2).toFixed(2).replace('.', ',')} (com juros)`,
       },
       {
         installments: 3,
-        installment_amount: price / 3,
-        total_amount: price,
-        recommended_message: `3x de R$ ${(price / 3).toFixed(2)} sem juros`,
-      },
-      {
-        installments: 6,
-        installment_amount: (price * 1.05) / 6,
+        installment_amount: (price * 1.05) / 3,
         total_amount: price * 1.05,
-        recommended_message: `6x de R$ ${((price * 1.05) / 6).toFixed(2)} (com juros)`,
+        recommended_message: `3x de R$ ${((price * 1.05) / 3).toFixed(2).replace('.', ',')} (com juros)`,
       },
       {
-        installments: 12,
-        installment_amount: (price * 1.1) / 12,
-        total_amount: price * 1.1,
-        recommended_message: `12x de R$ ${((price * 1.1) / 12).toFixed(2)} (com juros)`,
+        installments: 4,
+        installment_amount: (price * 1.07) / 4,
+        total_amount: price * 1.07,
+        recommended_message: `4x de R$ ${((price * 1.07) / 4).toFixed(2).replace('.', ',')} (com juros)`,
       },
     ];
     setInstallmentOptions(options);
+  };
+
+  // Formatadores de Inputs
+  const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, '');
+    const formatted = value
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+    setBuyerCpf(formatted.substring(0, 14));
+  };
+
+  const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, '');
+    const formatted = value.replace(/(\d{4})(?=\d)/g, '$1 ');
+    setCardNumber(formatted.substring(0, 19));
+  };
+
+  const handleExpiryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, '');
+    const formatted = value.replace(/(\d{2})(\d)/, '$1/$2');
+    setCardExpiry(formatted.substring(0, 5));
+  };
+
+  const handleCvcChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, '');
+    setCardCvc(value.substring(0, 4));
   };
 
   // Escuta mudanças de número de cartão para descobrir bandeira/bin
@@ -171,23 +241,21 @@ export default function CheckoutPage() {
     const cleanNumber = cardNumber.replace(/\s+/g, '');
     if (cleanNumber.length >= 6) {
       const bin = cleanNumber.substring(0, 6);
-      // Aqui integraria com o MP SDK real: window.MercadoPago.getPaymentMethod({ bin })
-      // Simulação de bandeiras baseadas no primeiro dígito
       if (bin.startsWith('4')) {
         setIssuerId('visa');
       } else if (bin.startsWith('5')) {
-        setIssuerId('master');
+        setIssuerId('mastercard');
       } else if (bin.startsWith('3')) {
         setIssuerId('amex');
       } else {
-        setIssuerId('other');
+        setIssuerId('cartão');
       }
     }
   }, [cardNumber]);
 
-  const handlePaymentSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (paymentStatus === 'expired') return;
+  const handlePaymentSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (paymentStatus === 'expired' || !isFormComplete) return;
     setPaymentStatus('processing');
     setErrorMessage('');
 
@@ -201,12 +269,8 @@ export default function CheckoutPage() {
       };
 
       if (paymentMethod === 'credit_card') {
-        // No checkout real com MP SDK, tokenizaríamos o cartão primeiro:
-        // const cardToken = await mp.fields.createCardToken({...});
-        // Para nossa integração híbrida NestJS (com mock de dev):
         let cardToken = 'mock-approved-token';
 
-        // Simulação de testes para tokens mock
         if (cardNumber.includes('1111') || cardholderName.toLowerCase().includes('pending')) {
           cardToken = 'mock-pending-token';
         } else if (cardNumber.includes('2222') || cardholderName.toLowerCase().includes('rejected') || cardholderName.toLowerCase().includes('fail')) {
@@ -259,72 +323,78 @@ export default function CheckoutPage() {
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(pixCode);
-    alert('Código PIX copiado com sucesso!');
+    setCopied(true);
+    setTimeout(() => setCopied(false), 3000);
   };
 
+  const displayDateStr = event?.date
+    ? new Date(event.date).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })
+    : '';
+
   return (
-    <div className="min-h-screen bg-cosmic-dark text-white flex flex-col justify-between py-12 px-4 sm:px-6 lg:px-8 selection:bg-cosmic-neon/30 selection:text-cosmic-neon">
-      {/* Mercado Pago Web Tokenizer SDK Script */}
+    <div className="min-h-screen flex flex-col bg-[#F8F9FA] font-sans antialiased text-slate-900">
+      <Header />
       <Script src="https://sdk.mercadopago.com/js/v2" strategy="lazyOnload" />
 
-      {/* Background neon grid effect */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px] pointer-events-none" />
+      <main className="max-w-6xl mx-auto w-full px-6 py-12 flex-grow">
+        {/* Voltar para eventos */}
+        <button
+          onClick={() => router.push('/')}
+          className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-[#6200EE] transition-colors mb-8 cursor-pointer border-none bg-transparent"
+        >
+          <FaArrowLeft className="w-4 h-4" />
+          Voltar para Eventos
+        </button>
 
-      <main className="max-w-4xl mx-auto w-full relative z-10 my-auto">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-
           {/* Seção Esquerda: Formulário de Pagamento */}
           <div className="lg:col-span-7 space-y-6">
-            <Card className="border-neutral-850/80 shadow-2xl relative overflow-hidden">
-              {/* Top border glowing line */}
-              <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-cosmic-neon to-transparent" />
-
-              <CardHeader>
-                <CardTitle className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-white via-neutral-100 to-neutral-400 bg-clip-text text-transparent">
+            <div className="bg-white rounded-3xl border border-neutral-200/60 shadow-sm overflow-hidden">
+              <div className="p-6 md:p-8 border-b border-neutral-100 bg-gradient-to-r from-purple-50/50 to-indigo-50/30">
+                <h2 className="text-2xl font-extrabold text-slate-900 leading-tight">
                   Detalhes do Faturamento
-                </CardTitle>
-                <CardDescription>
-                  Selecione o método de pagamento e conclua sua compra com segurança.
-                </CardDescription>
-              </CardHeader>
+                </h2>
+                <p className="text-slate-500 text-sm mt-1">
+                  Insira seus dados de acesso, selecione o método de pagamento e conclua sua compra com segurança.
+                </p>
+              </div>
 
               {paymentStatus === 'success' ? (
-                <div className="text-center py-12 space-y-4 px-6">
-                  <div className="w-16 h-16 bg-cosmic-neon/10 border border-cosmic-neon rounded-full flex items-center justify-center mx-auto animate-neon-glow">
-                    <svg className="w-8 h-8 text-cosmic-neon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                    </svg>
+                <div className="text-center py-16 px-6 space-y-5 animate-in fade-in zoom-in-95 duration-200">
+                  <div className="w-20 h-20 bg-emerald-50 border-4 border-emerald-100 rounded-full flex items-center justify-center mx-auto text-emerald-600 shadow-sm">
+                    <FaCircleCheck className="w-10 h-10" />
                   </div>
-                  <h3 className="text-xl font-bold text-cosmic-neon">Pagamento Aprovado!</h3>
-                  <p className="text-neutral-400 text-sm max-w-sm mx-auto">
+                  <h3 className="text-2xl font-black text-slate-900">Pagamento Aprovado!</h3>
+                  <p className="text-slate-500 text-sm max-w-sm mx-auto leading-relaxed">
                     Seu ingresso foi emitido e assinado digitalmente com sucesso. A assinatura HMAC já está salva na portaria.
                   </p>
-                  <Button variant="outline" size="sm" onClick={() => router.push('/events')} className="mt-4">
-                    Voltar para Eventos
-                  </Button>
+                  <button
+                    onClick={() => router.push('/')}
+                    className="bg-[#6200EE] hover:bg-[#5000c7] text-white px-8 py-3 rounded-xl font-bold transition-all shadow-md active:scale-95 text-sm cursor-pointer inline-block mt-4"
+                  >
+                    Voltar para Início
+                  </button>
                 </div>
               ) : paymentStatus === 'pending_card_review' ? (
-                <div className="text-center py-12 space-y-4 px-6">
-                  <div className="w-16 h-16 bg-yellow-500/10 border border-yellow-500 rounded-full flex items-center justify-center mx-auto animate-pulse">
-                    <svg className="w-8 h-8 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
+                <div className="text-center py-16 px-6 space-y-5 animate-in fade-in zoom-in-95 duration-200">
+                  <div className="w-20 h-20 bg-amber-50 border-4 border-amber-100 rounded-full flex items-center justify-center mx-auto text-amber-500 shadow-sm animate-pulse">
+                    <FaClock className="w-9 h-9" />
                   </div>
-                  <h3 className="text-xl font-bold text-yellow-500">Pagamento em Análise</h3>
-                  <p className="text-neutral-400 text-sm max-w-sm mx-auto">
+                  <h3 className="text-2xl font-black text-slate-900">Pagamento em Análise</h3>
+                  <p className="text-slate-500 text-sm max-w-sm mx-auto leading-relaxed">
                     O Mercado Pago está revisando a transação do cartão. O lock do seu ingresso foi estendido por 15 minutos para sua segurança.
                   </p>
                 </div>
               ) : paymentStatus === 'pending_pix' ? (
-                <div className="text-center py-8 space-y-6 px-6">
-                  <div className="w-12 h-12 bg-cosmic-neon/10 border border-cosmic-neon rounded-full flex items-center justify-center mx-auto animate-neon-glow">
-                    <span className="font-bold text-cosmic-neon text-xs">PIX</span>
+                <div className="text-center py-10 px-6 space-y-6 animate-in fade-in zoom-in-95 duration-200">
+                  <div className="inline-flex items-center gap-1.5 text-xs text-emerald-600 font-bold bg-emerald-50 border border-emerald-100 px-3.5 py-1.5 rounded-full shadow-sm">
+                    <span className="w-2 h-2 bg-emerald-500 rounded-full animate-ping" />
+                    Aguardando Pagamento
                   </div>
-                  <h3 className="text-xl font-bold text-white">Aguardando Pagamento</h3>
+                  <h3 className="text-2xl font-black text-slate-900">Pague via PIX</h3>
 
-                  {/* Mock/Real QR Code Image representation */}
                   {pixQrBase64 && (
-                    <div className="bg-white p-3 rounded-lg w-44 h-44 mx-auto border border-neutral-200 shadow-[0_0_15px_rgba(255,255,255,0.1)]">
+                    <div className="bg-white p-4 rounded-2xl w-48 h-48 mx-auto border border-neutral-200/80 shadow-md">
                       <img
                         src={`data:image/png;base64,${pixQrBase64}`}
                         alt="QR Code PIX"
@@ -333,298 +403,352 @@ export default function CheckoutPage() {
                     </div>
                   )}
 
-                  <div className="space-y-3">
-                    <p className="text-neutral-400 text-xs max-w-sm mx-auto">
+                  <div className="space-y-4 max-w-md mx-auto">
+                    <p className="text-slate-500 text-xs leading-relaxed">
                       Copie o código PIX abaixo para pagar no aplicativo do seu banco. Sua reserva expira em 15 minutos.
                     </p>
 
-                    <div className="flex items-center bg-[#1A1A1A] border border-neutral-850 p-2.5 rounded-lg max-w-md mx-auto">
+                    <div className="flex items-center bg-slate-50 border border-neutral-200 p-2 rounded-xl">
                       <input
                         type="text"
                         readOnly
                         value={pixCode}
-                        className="bg-transparent text-neutral-300 text-xs flex-1 outline-none font-mono truncate mr-2"
+                        className="bg-transparent text-slate-700 text-xs font-semibold flex-1 outline-none font-mono truncate px-2 border-none"
                       />
-                      <Button variant="primary" size="sm" onClick={copyToClipboard} className="shrink-0">
-                        Copiar
-                      </Button>
+                      <button
+                        onClick={copyToClipboard}
+                        className={`flex items-center gap-1.5 px-4 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+                          copied
+                            ? 'bg-emerald-600 text-white shadow-sm'
+                            : 'bg-[#6200EE] hover:bg-[#5000c7] text-white shadow-sm'
+                        }`}
+                      >
+                        {copied ? (
+                          <>
+                            <FaCircleCheck className="w-3.5 h-3.5" />
+                            Copiado
+                          </>
+                        ) : (
+                          <>
+                            <FaCopy className="w-3.5 h-3.5" />
+                            Copiar
+                          </>
+                        )}
+                      </button>
                     </div>
                   </div>
                 </div>
               ) : paymentStatus === 'expired' ? (
-                <div className="text-center py-12 space-y-4 px-6">
-                  <div className="w-16 h-16 bg-red-500/10 border border-red-500 rounded-full flex items-center justify-center mx-auto">
-                    <svg className="w-8 h-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
+                <div className="text-center py-16 px-6 space-y-5 animate-in fade-in zoom-in-95 duration-200">
+                  <div className="w-20 h-20 bg-red-50 border-4 border-red-100 rounded-full flex items-center justify-center mx-auto text-red-500 shadow-sm">
+                    <FaClock className="w-9 h-9" />
                   </div>
-                  <h3 className="text-xl font-bold text-red-500">Reserva Expirada</h3>
-                  <p className="text-neutral-400 text-sm max-w-sm mx-auto">
+                  <h3 className="text-2xl font-black text-slate-900">Reserva Expirada</h3>
+                  <p className="text-slate-500 text-sm max-w-sm mx-auto leading-relaxed">
                     {errorMessage} Redirecionando...
                   </p>
                 </div>
               ) : (
-                <form onSubmit={handlePaymentSubmit}>
-                  {/* Selector de Método de Pagamento */}
-                  <div className="grid grid-cols-2 gap-4 px-6 pt-2 pb-4 border-b border-neutral-850">
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('credit_card')}
-                      className={`flex items-center justify-center p-3 rounded-lg border font-bold text-sm transition-all duration-200 ${paymentMethod === 'credit_card'
-                          ? 'border-cosmic-neon bg-cosmic-neon/10 text-cosmic-neon shadow-[0_0_12px_rgba(0,229,255,0.1)]'
-                          : 'border-neutral-800 bg-[#151515] text-neutral-400 hover:text-white'
-                        }`}
-                    >
-                      <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                      </svg>
-                      Cartão de Crédito
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('pix')}
-                      className={`flex items-center justify-center p-3 rounded-lg border font-bold text-sm transition-all duration-200 ${paymentMethod === 'pix'
-                          ? 'border-cosmic-neon bg-cosmic-neon/10 text-cosmic-neon shadow-[0_0_12px_rgba(0,229,255,0.1)]'
-                          : 'border-neutral-800 bg-[#151515] text-neutral-400 hover:text-white'
-                        }`}
-                    >
-                      <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v1m4 11h.01M5 8h2m9 0h3m-11 4h.01M16 16h3M4 20h16a2 2 0 002-2V6a2 2 0 00-2-2H4a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                      PIX Instantâneo
-                    </button>
+                <form id="checkout-form" onSubmit={handlePaymentSubmit} className="divide-y divide-neutral-100">
+                  {/* 1. DADOS DE ACESSO */}
+                  <div className="p-6 md:p-8 space-y-4">
+                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-[#6200EE]/10 text-[#6200EE] text-xs font-bold flex items-center justify-center">1</span>
+                      Dados de Acesso
+                    </h3>
+                    
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Nome Completo *</label>
+                      <input
+                        type="text"
+                        placeholder="Nome Completo do Comprador"
+                        required
+                        value={buyerName}
+                        onChange={(e) => setBuyerName(e.target.value)}
+                        disabled={paymentStatus === 'processing'}
+                        className="w-full bg-[#F8F9FA] border border-neutral-200 rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 focus:border-[#6200EE] focus:bg-white transition-all duration-200"
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold uppercase tracking-wider text-slate-500">E-mail *</label>
+                        <input
+                          type="email"
+                          placeholder="exemplo@email.com"
+                          required
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          disabled={paymentStatus === 'processing'}
+                          className="w-full bg-[#F8F9FA] border border-neutral-200 rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 focus:border-[#6200EE] focus:bg-white transition-all duration-200"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold uppercase tracking-wider text-slate-500">CPF do Comprador *</label>
+                        <input
+                          type="text"
+                          placeholder="000.000.000-00"
+                          required
+                          value={buyerCpf}
+                          onChange={handleCpfChange}
+                          disabled={paymentStatus === 'processing'}
+                          className="w-full bg-[#F8F9FA] border border-neutral-200 rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 focus:border-[#6200EE] focus:bg-white transition-all duration-200"
+                        />
+                      </div>
+                    </div>
                   </div>
 
-                  <CardContent className="space-y-4 pt-4">
-                    {errorMessage && (
-                      <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs p-3.5 rounded-lg">
-                        {errorMessage}
+                  {/* 2. MÉTODO DE PAGAMENTO */}
+                  <div>
+                    <div className="p-6 md:px-8 bg-slate-50/50">
+                      <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
+                        <span className="w-6 h-6 rounded-full bg-[#6200EE]/10 text-[#6200EE] text-xs font-bold flex items-center justify-center">2</span>
+                        Método de Pagamento
+                      </h3>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <button
+                          type="button"
+                          onClick={() => setPaymentMethod('credit_card')}
+                          className={`flex items-center justify-center p-3.5 rounded-xl border-2 font-bold text-sm transition-all cursor-pointer ${
+                            paymentMethod === 'credit_card'
+                              ? 'border-[#6200EE] bg-white text-[#6200EE] shadow-sm'
+                              : 'border-neutral-200 bg-white text-slate-500 hover:text-slate-800'
+                          }`}
+                        >
+                          <FaCreditCard className="w-4.5 h-4.5 mr-2" />
+                          Cartão de Crédito
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPaymentMethod('pix')}
+                          className={`flex items-center justify-center p-3.5 rounded-xl border-2 font-bold text-sm transition-all cursor-pointer ${
+                            paymentMethod === 'pix'
+                              ? 'border-[#6200EE] bg-white text-[#6200EE] shadow-sm'
+                              : 'border-neutral-200 bg-white text-slate-500 hover:text-slate-800'
+                          }`}
+                        >
+                          <svg className="w-4.5 h-4.5 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 4.004L4.004 12L12 19.996L19.996 12L12 4.004zM12 2L22 12L12 22L2 12L12 2zM12 7.004L7.004 12L12 16.996L16.996 12L12 7.004zm0 2L14.996 12L12 14.996L9.004 12L12 9.004z" />
+                          </svg>
+                          PIX Instantâneo
+                        </button>
                       </div>
-                    )}
+                    </div>
 
-                    {paymentMethod === 'credit_card' ? (
-                      <>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <label className="text-xs font-bold uppercase tracking-wider text-neutral-400">E-mail *</label>
-                            <Input
-                              type="email"
-                              placeholder="exemplo@email.com"
-                              required
-                              value={email}
-                              onChange={(e) => setEmail(e.target.value)}
-                              disabled={paymentStatus === 'processing'}
-                              className="focus:ring-[#00E5FF] focus:border-[#00E5FF] focus:ring-1 border-[#2C2C2C] bg-[#121212]"
-                            />
+                    {paymentMethod !== null && (
+                      <div className="p-6 md:p-8 space-y-5 animate-in fade-in slide-in-from-top-3 duration-250">
+                        {errorMessage && (
+                          <div className="bg-red-50 border border-red-200 text-red-700 text-xs p-4 rounded-xl font-medium">
+                            {errorMessage}
                           </div>
-                          <div className="space-y-2">
-                            <label className="text-xs font-bold uppercase tracking-wider text-neutral-400">CPF do Titular *</label>
-                            <Input
-                              type="text"
-                              placeholder="000.000.000-00"
-                              required
-                              value={buyerCpf}
-                              onChange={(e) => setBuyerCpf(e.target.value)}
-                              disabled={paymentStatus === 'processing'}
-                              className="focus:ring-[#00E5FF] focus:border-[#00E5FF] focus:ring-1 border-[#2C2C2C] bg-[#121212]"
-                            />
-                          </div>
-                        </div>
+                        )}
 
-                        <div className="space-y-2">
-                          <label className="text-xs font-bold uppercase tracking-wider text-neutral-400">Nome Impresso no Cartão *</label>
-                          <Input
-                            type="text"
-                            placeholder="JOAO H SILVA"
-                            required
-                            value={cardholderName}
-                            onChange={(e) => setCardholderName(e.target.value)}
-                            disabled={paymentStatus === 'processing'}
-                            className="focus:ring-[#00E5FF] focus:border-[#00E5FF] focus:ring-1 border-[#2C2C2C] bg-[#121212] uppercase"
-                          />
-                        </div>
+                        {paymentMethod === 'credit_card' ? (
+                          <div className="space-y-4">
+                            <div className="space-y-1.5">
+                              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Número do Cartão *</label>
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  placeholder="4000 1234 5678 9010"
+                                  required
+                                  value={cardNumber}
+                                  onChange={handleCardNumberChange}
+                                  disabled={paymentStatus === 'processing'}
+                                  className="w-full bg-[#F8F9FA] border border-neutral-200 rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 focus:border-[#6200EE] focus:bg-white transition-all duration-200"
+                                />
+                                <div className="absolute right-4 top-3.5 text-slate-400 text-xs font-bold uppercase font-mono select-none">
+                                  {issuerId}
+                                </div>
+                              </div>
+                            </div>
 
-                        <div className="space-y-2">
-                          <label className="text-xs font-bold uppercase tracking-wider text-neutral-400">Número do Cartão *</label>
-                          <div className="relative">
-                            <Input
-                              type="text"
-                              placeholder="4000 1234 5678 9010"
-                              required
-                              value={cardNumber}
-                              onChange={(e) => setCardNumber(e.target.value)}
-                              disabled={paymentStatus === 'processing'}
-                              className="focus:ring-[#00E5FF] focus:border-[#00E5FF] focus:ring-1 border-[#2C2C2C] bg-[#121212]"
-                            />
-                            <div className="absolute right-3 top-3 text-neutral-500 text-xs font-bold font-mono tracking-widest uppercase">
-                              {issuerId}
+                            <div className="space-y-1.5">
+                              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Nome Impresso no Cartão *</label>
+                              <input
+                                type="text"
+                                placeholder="JOAO H SILVA"
+                                required
+                                value={cardholderName}
+                                onChange={(e) => setCardholderName(e.target.value)}
+                                disabled={paymentStatus === 'processing'}
+                                className="w-full bg-[#F8F9FA] border border-neutral-200 rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 focus:border-[#6200EE] focus:bg-white transition-all duration-200 uppercase"
+                              />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-1.5">
+                                <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Validade *</label>
+                                <input
+                                  type="text"
+                                  placeholder="MM/AA"
+                                  required
+                                  value={cardExpiry}
+                                  onChange={handleExpiryChange}
+                                  disabled={paymentStatus === 'processing'}
+                                  className="w-full bg-[#F8F9FA] border border-neutral-200 rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 focus:border-[#6200EE] focus:bg-white transition-all duration-200"
+                                />
+                              </div>
+                              <div className="space-y-1.5">
+                                <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Código CVC *</label>
+                                <input
+                                  type="text"
+                                  placeholder="123"
+                                  required
+                                  value={cardCvc}
+                                  onChange={handleCvcChange}
+                                  disabled={paymentStatus === 'processing'}
+                                  className="w-full bg-[#F8F9FA] border border-neutral-200 rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 focus:border-[#6200EE] focus:bg-white transition-all duration-200"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Parcelamento (Mercado Pago) *</label>
+                              <select
+                                required
+                                value={installments}
+                                onChange={(e) => setInstallments(Number(e.target.value))}
+                                disabled={paymentStatus === 'processing'}
+                                className="w-full bg-[#F8F9FA] border border-neutral-200 rounded-xl px-4 py-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#6200EE]/20 focus:border-[#6200EE] focus:bg-white transition-all duration-200 cursor-pointer"
+                              >
+                                {installmentOptions.map((opt) => (
+                                  <option key={opt.installments} value={opt.installments}>
+                                    {opt.recommended_message}
+                                  </option>
+                                ))}
+                              </select>
                             </div>
                           </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <label className="text-xs font-bold uppercase tracking-wider text-neutral-400">Validade *</label>
-                            <Input
-                              type="text"
-                              placeholder="MM/AA"
-                              required
-                              value={cardExpiry}
-                              onChange={(e) => setCardExpiry(e.target.value)}
-                              disabled={paymentStatus === 'processing'}
-                              className="focus:ring-[#00E5FF] focus:border-[#00E5FF] focus:ring-1 border-[#2C2C2C] bg-[#121212]"
-                            />
+                        ) : (
+                          <div className="bg-emerald-50/50 border border-emerald-100 p-5 rounded-2xl space-y-3">
+                            <h4 className="font-bold text-emerald-800 text-sm flex items-center">
+                              <FaCircleCheck className="w-4 h-4 mr-2 text-emerald-600" />
+                              Pagamento PIX Instantâneo
+                            </h4>
+                            <ul className="text-slate-600 text-xs space-y-2 list-disc list-inside">
+                              <li>O QR code e o código copia-e-cola serão gerados após confirmar a compra.</li>
+                              <li>O estoque do ingresso ficará garantido por 15 minutos após a geração do PIX.</li>
+                              <li>A validação de compensação é automática e instantânea.</li>
+                            </ul>
                           </div>
-                          <div className="space-y-2">
-                            <label className="text-xs font-bold uppercase tracking-wider text-neutral-400">Código CVC *</label>
-                            <Input
-                              type="text"
-                              placeholder="123"
-                              required
-                              value={cardCvc}
-                              onChange={(e) => setCardCvc(e.target.value)}
-                              disabled={paymentStatus === 'processing'}
-                              className="focus:ring-[#00E5FF] focus:border-[#00E5FF] focus:ring-1 border-[#2C2C2C] bg-[#121212]"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <label className="text-xs font-bold uppercase tracking-wider text-neutral-400">Parcelamento (Mercado Pago) *</label>
-                          <select
-                            required
-                            value={installments}
-                            onChange={(e) => setInstallments(Number(e.target.value))}
-                            disabled={paymentStatus === 'processing'}
-                            className="w-full bg-[#121212] border border-[#2C2C2C] rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#00E5FF] focus:ring-1 focus:ring-[#00E5FF] transition-all duration-200"
-                          >
-                            {installmentOptions.map((opt) => (
-                              <option key={opt.installments} value={opt.installments}>
-                                {opt.recommended_message}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="bg-cosmic-slate p-4 border border-cosmic-grey rounded-lg space-y-3">
-                        <h4 className="font-semibold text-cosmic-neon text-sm flex items-center">
-                          <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          Pagamento PIX Instantâneo
-                        </h4>
-                        <ul className="text-neutral-400 text-xs space-y-2 list-disc list-inside">
-                          <li>O QR code e o código copia-e-cola serão gerados após confirmar a compra.</li>
-                          <li>O estoque do ingresso ficará garantido por 15 minutos após a geração do PIX.</li>
-                          <li>A validação de compensação é automática e instantânea.</li>
-                        </ul>
+                        )}
                       </div>
                     )}
-                  </CardContent>
+                  </div>
 
-                  <CardFooter className="flex-col space-y-3">
-                    <Button
-                      type="submit"
-                      variant="primary"
-                      className="w-full py-3 hover:scale-[1.01] hover:shadow-[0_0_15px_rgba(0,229,255,0.3)] transition-all"
-                      disabled={paymentStatus === 'processing' || !ticketId}
-                    >
-                      {paymentStatus === 'processing' ? (
-                        <span className="flex items-center space-x-2">
-                          <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-neutral-900" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          Processando com Mercado Pago...
-                        </span>
-                      ) : !ticketId ? (
-                        'Inicializando Reserva...'
-                      ) : paymentMethod === 'pix' ? (
-                        'Gerar Código PIX e Pagar'
-                      ) : (
-                        `Pagar R$ ${ticketPrice.toFixed(2)} com Cartão`
-                      )}
-                    </Button>
-                    <div className="flex items-center justify-center space-x-2 text-[10px] text-neutral-500 uppercase font-bold tracking-widest">
-                      <svg className="w-3.5 h-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                      </svg>
-                      <span>Transação criptografada de ponta a ponta</span>
+                  {/* 3. INFORMAÇÕES RELEVANTES */}
+                  {paymentMethod !== null && (
+                    <div className="p-6 md:p-8 bg-slate-50/30 space-y-3 animate-in fade-in duration-200">
+                      <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-full bg-[#6200EE]/10 text-[#6200EE] text-[10px] font-bold flex items-center justify-center">3</span>
+                        Informações Relevantes
+                      </h3>
+                      <div className="text-xs text-slate-500 space-y-2 leading-relaxed">
+                        <p>• O ingresso gerado é **nominal** e fica vinculado ao CPF informado nos dados de acesso.</p>
+                        <p>• A liberação do ingresso em formato digital (com assinatura HMAC anti-fraude) ocorre imediatamente após a confirmação do pagamento no gateway do Mercado Pago.</p>
+                        <p>• O tempo restante acima garante a reserva do ingresso no estoque. Caso expire, seu ingresso será devolvido ao estoque do evento automaticamente.</p>
+                        <p>• Ao prosseguir com a compra, você concorda com os termos de compra e políticas de reembolso da plataforma.</p>
+                      </div>
                     </div>
-                  </CardFooter>
+                  )}
                 </form>
               )}
-            </Card>
+            </div>
           </div>
 
           {/* Seção Direita: Temporizador de Segurança & Resumo */}
           <div className="lg:col-span-5 space-y-6">
-
             {/* Bloco de Contagem Regressiva */}
-            <Card className="border-neutral-850/80 bg-gradient-to-br from-cosmic-slate to-[#1a2327]">
-              <CardHeader className="items-center text-center">
-                <span className="text-xs font-bold uppercase tracking-wider text-cosmic-neon bg-cosmic-neon/10 border border-cosmic-neon/30 rounded-full px-3 py-1">
-                  Tempo Restante
-                </span>
-              </CardHeader>
-              <CardContent className="flex flex-col items-center py-4 space-y-4">
-                {/* Visual circular timer indicator */}
-                <div className="relative w-36 h-36 flex items-center justify-center">
-                  <svg className="absolute inset-0 w-full h-full transform -rotate-90">
-                    <circle
-                      cx="72"
-                      cy="72"
-                      r="64"
-                      className="stroke-neutral-800"
-                      strokeWidth="6"
-                      fill="transparent"
-                    />
-                    <circle
-                      cx="72"
-                      cy="72"
-                      r="64"
-                      className="stroke-cosmic-neon transition-all duration-1000 ease-linear"
-                      strokeWidth="6"
-                      fill="transparent"
-                      strokeDasharray={402}
-                      strokeDashoffset={402 - (402 * progressPercent) / 100}
-                    />
-                  </svg>
-                  <div className="text-center">
-                    <span className="text-3xl font-mono font-black text-white tracking-wider">
-                      {formattedTime}
-                    </span>
-                    <p className="text-[10px] uppercase font-bold text-neutral-400 tracking-widest mt-1">
-                      Minutos
-                    </p>
-                  </div>
-                </div>
+            <div className="bg-white rounded-3xl border border-neutral-200/60 shadow-sm p-6 flex flex-col items-center space-y-4">
+              <span className="text-xs font-bold uppercase tracking-wider text-[#6200EE] bg-[#6200EE]/10 border border-[#6200EE]/20 rounded-full px-4 py-1.5">
+                Tempo Restante
+              </span>
 
-                <div className="text-center space-y-1.5 max-w-[240px]">
-                  <h4 className="text-sm font-semibold text-neutral-200">Reserva de Inventário Ativa</h4>
-                  <p className="text-xs text-neutral-400">
-                    Seu ingresso está temporariamente bloqueado para você. O cronômetro se renovará automaticamente enquanto você finaliza.
+              {/* Visual circular timer indicator */}
+              <div className="relative w-36 h-36 flex items-center justify-center">
+                <svg className="absolute inset-0 w-full h-full transform -rotate-90">
+                  <circle
+                    cx="72"
+                    cy="72"
+                    r="64"
+                    className="stroke-slate-100"
+                    strokeWidth="6"
+                    fill="transparent"
+                  />
+                  <circle
+                    cx="72"
+                    cy="72"
+                    r="64"
+                    className="stroke-[#6200EE] transition-all duration-1000 ease-linear"
+                    strokeWidth="6"
+                    fill="transparent"
+                    strokeDasharray={402}
+                    strokeDashoffset={402 - (402 * progressPercent) / 100}
+                  />
+                </svg>
+                <div className="text-center">
+                  <span className="text-3xl font-mono font-black text-slate-800 tracking-wider">
+                    {formattedTime}
+                  </span>
+                  <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest mt-1">
+                    Minutos
                   </p>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+
+              <div className="text-center space-y-1 max-w-[240px]">
+                <h4 className="text-sm font-bold text-slate-800">Reserva de Inventário Ativa</h4>
+                <p className="text-xs text-slate-400 leading-normal">
+                  Seu ingresso está temporariamente bloqueado para você. O cronômetro se renovará automaticamente enquanto você digita.
+                </p>
+              </div>
+            </div>
 
             {/* Resumo do Pedido */}
-            <Card className="border-neutral-850/80">
-              <CardHeader>
-                <CardTitle className="text-lg">Resumo do Pedido</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex justify-between items-center text-sm py-2 border-b border-neutral-800/60">
-                  <div>
-                    <p className="font-bold text-neutral-200">{eventTitle}</p>
-                    <p className="text-xs text-neutral-400">1x Ingresso Lote Ativo</p>
+            <div className="bg-white rounded-3xl border border-neutral-200/60 shadow-sm p-6 space-y-5">
+              <h3 className="text-lg font-bold text-slate-900 border-b border-neutral-100 pb-3">Resumo do Pedido</h3>
+
+              {event && (
+                <div className="flex gap-4 items-start pb-4 border-b border-neutral-100">
+                  {event.image && (
+                    <div className="w-16 h-16 rounded-xl overflow-hidden shadow-sm shrink-0 border border-neutral-200/60">
+                      <img src={event.image} alt={event.title} className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                  <div className="space-y-1">
+                    <p className="font-bold text-sm text-slate-800 leading-tight">{event.title}</p>
+                    {displayDateStr && (
+                      <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                        <FaCalendarDays className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span>{displayDateStr}</span>
+                      </div>
+                    )}
+                    {event.location && (
+                      <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                        <FaLocationDot className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="truncate max-w-[180px]">{event.location}</span>
+                      </div>
+                    )}
                   </div>
-                  <span className="font-mono text-cosmic-neon font-bold">R$ {ticketPrice.toFixed(2)}</span>
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <div className="flex justify-between items-center text-sm">
+                  <div>
+                    <span className="font-bold text-slate-800">1x Ingresso</span>
+                    {selectedBatch && (
+                      <span className="text-xs text-slate-400 block mt-0.5">
+                        Setor: {selectedBatch.sectorName || 'Superior'} | {selectedBatch.name}
+                      </span>
+                    )}
+                  </div>
+                  <span className="font-mono text-slate-800 font-bold">R$ {ticketPrice.toFixed(2).replace('.', ',')}</span>
                 </div>
 
-                <div className="space-y-2 text-xs text-neutral-400">
+                <div className="space-y-1.5 text-xs text-slate-400 pt-2 border-t border-neutral-100">
                   <div className="flex justify-between">
                     <span>Taxa de Conveniência</span>
                     <span className="font-mono">R$ 0,00</span>
@@ -635,20 +759,58 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
-                <div className="flex justify-between items-center pt-4 border-t border-neutral-800 font-bold">
-                  <span>Total</span>
-                  <span className="text-xl font-mono text-cosmic-neon font-black">R$ {ticketPrice.toFixed(2)}</span>
+                <div className="flex justify-between items-center pt-4 border-t border-neutral-100 font-bold">
+                  <span className="text-slate-800">Total</span>
+                  <span className="text-2xl font-mono text-[#6200EE] font-black">R$ {ticketPrice.toFixed(2).replace('.', ',')}</span>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
 
+              {/* Botão de Finalizar Pagamento no Resumo (Lado Direito) */}
+              {paymentStatus !== 'success' && paymentStatus !== 'pending_pix' && paymentStatus !== 'pending_card_review' && paymentStatus !== 'expired' && (
+                <div className="pt-2 flex flex-col gap-3">
+                  <button
+                    type="submit"
+                    form="checkout-form"
+                    disabled={paymentStatus === 'processing' || !ticketId || !isFormComplete}
+                    className={`w-full py-4 rounded-2xl font-bold transition-all shadow-md active:scale-[0.98] text-sm border-none text-center block ${
+                      paymentStatus === 'processing'
+                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                        : !isFormComplete
+                        ? 'bg-[#6200EE]/10 border border-[#6200EE]/20 text-[#6200EE]/60 cursor-not-allowed'
+                        : 'bg-[#2E7D32] hover:bg-[#1b5e20] text-white cursor-pointer hover:shadow-lg shadow-emerald-600/20'
+                    }`}
+                  >
+                    {paymentStatus === 'processing' ? (
+                      <span className="flex items-center justify-center space-x-2">
+                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Processando...
+                      </span>
+                    ) : !ticketId ? (
+                      'Inicializando Reserva...'
+                    ) : paymentMethod === null ? (
+                      'Selecione o Método'
+                    ) : !isFormComplete ? (
+                      'Preencha as Informações'
+                    ) : (
+                      'Pagar Agora'
+                    )}
+                  </button>
+                  <div className="flex items-center justify-center space-x-2 text-[9px] text-slate-400 font-bold tracking-widest uppercase">
+                    <FaShieldHalved className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span>Ambiente 100% Seguro</span>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-
         </div>
       </main>
 
-      <footer className="text-center text-xs text-neutral-500 py-6 relative z-10">
-        <p>&copy; {new Date().getFullYear()} Flux Ticketss. Todos os direitos reservados.</p>
+      <footer className="text-center text-xs text-slate-400 py-8 border-t border-neutral-200/60 max-w-6xl mx-auto w-full">
+        &copy; {new Date().getFullYear()} Flux Tickets. Todos os direitos reservados.
       </footer>
     </div>
   );

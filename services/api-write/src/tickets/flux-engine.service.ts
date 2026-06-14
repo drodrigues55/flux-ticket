@@ -124,6 +124,15 @@ export class FluxEngineService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Verifica se o estoque de um lote já foi inicializado no Redis.
+   */
+  async isStockInitialized(batchId: string): Promise<boolean> {
+    const stockKey = `stock:{${batchId}}`;
+    const result = await this.redisClient.exists(stockKey);
+    return result === 1;
+  }
+
+  /**
    * Inicializa o estoque de um lote no Redis.
    */
   async setBatchStock(batchId: string, quantity: number): Promise<void> {

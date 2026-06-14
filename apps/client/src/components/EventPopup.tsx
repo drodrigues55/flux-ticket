@@ -308,8 +308,17 @@ export function EventPopup({ isOpen, onClose, event, onBuy }: EventPopupProps) {
                         <span className="text-xs text-slate-500 block">Preço: {sectorPrices[sector.id].price}</span>
                         <span className="text-[10px] text-emerald-600 font-bold block">Pague em até 12x</span>
                       </div>
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${selectedSectorId === sector.id ? 'border-blue-600' : 'border-slate-300'
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${selectedSectorId === sector.id
+                        ? `${sector.border}`
+                        : 'border-slate-300'
                         }`}>
+                        {selectedSectorId === sector.id && (
+                          <div className={`w-2.5 h-2.5 rounded-full ${
+                            sector.id === 3 ? 'bg-blue-500' :
+                            sector.id === 2 ? 'bg-red-500' :
+                            'bg-purple-500'
+                          }`} />
+                        )}
                       </div>
                     </div>
                   ))}

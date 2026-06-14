@@ -50,30 +50,30 @@ export declare class EventsService {
         sectorName?: string;
     }): Promise<{
         id: string;
-        price: import("@prisma/client/runtime/library").Decimal;
-        createdAt: Date;
-        updatedAt: Date;
         name: string;
-        eventId: string;
+        price: import("@prisma/client/runtime/library").Decimal;
         totalQuantity: number;
         availableQuantity: number;
         sectorId: number | null;
         sectorName: string | null;
+        eventId: string;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     /**
      * Lista todos os lotes cadastrados para um determinado evento.
      */
     findAllBatches(eventId: string): Promise<{
         id: string;
-        price: import("@prisma/client/runtime/library").Decimal;
-        createdAt: Date;
-        updatedAt: Date;
         name: string;
-        eventId: string;
+        price: import("@prisma/client/runtime/library").Decimal;
         totalQuantity: number;
         availableQuantity: number;
         sectorId: number | null;
         sectorName: string | null;
+        eventId: string;
+        createdAt: Date;
+        updatedAt: Date;
     }[]>;
 }
 //# sourceMappingURL=events.service.d.ts.map

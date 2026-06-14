@@ -54,14 +54,12 @@ let EventsService = EventsService_1 = class EventsService {
      * Converte o preço de reais para centavos inteiros.
      */
     async createBatch(eventId, data) {
-        // 1. Converter preço para centavos inteiros
-        const priceInCentavos = Math.round(data.price * 100);
-        // 2. Gravação relacional no PostgreSQL
+        // 2. Gravação relacional no PostgreSQL (salva em valor decimal normal)
         const batch = await database_1.prisma.ticketBatch.create({
             data: {
                 eventId: eventId,
                 name: data.name,
-                price: priceInCentavos,
+                price: data.price,
                 totalQuantity: data.totalQuantity,
                 availableQuantity: data.totalQuantity,
                 sectorId: data.sectorId,

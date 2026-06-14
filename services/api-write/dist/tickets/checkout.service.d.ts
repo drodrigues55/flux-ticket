@@ -16,13 +16,13 @@ export declare class CheckoutService {
         isHalfPrice: boolean;
     }): Promise<{
         id: string;
+        price: import("@prisma/client/runtime/library").Decimal;
+        createdAt: Date;
+        updatedAt: Date;
         buyerCpf: string;
         status: import(".prisma/client").$Enums.TicketStatus;
-        price: import("@prisma/client/runtime/library").Decimal;
         hmacSignature: string | null;
-        createdAt: Date;
         expiresAt: Date;
-        updatedAt: Date;
         buyerId: string;
         batchId: string;
     }>;
@@ -31,13 +31,13 @@ export declare class CheckoutService {
      */
     approveTicketPayment(ticketId: string): Promise<{
         id: string;
+        price: import("@prisma/client/runtime/library").Decimal;
+        createdAt: Date;
+        updatedAt: Date;
         buyerCpf: string;
         status: import(".prisma/client").$Enums.TicketStatus;
-        price: import("@prisma/client/runtime/library").Decimal;
         hmacSignature: string | null;
-        createdAt: Date;
         expiresAt: Date;
-        updatedAt: Date;
         buyerId: string;
         batchId: string;
     }>;

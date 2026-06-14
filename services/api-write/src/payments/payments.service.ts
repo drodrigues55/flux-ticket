@@ -102,8 +102,8 @@ export class PaymentsService {
     });
     ticket.buyerCpf = dto.buyerCpf;
 
-    // 2. Calcula o valor em reais (o banco guarda em centavos inteiros)
-    const amount = Number(ticket.price) / 100;
+    // 2. Calcula o valor em reais (o banco guarda em valor decimal normal)
+    const amount = Number(ticket.price);
 
     let mpStatus = 'approved';
     let qrCode = '00020126580014br.gov.bcb.pix2536pix.example.com/qr/v2/mock-code-12345';
