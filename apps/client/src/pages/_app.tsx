@@ -6,11 +6,12 @@ const inter = Inter({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700', '800', '900'],
   display: 'swap',
+  variable: '--font-inter',
 });
 
 export default function App({ Component, pageProps }: AppProps) {
   return (
-    <main className={inter.className}>
+    <main className={`${inter.variable} font-sans`}>
       <Component {...pageProps} />
     </main>
   );
