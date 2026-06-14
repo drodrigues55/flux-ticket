@@ -2,7 +2,6 @@ import { useRouter } from 'next/router';
 import { useTicketLock } from '../../hooks/useTicketLock';
 import { useState, useEffect } from 'react';
 import Script from 'next/script';
-import { Header } from '../../components/header';
 import {
   FaCreditCard,
   FaShieldHalved,
@@ -12,7 +11,8 @@ import {
   FaTicket,
   FaArrowLeft,
   FaCircleCheck,
-  FaCopy
+  FaCopy,
+  FaPix
 } from 'react-icons/fa6';
 
 interface InstallmentOption {
@@ -69,11 +69,27 @@ export default function CheckoutPage() {
   // Opções de parcelamento dinâmico
   const [installmentOptions, setInstallmentOptions] = useState<InstallmentOption[]>([]);
 
+  // Validador de E-mail
+  const [emailError, setEmailError] = useState('');
+  const validateEmail = () => {
+    if (!email) {
+      setEmailError('E-mail é obrigatório');
+      return;
+    }
+    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!regex.test(email)) {
+      setEmailError('Por favor, insira um e-mail válido (exemplo@email.com)');
+    } else {
+      setEmailError('');
+    }
+  };
+
   // Validador de Formulário Completo
   const isFormComplete =
     buyerName.trim().length > 3 &&
     email.trim().length > 5 &&
-    buyerCpf.length === 14 &&
+    !emailError &&
+    (buyerCpf.length === 14 || buyerCpf.length === 18) &&
     (paymentMethod === 'pix' ||
       (paymentMethod === 'credit_card' &&
         cardNumber.length === 19 &&
@@ -211,12 +227,24 @@ export default function CheckoutPage() {
 
   // Formatadores de Inputs
   const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/\D/g, '');
-    const formatted = value
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-    setBuyerCpf(formatted.substring(0, 14));
+    const raw = e.target.value.replace(/\D/g, '');
+    let formatted = '';
+    
+    if (raw.length <= 11) {
+      // Format as CPF: 000.000.000-00
+      formatted = raw
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+    } else {
+      // Format as CNPJ: 00.000.000/0000-00
+      formatted = raw
+        .replace(/(\d{2})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d)/, '$1/$2')
+        .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
+    }
+    setBuyerCpf(formatted.substring(0, 18));
   };
 
   const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -333,7 +361,6 @@ export default function CheckoutPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F8F9FA] font-sans antialiased text-slate-900">
-      <Header />
       <Script src="https://sdk.mercadopago.com/js/v2" strategy="lazyOnload" />
 
       <main className="max-w-6xl mx-auto w-full px-6 py-12 flex-grow">
@@ -352,7 +379,7 @@ export default function CheckoutPage() {
             <div className="bg-white rounded-3xl border border-neutral-200/60 shadow-sm overflow-hidden">
               <div className="p-6 md:p-8 border-b border-neutral-100 bg-gradient-to-r from-purple-50/50 to-indigo-50/30">
                 <h2 className="text-2xl font-extrabold text-slate-900 leading-tight">
-                  Detalhes do Faturamento
+                  Dados do Comprador e Pagamento
                 </h2>
                 <p className="text-slate-500 text-sm mt-1">
                   Insira seus dados de acesso, selecione o método de pagamento e conclua sua compra com segurança.
@@ -413,7 +440,7 @@ export default function CheckoutPage() {
                         type="text"
                         readOnly
                         value={pixCode}
-                        className="bg-transparent text-slate-700 text-xs font-semibold flex-1 outline-none font-mono truncate px-2 border-none"
+                        className="bg-transparent text-slate-700 text-xs font-semibold flex-1 outline-none font-sans truncate px-2 border-none"
                       />
                       <button
                         onClick={copyToClipboard}
@@ -470,31 +497,44 @@ export default function CheckoutPage() {
                       />
                     </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-bold uppercase tracking-wider text-slate-500">E-mail *</label>
-                        <input
-                          type="email"
-                          placeholder="exemplo@email.com"
-                          required
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          disabled={paymentStatus === 'processing'}
-                          className="w-full bg-[#F8F9FA] border border-neutral-200 rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 focus:border-[#6200EE] focus:bg-white transition-all duration-200"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-bold uppercase tracking-wider text-slate-500">CPF do Comprador *</label>
-                        <input
-                          type="text"
-                          placeholder="000.000.000-00"
-                          required
-                          value={buyerCpf}
-                          onChange={handleCpfChange}
-                          disabled={paymentStatus === 'processing'}
-                          className="w-full bg-[#F8F9FA] border border-neutral-200 rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 focus:border-[#6200EE] focus:bg-white transition-all duration-200"
-                        />
-                      </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">E-mail *</label>
+                      <input
+                        type="email"
+                        placeholder="exemplo@email.com"
+                        required
+                        value={email}
+                        onChange={(e) => {
+                          setEmail(e.target.value);
+                          if (emailError) {
+                            const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                            if (regex.test(e.target.value)) {
+                              setEmailError('');
+                            }
+                          }
+                        }}
+                        onBlur={validateEmail}
+                        disabled={paymentStatus === 'processing'}
+                        className={`w-full bg-[#F8F9FA] border rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 transition-all duration-200 ${
+                          emailError ? 'border-red-500 focus:border-red-500' : 'border-neutral-200 focus:border-[#6200EE] focus:bg-white'
+                        }`}
+                      />
+                      {emailError && (
+                        <p className="text-red-500 text-xs font-medium mt-1">{emailError}</p>
+                      )}
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">CPF do Comprador *</label>
+                      <input
+                        type="text"
+                        placeholder="000.000.000-00"
+                        required
+                        value={buyerCpf}
+                        onChange={handleCpfChange}
+                        disabled={paymentStatus === 'processing'}
+                        className="w-full bg-[#F8F9FA] border border-neutral-200 rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 focus:border-[#6200EE] focus:bg-white transition-all duration-200"
+                      />
                     </div>
                   </div>
 
@@ -512,26 +552,33 @@ export default function CheckoutPage() {
                           onClick={() => setPaymentMethod('credit_card')}
                           className={`flex items-center justify-center p-3.5 rounded-xl border-2 font-bold text-sm transition-all cursor-pointer ${
                             paymentMethod === 'credit_card'
-                              ? 'border-[#6200EE] bg-white text-[#6200EE] shadow-sm'
+                              ? 'border-[#6200EE] bg-purple-50/30 text-[#6200EE] shadow-md ring-2 ring-[#6200EE]/20'
                               : 'border-neutral-200 bg-white text-slate-500 hover:text-slate-800'
                           }`}
                         >
-                          <FaCreditCard className="w-4.5 h-4.5 mr-2" />
-                          Cartão de Crédito
+                          <svg className="w-5 h-5 mr-2 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="2" y="5" width="20" height="14" rx="2" />
+                            <line x1="2" y1="10" x2="22" y2="10" />
+                          </svg>
+                          <span>Cartão de Crédito</span>
+                          {paymentMethod === 'credit_card' && (
+                            <span className="ml-2 w-4 h-4 rounded-full bg-[#6200EE] text-white flex items-center justify-center text-[10px] shrink-0 font-sans">✓</span>
+                          )}
                         </button>
                         <button
                           type="button"
                           onClick={() => setPaymentMethod('pix')}
                           className={`flex items-center justify-center p-3.5 rounded-xl border-2 font-bold text-sm transition-all cursor-pointer ${
                             paymentMethod === 'pix'
-                              ? 'border-[#6200EE] bg-white text-[#6200EE] shadow-sm'
+                              ? 'border-[#6200EE] bg-purple-50/30 text-[#6200EE] shadow-md ring-2 ring-[#6200EE]/20'
                               : 'border-neutral-200 bg-white text-slate-500 hover:text-slate-800'
                           }`}
                         >
-                          <svg className="w-4.5 h-4.5 mr-2" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M12 4.004L4.004 12L12 19.996L19.996 12L12 4.004zM12 2L22 12L12 22L2 12L12 2zM12 7.004L7.004 12L12 16.996L16.996 12L12 7.004zm0 2L14.996 12L12 14.996L9.004 12L12 9.004z" />
-                          </svg>
-                          PIX Instantâneo
+                          <FaPix className="w-5 h-5 mr-2 shrink-0" />
+                          <span>PIX Instantâneo</span>
+                          {paymentMethod === 'pix' && (
+                            <span className="ml-2 w-4 h-4 rounded-full bg-[#6200EE] text-white flex items-center justify-center text-[10px] shrink-0 font-sans">✓</span>
+                          )}
                         </button>
                       </div>
                     </div>
@@ -662,8 +709,12 @@ export default function CheckoutPage() {
           <div className="lg:col-span-5 space-y-6">
             {/* Bloco de Contagem Regressiva */}
             <div className="bg-white rounded-3xl border border-neutral-200/60 shadow-sm p-6 flex flex-col items-center space-y-4">
-              <span className="text-xs font-bold uppercase tracking-wider text-[#6200EE] bg-[#6200EE]/10 border border-[#6200EE]/20 rounded-full px-4 py-1.5">
-                Tempo Restante
+              <span className={`text-xs font-bold uppercase tracking-wider rounded-full px-4 py-1.5 border transition-all duration-300 ${
+                timeLeft < 60 
+                  ? 'text-amber-600 bg-amber-50 border-amber-200 animate-pulse' 
+                  : 'text-[#6200EE] bg-[#6200EE]/10 border-[#6200EE]/20'
+              }`}>
+                {timeLeft < 60 ? 'Atenção: Tempo Esgotando!' : 'Tempo Restante'}
               </span>
 
               {/* Visual circular timer indicator */}
@@ -681,15 +732,20 @@ export default function CheckoutPage() {
                     cx="72"
                     cy="72"
                     r="64"
-                    className="stroke-[#6200EE] transition-all duration-1000 ease-linear"
+                    className={`transition-all duration-1000 ease-linear ${
+                      timeLeft < 60 ? 'stroke-amber-500 animate-pulse' : 'stroke-[#6200EE]'
+                    }`}
                     strokeWidth="6"
+                    strokeLinecap="round"
                     fill="transparent"
                     strokeDasharray={402}
                     strokeDashoffset={402 - (402 * progressPercent) / 100}
                   />
                 </svg>
                 <div className="text-center">
-                  <span className="text-3xl font-mono font-black text-slate-800 tracking-wider">
+                  <span className={`text-3xl font-sans font-black tracking-wider transition-colors duration-300 ${
+                    timeLeft < 60 ? 'text-amber-600' : 'text-slate-800'
+                  }`}>
                     {formattedTime}
                   </span>
                   <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest mt-1">
@@ -740,28 +796,48 @@ export default function CheckoutPage() {
                   <div>
                     <span className="font-bold text-slate-800">1x Ingresso</span>
                     {selectedBatch && (
-                      <span className="text-xs text-slate-400 block mt-0.5">
-                        Setor: {selectedBatch.sectorName || 'Superior'} | {selectedBatch.name}
+                      <span className="text-xs text-slate-400 block mt-0.5 font-semibold text-slate-600">
+                        Setor: {selectedBatch.sectorName?.toUpperCase() || 'SUPERIOR'}
                       </span>
                     )}
                   </div>
-                  <span className="font-mono text-slate-800 font-bold">R$ {ticketPrice.toFixed(2).replace('.', ',')}</span>
+                  <span className="font-sans text-slate-800 font-bold">R$ {ticketPrice.toFixed(2).replace('.', ',')}</span>
                 </div>
 
                 <div className="space-y-1.5 text-xs text-slate-400 pt-2 border-t border-neutral-100">
                   <div className="flex justify-between">
                     <span>Taxa de Conveniência</span>
-                    <span className="font-mono">R$ 0,00</span>
+                    <span className="font-sans">R$ 0,00</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Descontos</span>
-                    <span className="font-mono">R$ 0,00</span>
+                    <span className="font-sans">R$ 0,00</span>
                   </div>
                 </div>
 
-                <div className="flex justify-between items-center pt-4 border-t border-neutral-100 font-bold">
+                {/* Cupom de Desconto */}
+                <div className="pt-2.5 pb-1 border-t border-neutral-100">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Cupom de desconto"
+                      className="flex-1 bg-slate-50 border border-neutral-200 rounded-xl px-3 py-1.5 text-xs text-slate-700 outline-none focus:border-[#6200EE] uppercase"
+                    />
+                    <button type="button" className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer">
+                      Aplicar
+                    </button>
+                  </div>
+                </div>
+
+                {/* Selo de Segurança */}
+                <div className="flex items-center justify-center space-x-2 text-[10px] text-emerald-600 bg-emerald-50/50 border border-emerald-100 rounded-xl py-2 px-3 border-t border-neutral-100">
+                  <FaShieldHalved className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span className="font-bold uppercase tracking-wider">Ambiente 100% Seguro</span>
+                </div>
+
+                <div className="flex justify-between items-center pt-3 border-t border-neutral-100 font-bold">
                   <span className="text-slate-800">Total</span>
-                  <span className="text-2xl font-mono text-[#6200EE] font-black">R$ {ticketPrice.toFixed(2).replace('.', ',')}</span>
+                  <span className="text-2xl font-sans text-[#6200EE] font-black">R$ {ticketPrice.toFixed(2).replace('.', ',')}</span>
                 </div>
               </div>
 
@@ -771,18 +847,18 @@ export default function CheckoutPage() {
                   <button
                     type="submit"
                     form="checkout-form"
-                    disabled={paymentStatus === 'processing' || !ticketId || !isFormComplete}
-                    className={`w-full py-4 rounded-2xl font-bold transition-all shadow-md active:scale-[0.98] text-sm border-none text-center block ${
-                      paymentStatus === 'processing'
-                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                    disabled={paymentStatus === 'processing' || !ticketId}
+                    className={`w-full py-4 rounded-2xl font-bold transition-all shadow-md active:scale-[0.98] text-sm border-none text-center block text-white ${
+                      paymentStatus === 'processing' || !ticketId
+                        ? 'bg-slate-300 cursor-not-allowed shadow-none'
                         : !isFormComplete
-                        ? 'bg-[#6200EE]/10 border border-[#6200EE]/20 text-[#6200EE]/60 cursor-not-allowed'
-                        : 'bg-[#2E7D32] hover:bg-[#1b5e20] text-white cursor-pointer hover:shadow-lg shadow-emerald-600/20'
+                        ? 'bg-[#6200EE] hover:bg-[#5000c7] cursor-pointer hover:shadow-lg shadow-purple-600/20'
+                        : 'bg-[#2E7D32] hover:bg-[#1b5e20] cursor-pointer hover:shadow-lg shadow-emerald-600/20'
                     }`}
                   >
                     {paymentStatus === 'processing' ? (
                       <span className="flex items-center justify-center space-x-2">
-                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
@@ -794,14 +870,12 @@ export default function CheckoutPage() {
                       'Selecione o Método'
                     ) : !isFormComplete ? (
                       'Preencha as Informações'
+                    ) : paymentMethod === 'pix' ? (
+                      'Gerar QR Code PIX'
                     ) : (
-                      'Pagar Agora'
+                      'Finalizar Compra'
                     )}
                   </button>
-                  <div className="flex items-center justify-center space-x-2 text-[9px] text-slate-400 font-bold tracking-widest uppercase">
-                    <FaShieldHalved className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span>Ambiente 100% Seguro</span>
-                  </div>
                 </div>
               )}
             </div>

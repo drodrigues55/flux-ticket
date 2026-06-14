@@ -23,6 +23,15 @@ exports.ticketValidationWorker = new bullmq_1.Worker('TicketValidationQueue', as
             console.log(`[WORKER] Ingresso ${ticketId} não foi encontrado.`);
             return;
         }
+        // Busca o evento outbox original para confirmar se o ingresso é meia-entrada
+        const outbox = await tx.outboxEvent.findFirst({
+            where: { aggregateId: ticketId, aggregateType: 'TICKET_RESERVED' },
+        });
+        const isHalfPrice = outbox?.payload?.isHalfPrice === true;
+        if (!isHalfPrice) {
+            console.log(`[WORKER] Ingresso comum ${ticketId} processado na fila de validação por engano. Ignorando.`);
+            return;
+        }
         if (ticket.status === 'PENDING_VALIDATION') {
             console.log(`[WORKER] ⚠️ SLA estourado para meia-entrada do ingresso ${ticketId}. Executando estorno e compensação...`);
             // 1. Revoga o ingresso no Postgres

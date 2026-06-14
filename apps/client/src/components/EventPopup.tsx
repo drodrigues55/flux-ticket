@@ -151,7 +151,7 @@ export function EventPopup({ isOpen, onClose, event, onBuy }: EventPopupProps) {
               onClick={onClose}
               className="absolute top-3.5 right-3.5 bg-white/10 hover:bg-white/20 p-1.5 rounded-full cursor-pointer text-white transition-all duration-200 z-30"
             >
-              <FaXmark className="w-4.5 h-4.5" />
+              <FaXmark className="w-5 h-5" />
             </button>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">

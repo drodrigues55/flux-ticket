@@ -29,28 +29,28 @@ export async function processOutbox() {
       const payload = event.payload as any;
 
       if (event.aggregateType === 'TICKET_RESERVED') {
-        // Se for meia-entrada, aplica o SLA de 24 horas (atraso no job)
-        // Para testes práticos, permitimos configurar um delay menor (ex: via env)
-        const delay = payload.isHalfPrice 
-          ? (process.env.VALIDATION_DELAY_MS ? Number(process.env.VALIDATION_DELAY_MS) : 24 * 60 * 60 * 1000)
-          : 0;
-
         if (payload.isHalfPrice) {
-          console.log(`[PUBLISHER] Enfileirando meia-entrada do ingresso ${payload.ticketId} com atraso (SLA) de ${delay}ms.`);
-        } else {
-          console.log(`[PUBLISHER] Enfileirando ingresso comum ${payload.ticketId} para validação imediata.`);
-        }
+          // Se for meia-entrada, aplica o SLA de 24 horas (atraso no job)
+          // Para testes práticos, permitimos configurar um delay menor (ex: via env)
+          const delay = process.env.VALIDATION_DELAY_MS 
+            ? Number(process.env.VALIDATION_DELAY_MS) 
+            : 24 * 60 * 60 * 1000;
 
-        await ticketValidationQueue.add(
-          'validate-half-price',
-          {
-            ticketId: payload.ticketId,
-            buyerId: payload.buyerId,
-            batchId: payload.batchId,
-            eventId: payload.eventId,
-          },
-          { delay }
-        );
+          console.log(`[PUBLISHER] Enfileirando meia-entrada do ingresso ${payload.ticketId} com atraso (SLA) de ${delay}ms.`);
+
+          await ticketValidationQueue.add(
+            'validate-half-price',
+            {
+              ticketId: payload.ticketId,
+              buyerId: payload.buyerId,
+              batchId: payload.batchId,
+              eventId: payload.eventId,
+            },
+            { delay }
+          );
+        } else {
+          console.log(`[PUBLISHER] Ingresso comum ${payload.ticketId} não requer validação de meia-entrada. Ignorando fila de SLA.`);
+        }
       }
 
       // Atualiza o evento outbox para PROCESSADO

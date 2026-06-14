@@ -26,6 +26,10 @@ export declare class FluxEngineService implements OnModuleInit, OnModuleDestroy 
      */
     releaseTicketLock(batchId: string, userId: string, ticketId: string): Promise<void>;
     /**
+     * Verifica se o estoque de um lote já foi inicializado no Redis.
+     */
+    isStockInitialized(batchId: string): Promise<boolean>;
+    /**
      * Inicializa o estoque de um lote no Redis.
      */
     setBatchStock(batchId: string, quantity: number): Promise<void>;
