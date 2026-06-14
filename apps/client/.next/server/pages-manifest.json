@@ -3,6 +3,6 @@
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
   "/checkout/[eventId]": "pages/checkout/[eventId].js",
-  "/": "pages/index.js",
-  "/api/read/events": "pages/api/read/events.js"
+  "/api/read/events": "pages/api/read/events.js",
+  "/": "pages/index.js"
 }

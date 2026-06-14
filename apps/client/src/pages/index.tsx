@@ -3,15 +3,15 @@ import { useRouter } from 'next/router';
 import { Header } from '../components/header';
 import { EventCard } from '../components/EventCard';
 import { EventPopup } from '../components/EventPopup';
-import { 
-  FaMusic, 
-  FaMasksTheater, 
-  FaFutbol, 
-  FaFaceSmile, 
-  FaShieldHalved, 
-  FaTicket, 
-  FaCalendarDays, 
-  FaHeart 
+import {
+  FaMusic,
+  FaMasksTheater,
+  FaFutbol,
+  FaFaceSmile,
+  FaShieldHalved,
+  FaTicket,
+  FaCalendarDays,
+  FaHeart
 } from 'react-icons/fa6';
 
 export default function EventsCatalog() {
@@ -84,7 +84,7 @@ export default function EventsCatalog() {
               VIVA EXPERIÊNCIAS INESQUECÍVEIS
             </span>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.25]">
-              Os melhores eventos,<br />pertinho de você
+              Sua próxima experiência inesquecível<br />começa aqui
             </h1>
             <p className="text-slate-200 text-base md:text-lg max-w-xl font-light">
               Encontre shows, teatros, esportes e muito mais. Compre com segurança e aproveite cada momento.
@@ -121,7 +121,7 @@ export default function EventsCatalog() {
                       e.preventDefault();
                       const nextCategory = isActive ? null : cat.id;
                       setSelectedCategory(nextCategory);
-                      
+
                       const filtrosEl = document.getElementById('filtros-categoria');
                       if (filtrosEl) {
                         const rect = filtrosEl.getBoundingClientRect();
@@ -134,11 +134,10 @@ export default function EventsCatalog() {
                         }
                       }
                     }}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold backdrop-blur-sm transition-all border cursor-pointer ${
-                      isActive
+                    className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold backdrop-blur-sm transition-all border cursor-pointer ${isActive
                         ? 'bg-white text-[#6200EE] border-white shadow-md scale-105'
                         : 'bg-white/10 hover:bg-white/20 text-white border-white/10'
-                    }`}
+                      }`}
                   >
                     {cat.icon}
                     <span>{cat.label}</span>
