@@ -12,15 +12,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       method: 'GET',
     });
 
-    const data = await response.json();
-
     if (!response.ok) {
-      return res.status(response.status).json(data);
+      const errorText = await response.text();
+      return res.status(response.status).json({ error: errorText || 'Failed to retrieve catalog events' });
     }
 
+    const data = await response.json();
     return res.status(200).json(data);
   } catch (error: any) {
     console.error('[PROXY ERROR] Failed to fetch events from api-read:', error);
-    return res.status(500).json({ error: 'Erro interno ao realizar proxy de eventos.' });
+    return res.status(502).json({ error: 'Serviço de leitura (api-read) indisponível. Bad Gateway.' });
   }
 }

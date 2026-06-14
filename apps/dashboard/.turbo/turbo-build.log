@@ -23,7 +23,7 @@ Route (pages)                             Size     First Load JS
 ├ ƒ /api/events                           0 B            79.9 kB
 ├ ƒ /api/events/[eventId]                 0 B            79.9 kB
 ├ ƒ /api/events/[eventId]/batches         0 B            79.9 kB
-├ ○ /events (304 ms)                      3.41 kB        85.8 kB
+├ ○ /events                               3.41 kB        85.8 kB
 ├ ○ /events/[eventId]                     3.63 kB          86 kB
 ├ ○ /events/[eventId]/batches/new         3.69 kB        86.1 kB
 └ ○ /events/new                           3.27 kB        85.7 kB
