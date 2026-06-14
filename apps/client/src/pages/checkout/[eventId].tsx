@@ -25,7 +25,7 @@ export default function CheckoutPage() {
     'idle' | 'processing' | 'success' | 'pending_pix' | 'pending_card_review' | 'rejected' | 'expired'
   >('idle');
   const [errorMessage, setErrorMessage] = useState('');
-  
+
   // Estado do Formulário
   const [paymentMethod, setPaymentMethod] = useState<'credit_card' | 'pix'>('credit_card');
   const [email, setEmail] = useState('');
@@ -42,7 +42,7 @@ export default function CheckoutPage() {
   // Dados do PIX recebidos do MP
   const [pixCode, setPixCode] = useState('');
   const [pixQrBase64, setPixQrBase64] = useState('');
-  
+
   // Opções de parcelamento dinâmico
   const [installmentOptions, setInstallmentOptions] = useState<InstallmentOption[]>([]);
 
@@ -163,7 +163,7 @@ export default function CheckoutPage() {
         // const cardToken = await mp.fields.createCardToken({...});
         // Para nossa integração híbrida NestJS (com mock de dev):
         let cardToken = 'mock-approved-token';
-        
+
         // Simulação de testes para tokens mock
         if (cardNumber.includes('1111') || cardholderName.toLowerCase().includes('pending')) {
           cardToken = 'mock-pending-token';
@@ -230,13 +230,13 @@ export default function CheckoutPage() {
 
       <main className="max-w-4xl mx-auto w-full relative z-10 my-auto">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          
+
           {/* Seção Esquerda: Formulário de Pagamento */}
           <div className="lg:col-span-7 space-y-6">
             <Card className="border-neutral-850/80 shadow-2xl relative overflow-hidden">
               {/* Top border glowing line */}
               <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-cosmic-neon to-transparent" />
-              
+
               <CardHeader>
                 <CardTitle className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-white via-neutral-100 to-neutral-400 bg-clip-text text-transparent">
                   Detalhes do Faturamento
@@ -279,7 +279,7 @@ export default function CheckoutPage() {
                     <span className="font-bold text-cosmic-neon text-xs">PIX</span>
                   </div>
                   <h3 className="text-xl font-bold text-white">Aguardando Pagamento</h3>
-                  
+
                   {/* Mock/Real QR Code Image representation */}
                   {pixQrBase64 && (
                     <div className="bg-white p-3 rounded-lg w-44 h-44 mx-auto border border-neutral-200 shadow-[0_0_15px_rgba(255,255,255,0.1)]">
@@ -295,7 +295,7 @@ export default function CheckoutPage() {
                     <p className="text-neutral-400 text-xs max-w-sm mx-auto">
                       Copie o código PIX abaixo para pagar no aplicativo do seu banco. Sua reserva expira em 15 minutos.
                     </p>
-                    
+
                     <div className="flex items-center bg-[#1A1A1A] border border-neutral-850 p-2.5 rounded-lg max-w-md mx-auto">
                       <input
                         type="text"
@@ -328,11 +328,10 @@ export default function CheckoutPage() {
                     <button
                       type="button"
                       onClick={() => setPaymentMethod('credit_card')}
-                      className={`flex items-center justify-center p-3 rounded-lg border font-bold text-sm transition-all duration-200 ${
-                        paymentMethod === 'credit_card'
+                      className={`flex items-center justify-center p-3 rounded-lg border font-bold text-sm transition-all duration-200 ${paymentMethod === 'credit_card'
                           ? 'border-cosmic-neon bg-cosmic-neon/10 text-cosmic-neon shadow-[0_0_12px_rgba(0,229,255,0.1)]'
                           : 'border-neutral-800 bg-[#151515] text-neutral-400 hover:text-white'
-                      }`}
+                        }`}
                     >
                       <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
@@ -342,11 +341,10 @@ export default function CheckoutPage() {
                     <button
                       type="button"
                       onClick={() => setPaymentMethod('pix')}
-                      className={`flex items-center justify-center p-3 rounded-lg border font-bold text-sm transition-all duration-200 ${
-                        paymentMethod === 'pix'
+                      className={`flex items-center justify-center p-3 rounded-lg border font-bold text-sm transition-all duration-200 ${paymentMethod === 'pix'
                           ? 'border-cosmic-neon bg-cosmic-neon/10 text-cosmic-neon shadow-[0_0_12px_rgba(0,229,255,0.1)]'
                           : 'border-neutral-800 bg-[#151515] text-neutral-400 hover:text-white'
-                      }`}
+                        }`}
                     >
                       <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v1m4 11h.01M5 8h2m9 0h3m-11 4h.01M16 16h3M4 20h16a2 2 0 002-2V6a2 2 0 00-2-2H4a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -518,7 +516,7 @@ export default function CheckoutPage() {
 
           {/* Seção Direita: Temporizador de Segurança & Resumo */}
           <div className="lg:col-span-5 space-y-6">
-            
+
             {/* Bloco de Contagem Regressiva */}
             <Card className="border-neutral-850/80 bg-gradient-to-br from-cosmic-slate to-[#1a2327]">
               <CardHeader className="items-center text-center">
@@ -606,7 +604,7 @@ export default function CheckoutPage() {
       </main>
 
       <footer className="text-center text-xs text-neutral-500 py-6 relative z-10">
-        <p>&copy; {new Date().getFullYear()} Flux Tickets. Todos os direitos reservados.</p>
+        <p>&copy; {new Date().getFullYear()} Flux Ticketss. Todos os direitos reservados.</p>
       </footer>
     </div>
   );

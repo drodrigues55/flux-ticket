@@ -14,7 +14,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className = '', variant = 'primary', size = 'md', children, ...props }, ref) => {
     const baseStyle = 'inline-flex items-center justify-center font-semibold rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-cosmic-neon/50 disabled:opacity-50 disabled:pointer-events-none active:scale-[0.98]';
-    
+
     const variants = {
       primary: 'bg-cosmic-neon text-[#121212] hover:bg-[#00b2c7] hover:shadow-[0_0_12px_rgba(0,229,255,0.4)]',
       secondary: 'bg-cosmic-grey text-white hover:bg-neutral-700',
@@ -51,7 +51,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
     const baseStyle = 'w-full bg-[#1A1A1A] border rounded-lg px-4 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none transition-all duration-200';
     const normalBorder = 'border-neutral-800 focus:border-cosmic-neon focus:ring-1 focus:ring-cosmic-neon/30';
     const errorBorder = 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500/30';
-    
+
     const combinedClasses = `${baseStyle} ${error ? errorBorder : normalBorder} ${className}`;
 
     return (
@@ -64,14 +64,14 @@ Input.displayName = 'Input';
 // ==========================================
 // Card Components
 // ==========================================
-export interface CardProps extends HTMLAttributes<HTMLDivElement> {}
+export interface CardProps extends HTMLAttributes<HTMLDivElement> { }
 
 export const Card = React.forwardRef<HTMLDivElement, CardProps>(
   ({ className = '', ...props }, ref) => {
     return (
       <div
         ref={ref}
-        className={`bg-cosmic-slate border border-neutral-800/80 rounded-xl shadow-lg backdrop-blur-sm p-6 ${className}`}
+        className={`bg-white rounded-[28px] border border-neutral-100 shadow-sm transition-all duration-300 ${className}`}
         {...props}
       />
     );

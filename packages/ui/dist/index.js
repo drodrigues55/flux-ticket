@@ -34,7 +34,7 @@ exports.Input = react_1.default.forwardRef(({ className = '', error, ...props },
 });
 exports.Input.displayName = 'Input';
 exports.Card = react_1.default.forwardRef(({ className = '', ...props }, ref) => {
-    return ((0, jsx_runtime_1.jsx)("div", { ref: ref, className: `bg-cosmic-slate border border-neutral-800/80 rounded-xl shadow-lg backdrop-blur-sm p-6 ${className}`, ...props }));
+    return ((0, jsx_runtime_1.jsx)("div", { ref: ref, className: `bg-white rounded-[28px] border border-neutral-100 shadow-sm transition-all duration-300 ${className}`, ...props }));
 });
 exports.Card.displayName = 'Card';
 const CardHeader = ({ className = '', ...props }) => ((0, jsx_runtime_1.jsx)("div", { className: `flex flex-col space-y-1.5 mb-4 ${className}`, ...props }));

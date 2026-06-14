@@ -11,11 +11,11 @@ export default function StaffPortal() {
   const [isOnline, setIsOnline] = useState(true);
   const [scannedInput, setScannedInput] = useState('');
   const [scanResult, setScanResult] = useState<{ success: boolean; message: string } | null>(null);
-  
+
   // Contadores locais do IndexedDB
   const [validTicketsCount, setValidTicketsCount] = useState(0);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
-  
+
   // Status de carregamento e mensagens
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
@@ -69,7 +69,7 @@ export default function StaffPortal() {
         throw new Error(`Erro ${response.status}: Falha ao baixar carga.`);
       }
       const data = await response.json(); // Array de { ticket_id, hmacSignature }
-      
+
       if (Array.isArray(data)) {
         // Limpa o banco local anterior e insere em lote os novos ingressos válidos
         await db.validTickets.clear();
@@ -99,11 +99,11 @@ export default function StaffPortal() {
 
     const result = await validateTicket(scannedInput);
     setScanResult(result);
-    
+
     if (result.success) {
       setScannedInput(''); // Limpa o campo em caso de sucesso
     }
-    
+
     await updateCounts();
   };
 
@@ -129,7 +129,7 @@ export default function StaffPortal() {
   const handleFillMockQR = async (type: 'valid' | 'invalid' | 'tampered') => {
     const validMockTicketId = '8ea03604-942c-4597-b1bf-99dc3b1a67fe';
     const validMockSignature = '2b08cf7ae4ec289bca97fc796f321ca1d04d768b567167e4cb3dc0dcb89d8fa3';
-    
+
     if (type === 'valid') {
       // Garante que o ingresso de teste esteja registrado localmente como válido
       await db.validTickets.put({
@@ -215,18 +215,18 @@ export default function StaffPortal() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase tracking-wider text-neutral-400">ID do Evento</label>
-                  <Input 
-                    value={eventId} 
-                    onChange={(e) => setEventId(e.target.value)} 
+                  <Input
+                    value={eventId}
+                    onChange={(e) => setEventId(e.target.value)}
                     placeholder="Ex: event-id-123"
                     className="focus:ring-[#00E5FF] focus:border-[#00E5FF] focus:ring-1 border-cosmic-grey bg-cosmic-dark"
                   />
                 </div>
 
                 <div className="pt-2">
-                  <Button 
-                    onClick={handleDownloadTickets} 
-                    variant="outline" 
+                  <Button
+                    onClick={handleDownloadTickets}
+                    variant="outline"
                     className="w-full border-cosmic-neon/30 text-cosmic-neon hover:border-cosmic-neon hover:bg-cosmic-neon/10 hover:shadow-[0_0_12px_rgba(0,229,255,0.2)] transition-all"
                     disabled={syncLoading || !isOnline}
                   >
@@ -259,15 +259,15 @@ export default function StaffPortal() {
                 </div>
               </CardContent>
               <CardFooter className="pt-0">
-                <Button 
-                  onClick={handleManualSync} 
-                  variant="primary" 
+                <Button
+                  onClick={handleManualSync}
+                  variant="primary"
                   className="w-full bg-cosmic-neon text-[#121212] hover:bg-[#00d8f0] hover:shadow-[0_0_15px_rgba(0,229,255,0.4)] transition-all"
                   disabled={syncLoading || pendingSyncCount === 0 || !isOnline}
                 >
                   Sincronizar Filas Agora
                 </Button>
-                      </CardFooter>
+              </CardFooter>
             </Card>
 
             {syncMessage && (
@@ -281,7 +281,7 @@ export default function StaffPortal() {
           <div className="lg:col-span-7 space-y-6">
             <Card className="border-cosmic-grey bg-cosmic-slate rounded-xl relative overflow-hidden">
               <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-cosmic-neon to-transparent" />
-              
+
               <CardHeader>
                 <CardTitle className="text-xl">Validador de Portaria</CardTitle>
                 <CardDescription>Toque no botão de câmera flutuante abaixo para iniciar a validação.</CardDescription>
@@ -289,14 +289,12 @@ export default function StaffPortal() {
 
               <CardContent className="flex flex-col items-center justify-center py-6 space-y-4">
                 {scanResult ? (
-                  <div className={`w-full p-6 border rounded-xl flex items-start space-x-4 animate-neon-glow ${
-                    scanResult.success 
-                      ? 'bg-emerald-950/20 border-emerald-500/80 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.3)]' 
+                  <div className={`w-full p-6 border rounded-xl flex items-start space-x-4 animate-neon-glow ${scanResult.success
+                      ? 'bg-emerald-950/20 border-emerald-500/80 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.3)]'
                       : 'bg-red-950/20 border-red-500/80 text-red-300 shadow-[0_0_15px_rgba(239,68,68,0.3)]'
-                  }`}>
-                    <div className={`p-2 rounded-lg ${
-                      scanResult.success ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
                     }`}>
+                    <div className={`p-2 rounded-lg ${scanResult.success ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
+                      }`}>
                       {scanResult.success ? (
                         <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
@@ -345,27 +343,27 @@ export default function StaffPortal() {
                   </div>
 
                   <div className="flex flex-wrap gap-2">
-                    <Button 
-                      type="button" 
-                      onClick={() => handleFillMockQR('valid')} 
+                    <Button
+                      type="button"
+                      onClick={() => handleFillMockQR('valid')}
                       variant="outline"
                       size="sm"
                       className="border-emerald-500/30 text-emerald-400 hover:border-emerald-500 hover:bg-emerald-500/10 hover:shadow-[0_0_12px_rgba(16,185,129,0.3)] transition-all font-semibold"
                     >
                       Preencher QR Válido
                     </Button>
-                    <Button 
-                      type="button" 
-                      onClick={() => handleFillMockQR('invalid')} 
+                    <Button
+                      type="button"
+                      onClick={() => handleFillMockQR('invalid')}
                       variant="outline"
                       size="sm"
                       className="border-red-500/30 text-red-400 hover:border-red-500 hover:bg-red-500/10 hover:shadow-[0_0_12px_rgba(239,68,68,0.3)] transition-all font-semibold"
                     >
                       Preencher QR Não Cadastrado
                     </Button>
-                    <Button 
-                      type="button" 
-                      onClick={() => handleFillMockQR('tampered')} 
+                    <Button
+                      type="button"
+                      onClick={() => handleFillMockQR('tampered')}
                       variant="outline"
                       size="sm"
                       className="border-amber-500/30 text-amber-400 hover:border-amber-500 hover:bg-amber-500/10 hover:shadow-[0_0_12px_rgba(245,158,11,0.3)] transition-all font-semibold"
@@ -384,7 +382,7 @@ export default function StaffPortal() {
       </div>
 
       <footer className="text-center text-xs text-neutral-500 py-6 relative z-10">
-        <p>&copy; {new Date().getFullYear()} Flux Tickets - Portaria Offline. Todos os direitos reservados.</p>
+        <p>&copy; {new Date().getFullYear()} Flux Ticketss - Portaria Offline. Todos os direitos reservados.</p>
       </footer>
 
       <SyncGate eventId={eventId} onSyncComplete={updateCounts} />

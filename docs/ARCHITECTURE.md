@@ -1,8 +1,8 @@
-# Flux Tickets & Core Engine
+# Flux Ticketss & Core Engine
 ## Dossiê Técnico de Engenharia de Sistemas de Alta Escala e Concorrência
 
 ### 🏛️ Visão Geral da Arquitetura
-O Flux Tickets é uma plataforma de venda de ingressos projetada para suportar os estresses mais extremos de tráfego concorrente (por exemplo, abertura de lotes de shows de grande porte). O ecossistema destrincha o pipeline completo de transação, segurança e sincronização de dados distribuídos em uma topografia de microsserviços.
+O Flux Ticketss é uma plataforma de venda de ingressos projetada para suportar os estresses mais extremos de tráfego concorrente (por exemplo, abertura de lotes de shows de grande porte). O ecossistema destrincha o pipeline completo de transação, segurança e sincronização de dados distribuídos em uma topografia de microsserviços.
 
 #### Fluxo do Sistema
 ```text
