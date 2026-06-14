@@ -4,6 +4,7 @@ import db from '../lib/db';
 import { validateTicket } from '../lib/crypto';
 import { syncOfflineMutations, setupNetworkSync } from '../lib/sync';
 import { SyncGate } from '../components/SyncGate';
+import { ScanButton } from '../components/ScanButton';
 
 export default function StaffPortal() {
   const [eventId, setEventId] = useState('event-id-123');
@@ -103,6 +104,14 @@ export default function StaffPortal() {
       setScannedInput(''); // Limpa o campo em caso de sucesso
     }
     
+    await updateCounts();
+  };
+
+  // Valida o QR Code escaneado via câmera
+  const handleCameraScan = async (scannedData: string) => {
+    setScanResult(null);
+    const result = await validateTicket(scannedData);
+    setScanResult(result);
     await updateCounts();
   };
 
@@ -258,7 +267,7 @@ export default function StaffPortal() {
                 >
                   Sincronizar Filas Agora
                 </Button>
-              </CardFooter>
+                      </CardFooter>
             </Card>
 
             {syncMessage && (
@@ -268,20 +277,64 @@ export default function StaffPortal() {
             )}
           </div>
 
-          {/* Coluna Direita: Simulador de Scanner QR Code */}
+          {/* Coluna Direita: Validador QR Code & Câmera */}
           <div className="lg:col-span-7 space-y-6">
             <Card className="border-cosmic-grey bg-cosmic-slate rounded-xl relative overflow-hidden">
               <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-cosmic-neon to-transparent" />
               
               <CardHeader>
-                <CardTitle className="text-xl">Simulador de Scanner de QR Code</CardTitle>
-                <CardDescription>Simule a leitura do QR Code do ingresso contendo dados e assinatura digital.</CardDescription>
+                <CardTitle className="text-xl">Validador de Portaria</CardTitle>
+                <CardDescription>Toque no botão de câmera flutuante abaixo para iniciar a validação.</CardDescription>
               </CardHeader>
 
-              <form onSubmit={handleValidateScan}>
-                <CardContent className="space-y-4">
+              <CardContent className="flex flex-col items-center justify-center py-6 space-y-4">
+                {scanResult ? (
+                  <div className={`w-full p-6 border rounded-xl flex items-start space-x-4 animate-neon-glow ${
+                    scanResult.success 
+                      ? 'bg-emerald-950/20 border-emerald-500/80 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.3)]' 
+                      : 'bg-red-950/20 border-red-500/80 text-red-300 shadow-[0_0_15px_rgba(239,68,68,0.3)]'
+                  }`}>
+                    <div className={`p-2 rounded-lg ${
+                      scanResult.success ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
+                    }`}>
+                      {scanResult.success ? (
+                        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      ) : (
+                        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="font-bold text-lg">
+                        {scanResult.success ? 'Acesso Liberado!' : 'Acesso Recusado!'}
+                      </h4>
+                      <p className="text-sm opacity-90">{scanResult.message}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-10 text-neutral-500 border-2 border-dashed border-cosmic-grey rounded-xl w-full flex flex-col items-center justify-center">
+                    <svg className="w-12 h-12 text-neutral-600 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                    </svg>
+                    <p className="text-sm">Nenhum ingresso validado recentemente.</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Debug Panel colapsável */}
+            <details className="bg-cosmic-slate border border-cosmic-grey rounded-xl overflow-hidden group">
+              <summary className="p-4 cursor-pointer text-xs font-bold uppercase tracking-wider text-neutral-400 hover:text-white select-none flex justify-between items-center bg-cosmic-dark/30">
+                <span>Painel de Debug (Simulador de QR)</span>
+                <span className="text-[10px] text-neutral-500 group-open:rotate-180 transition-transform">▼</span>
+              </summary>
+              <div className="p-4 border-t border-cosmic-grey space-y-4">
+                <form onSubmit={handleValidateScan} className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase tracking-wider text-neutral-400">Dados do QR Code (JSON)</label>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Dados do QR Code (JSON)</label>
                     <textarea
                       value={scannedInput}
                       onChange={(e) => setScannedInput(e.target.value)}
@@ -320,44 +373,12 @@ export default function StaffPortal() {
                       Preencher QR Adulterado
                     </Button>
                   </div>
-                </CardContent>
-
-                <CardFooter>
                   <Button type="submit" variant="primary" className="w-full py-3 bg-cosmic-neon text-[#121212] hover:bg-[#00d8f0] hover:shadow-[0_0_15px_rgba(0,229,255,0.4)] transition-all">
                     Validar Ingresso (Check-in)
                   </Button>
-                </CardFooter>
-              </form>
-            </Card>
-
-            {/* Resultado da validação do scanner */}
-            {scanResult && (
-              <div className={`p-6 border rounded-xl flex items-start space-x-4 animate-neon-glow ${
-                scanResult.success 
-                  ? 'bg-emerald-950/20 border-emerald-500/40 text-emerald-300' 
-                  : 'bg-red-950/20 border-red-500/40 text-red-300'
-              }`}>
-                <div className={`p-2 rounded-lg ${
-                  scanResult.success ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
-                }`}>
-                  {scanResult.success ? (
-                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                    </svg>
-                  ) : (
-                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  )}
-                </div>
-                <div className="space-y-1">
-                  <h4 className="font-bold text-base">
-                    {scanResult.success ? 'Acesso Liberado!' : 'Acesso Recusado!'}
-                  </h4>
-                  <p className="text-xs opacity-90">{scanResult.message}</p>
-                </div>
+                </form>
               </div>
-            )}
+            </details>
           </div>
         </main>
       </div>
@@ -367,6 +388,7 @@ export default function StaffPortal() {
       </footer>
 
       <SyncGate eventId={eventId} onSyncComplete={updateCounts} />
+      <ScanButton onScan={handleCameraScan} />
     </div>
   );
 }

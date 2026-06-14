@@ -9,11 +9,12 @@
     "test": "jest"
   },
   "dependencies": {
+    "@flux/ui": "*",
+    "dexie": "^4.0.8",
+    "html5-qrcode": "^2.3.8",
     "next": "^14.1.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "@flux/ui": "*",
-    "dexie": "^4.0.8"
+    "react-dom": "^18.2.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.16",
