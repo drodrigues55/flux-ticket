@@ -37,7 +37,7 @@ interface Ticket {
 
 export default function ProfilePage() {
   const router = useRouter();
-  
+
   // Auth state
   const [email, setEmail] = useState('');
   const [otpCode, setOtpCode] = useState('');
@@ -50,6 +50,15 @@ export default function ProfilePage() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loadingTickets, setLoadingTickets] = useState(false);
   const [selectedQrTicket, setSelectedQrTicket] = useState<Ticket | null>(null);
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
+
+  const filteredTickets = tickets.filter((ticket) =>
+    ticket.batch.event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    ticket.batch.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   // Check session on mount
   useEffect(() => {
@@ -68,7 +77,7 @@ export default function ProfilePage() {
   useEffect(() => {
     if (!loggedInUser) return;
     const userId = loggedInUser.id;
-    
+
     async function fetchTickets() {
       setLoadingTickets(true);
       try {
@@ -102,7 +111,7 @@ export default function ProfilePage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erro ao enviar código.');
-      
+
       setStep('otp');
     } catch (err: any) {
       setAuthError(err.message);
@@ -256,168 +265,280 @@ export default function ProfilePage() {
           // Authenticated Dashboard
           <div className="space-y-8 animate-in fade-in duration-300">
             {/* User Header Block */}
-            <div className="bg-gradient-to-br from-[#4A148C] via-[#6200EE] to-[#3700B3] text-white p-6 md:p-8 rounded-3xl shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative overflow-hidden">
+            <div className="bg-gradient-to-br from-[#4A148C] via-[#6200EE] to-[#3700B3] text-white p-6 md:p-8 rounded-3xl shadow-xl flex flex-col justify-between items-start gap-4 relative overflow-hidden animate-in fade-in duration-300">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent pointer-events-none" />
-              
-              <div className="space-y-1.5 relative z-10">
+
+              <div className="space-y-1 relative z-10">
                 <span className="text-[10px] font-bold uppercase tracking-widest text-[#B388FF]">Sua Carteira Digital</span>
-                <h2 className="text-2xl md:text-3xl font-black">Olá, {loggedInUser.name}!</h2>
+                <h2 className="text-xl md:text-2xl font-black leading-tight">Olá, {loggedInUser.name.split('@')[0]}!</h2>
                 <p className="text-slate-200 text-xs md:text-sm font-light">
-                  Abaixo você encontrará seus ingressos reservados e ativos.
+                  Gerencie seus ingressos, histórico de compras e configurações de perfil com facilidade.
                 </p>
               </div>
 
-              <button
-                onClick={handleLogout}
-                className="bg-white/10 hover:bg-white/20 text-white border border-white/20 px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-sm relative z-10"
-              >
-                <FaArrowRightFromBracket className="w-3.5 h-3.5" />
-                Desconectar
-              </button>
+              {/* Search Bar inside banner */}
+              <div className="relative w-full max-w-lg mt-2 z-10">
+                <input
+                  type="text"
+                  placeholder="Pesquisar ingressos em minha carteira..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onFocus={() => setSearchFocused(true)}
+                  onBlur={() => setSearchFocused(false)}
+                  className="w-full bg-white/10 focus:bg-white text-white focus:text-slate-800 placeholder-white/60 focus:placeholder-slate-400 border border-white/20 rounded-2xl pl-4 pr-10 py-2.5 text-xs outline-none focus:ring-2 focus:ring-white/15 transition-all duration-200"
+                />
+                <svg className={`w-4 h-4 absolute right-3 top-3.5 transition-colors ${searchFocused ? 'text-slate-400' : 'text-white/60'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
             </div>
 
-            {/* Ingressos Section */}
-            <div className="space-y-4">
-              <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                <FaTicketSimple className="w-5 h-5 text-[#6200EE]" />
+            {/* Main Content Layout (Sidebar + Content) */}
+            <div className="space-y-4 pt-2">
+              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                <span className="w-1 h-4 bg-[#6200EE] rounded-full inline-block" />
                 Meus Ingressos
               </h3>
 
-              {loadingTickets ? (
-                <div className="flex flex-col items-center justify-center py-20 space-y-3 bg-white border border-neutral-200/60 rounded-3xl">
-                  <FaSpinner className="w-8 h-8 animate-spin text-[#6200EE]" />
-                  <p className="text-sm font-semibold text-slate-400">Carregando seus ingressos...</p>
-                </div>
-              ) : tickets.length === 0 ? (
-                <div className="text-center py-20 px-6 border border-neutral-200/60 bg-white rounded-3xl space-y-4">
-                  <FaTicketSimple className="w-12 h-12 text-slate-300 mx-auto" />
-                  <div className="space-y-1">
-                    <h4 className="font-bold text-base text-slate-800">Nenhum ingresso encontrado</h4>
-                    <p className="text-slate-400 text-xs max-w-sm mx-auto">
-                      Parece que você ainda não tem ingressos comprados neste e-mail. Que tal ver nosso catálogo?
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => router.push('/')}
-                    className="bg-[#6200EE] hover:bg-[#5000c7] text-white px-6 py-2.5 rounded-xl font-bold text-xs shadow-sm transition-all cursor-pointer"
-                  >
-                    Ver Eventos Ativos
+              <div className="flex flex-col md:flex-row gap-6 items-start">
+                {/* Left Sidebar */}
+                <div className="w-full md:w-52 shrink-0 bg-white border border-neutral-200/60 rounded-3xl p-3 space-y-1 shadow-sm">
+                  <button className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-xs font-bold bg-[#6200EE]/10 text-[#6200EE] transition-colors cursor-pointer text-left">
+                    <FaTicketSimple className="w-3.5 h-3.5" />
+                    Meus Ingressos
+                  </button>
+                  <button className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-xs font-semibold text-slate-500 hover:text-slate-850 hover:bg-slate-50 transition-colors cursor-pointer text-left">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Histórico
+                  </button>
+                  <button className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-xs font-semibold text-slate-500 hover:text-slate-855 hover:bg-slate-50 transition-colors cursor-pointer text-left">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    Perfil
+                  </button>
+                  <button className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-xs font-semibold text-slate-500 hover:text-slate-855 hover:bg-slate-50 transition-colors cursor-pointer text-left">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                    </svg>
+                    Pagamentos
                   </button>
                 </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {tickets.map((ticket) => {
-                    const eventDate = new Date(ticket.batch.event.date).toLocaleDateString('pt-BR', {
-                      day: 'numeric',
-                      month: 'long',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    });
 
-                    const isValid = ticket.status === 'VALID';
-                    
-                    return (
-                      <div
-                        key={ticket.id}
-                        className="bg-white border border-neutral-200/60 rounded-3xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
+                {/* Right Content */}
+                <div className="flex-grow space-y-6 w-full">
+                  {loadingTickets ? (
+                    <div className="flex flex-col items-center justify-center py-20 space-y-3 bg-white border border-neutral-200/60 rounded-3xl">
+                      <FaSpinner className="w-8 h-8 animate-spin text-[#6200EE]" />
+                      <p className="text-sm font-semibold text-slate-400">Carregando seus ingressos...</p>
+                    </div>
+                  ) : filteredTickets.length === 0 ? (
+                    <div className="text-center py-16 px-6 border border-neutral-200/60 bg-white rounded-3xl space-y-5 flex flex-col items-center justify-center shadow-sm animate-in fade-in duration-300">
+                      <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center text-slate-400">
+                        <FaTicketSimple className="w-6 h-6" />
+                      </div>
+                      <div className="space-y-1.5 text-center">
+                        <h4 className="font-extrabold text-sm text-slate-900">
+                          {searchQuery ? 'Nenhum ingresso encontrado para sua busca.' : 'Você não possui ingressos ativos no momento.'}
+                        </h4>
+                        <p className="text-slate-400 text-xs max-w-sm mx-auto">
+                          {searchQuery ? 'Tente buscar por termos diferentes ou limpe o campo de busca.' : 'Confira as sugestões abaixo ou o seu histórico de compras.'}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (searchQuery) {
+                            setSearchQuery('');
+                          } else {
+                            router.push('/');
+                          }
+                        }}
+                        className="bg-[#6200EE] hover:bg-[#5000c7] text-white px-6 py-2.5 rounded-xl font-bold text-xs shadow-sm transition-all cursor-pointer"
                       >
-                        <div className="p-6 space-y-4">
-                          {/* Event info */}
-                          <div className="flex justify-between items-start gap-4">
-                            <div className="space-y-1">
-                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                {ticket.batch.name}
-                              </span>
-                              <h4 className="font-extrabold text-base text-slate-900 leading-snug">
-                                {ticket.batch.event.title}
-                              </h4>
-                            </div>
-                            
-                            {ticket.meiaEntrada && (
-                              <span className="bg-[#FF9100]/10 text-[#FF6D00] px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider">
-                                Meia
-                              </span>
-                            )}
-                          </div>
+                        {searchQuery ? 'Limpar Busca' : 'Ver Catálogo Completo'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in duration-300">
+                      {filteredTickets.map((ticket) => {
+                        const eventDate = new Date(ticket.batch.event.date).toLocaleDateString('pt-BR', {
+                          day: 'numeric',
+                          month: 'long',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        });
 
-                          <div className="space-y-2 border-t border-neutral-100 pt-3">
-                            <div className="flex items-center gap-2 text-xs text-slate-600">
-                              <FaCalendarDays className="w-3.5 h-3.5 text-[#6200EE] shrink-0" />
-                              <span>{eventDate}</span>
+                        const isValid = ticket.status === 'VALID';
+
+                        return (
+                          <div
+                            key={ticket.id}
+                            className="bg-white border border-neutral-200/60 rounded-3xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
+                          >
+                            <div className="p-6 space-y-4">
+                              {/* Event info */}
+                              <div className="flex justify-between items-start gap-4">
+                                <div className="space-y-1">
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                    {ticket.batch.name}
+                                  </span>
+                                  <h4 className="font-extrabold text-sm text-slate-900 leading-snug">
+                                    {ticket.batch.event.title}
+                                  </h4>
+                                </div>
+
+                                {ticket.meiaEntrada && (
+                                  <span className="bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider">
+                                    Meia
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="space-y-2 border-t border-neutral-100 pt-3">
+                                <div className="flex items-center gap-2 text-xs text-slate-600">
+                                  <FaCalendarDays className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                  <span>{eventDate}</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-slate-600">
+                                  <FaLocationDot className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                  <span className="truncate">{ticket.batch.event.location}</span>
+                                </div>
+                              </div>
+
+                              {/* Status Badge */}
+                              <div className="pt-2">
+                                {ticket.status === 'VALID' ? (
+                                  <span className="inline-flex items-center gap-1.5 text-[10px] text-emerald-600 font-bold bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
+                                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                                    Ingresso Ativo
+                                  </span>
+                                ) : ticket.status === 'PENDING_VALIDATION' ? (
+                                  <span className="inline-flex items-center gap-1.5 text-[10px] text-red-600 font-bold bg-red-50 px-3 py-1 rounded-full border border-red-100">
+                                    <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-ping" />
+                                    Pendente de Comprovação
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1.5 text-[10px] text-red-600 font-bold bg-red-50 px-3 py-1 rounded-full border border-red-100">
+                                    {ticket.status}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2 text-xs text-slate-600">
-                              <FaLocationDot className="w-3.5 h-3.5 text-[#6200EE] shrink-0" />
-                              <span className="truncate">{ticket.batch.event.location}</span>
+
+                            {/* Card footer action buttons */}
+                            <div className="bg-slate-50 border-t border-neutral-100 p-4 flex flex-col gap-2.5">
+                              {isValid ? (
+                                <>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                      onClick={() => handleDownloadPkpass(ticket.id)}
+                                      className="bg-[#1e1e1e] hover:bg-black text-white px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                                    >
+                                      <FaApple className="w-4 h-4" />
+                                      Apple Wallet
+                                    </button>
+                                    <button
+                                      onClick={() => handleSaveGooglePay(ticket.id)}
+                                      className="bg-white hover:bg-neutral-50 text-slate-800 border border-slate-200 px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                                    >
+                                      <FaGooglePay className="w-6 h-6 text-[#1A73E8]" />
+                                      Google Pay
+                                    </button>
+                                  </div>
+                                  <button
+                                    onClick={() => setSelectedQrTicket(ticket)}
+                                    className="w-full py-2 bg-[#6200EE] hover:bg-[#5000c7] text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                                  >
+                                    <FaQrcode className="w-3.5 h-3.5" />
+                                    Visualizar QR Code
+                                  </button>
+                                </>
+                              ) : ticket.status === 'PENDING_VALIDATION' ? (
+                                <button
+                                  onClick={() => router.push(`/profile/validate/${ticket.id}`)}
+                                  className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                                >
+                                  <FaAddressCard className="w-4 h-4" />
+                                  Validar Meia-Entrada
+                                </button>
+                              ) : (
+                                <div className="text-center text-xs text-slate-400 py-1.5">
+                                  Este ingresso não está ativo.
+                                </div>
+                              )}
                             </div>
                           </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
-                          {/* Status Badge */}
-                          <div className="pt-2">
-                            {ticket.status === 'VALID' ? (
-                              <span className="inline-flex items-center gap-1.5 text-[10px] text-emerald-600 font-bold bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
-                                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-                                Ingresso Ativo
-                              </span>
-                            ) : ticket.status === 'PENDING_VALIDATION' ? (
-                              <span className="inline-flex items-center gap-1.5 text-[10px] text-[#E65100] font-bold bg-[#FFF3E0] px-3 py-1 rounded-full border border-[#FFE0B2]">
-                                <span className="w-1.5 h-1.5 bg-[#FF9100] rounded-full animate-ping" />
-                                Pendente de Comprovação
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1.5 text-[10px] text-red-600 font-bold bg-red-50 px-3 py-1 rounded-full border border-red-100">
-                                {ticket.status}
-                              </span>
-                            )}
+                  {/* Suggestions block shows up if tickets is empty */}
+                  {tickets.length === 0 && (
+                    <div className="space-y-4 pt-2 animate-in fade-in duration-300 delay-100">
+                      <h3 className="text-sm font-black text-slate-900">
+                        Sugestões para Você
+                      </h3>
+
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        {/* Event 1 */}
+                        <div className="bg-white border border-neutral-200/60 rounded-3xl overflow-hidden shadow-sm flex flex-col sm:flex-row hover:shadow-md transition-all">
+                          <div className="w-full sm:w-32 h-24 relative bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center text-white p-3 text-center shrink-0">
+                            <div className="absolute inset-0 opacity-10 flex items-center justify-center">
+                              <svg className="w-12 h-12" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+                              </svg>
+                            </div>
+                            <span className="font-black text-[10px] uppercase tracking-wider relative z-10 leading-snug">Música</span>
+                          </div>
+                          <div className="p-4 flex flex-col justify-between flex-grow">
+                            <div className="space-y-0.5">
+                              <h4 className="font-extrabold text-xs text-slate-900 leading-snug">Festival de Música da Cidade</h4>
+                              <span className="text-[9px] text-slate-400 font-bold uppercase block">OUT 12, 2026</span>
+                            </div>
+                            <div className="pt-2">
+                              <button
+                                onClick={() => router.push('/')}
+                                className="bg-[#6200EE] hover:bg-[#5000c7] text-white px-3.5 py-1.5 rounded-xl font-bold text-[9px] transition-all cursor-pointer"
+                              >
+                                Ver Detalhes
+                              </button>
+                            </div>
                           </div>
                         </div>
 
-                        {/* Card footer action buttons */}
-                        <div className="bg-slate-50 border-t border-neutral-100 p-4 flex flex-col gap-2.5">
-                          {isValid ? (
-                            <>
-                              <div className="grid grid-cols-2 gap-2">
-                                <button
-                                  onClick={() => handleDownloadPkpass(ticket.id)}
-                                  className="bg-[#1e1e1e] hover:bg-black text-white px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
-                                >
-                                  <FaApple className="w-4 h-4" />
-                                  Apple Wallet
-                                </button>
-                                <button
-                                  onClick={() => handleSaveGooglePay(ticket.id)}
-                                  className="bg-white hover:bg-neutral-50 text-slate-800 border border-slate-200 px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
-                                >
-                                  <FaGooglePay className="w-6 h-6 text-[#1A73E8]" />
-                                  Google Pay
-                                </button>
-                              </div>
-                              <button
-                                onClick={() => setSelectedQrTicket(ticket)}
-                                className="w-full py-2 bg-[#6200EE] hover:bg-[#5000c7] text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
-                              >
-                                <FaQrcode className="w-3.5 h-3.5" />
-                                Visualizar QR Code
-                              </button>
-                            </>
-                          ) : ticket.status === 'PENDING_VALIDATION' ? (
-                            <button
-                              onClick={() => router.push(`/profile/validate/${ticket.id}`)}
-                              className="w-full py-2.5 bg-[#FF6D00] hover:bg-[#E65100] text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
-                            >
-                              <FaAddressCard className="w-4 h-4" />
-                              Validar Meia-Entrada
-                            </button>
-                          ) : (
-                            <div className="text-center text-xs text-slate-400 py-1.5">
-                              Este ingresso não está ativo.
+                        {/* Event 2 */}
+                        <div className="bg-white border border-neutral-200/60 rounded-3xl overflow-hidden shadow-sm flex flex-col sm:flex-row hover:shadow-md transition-all">
+                          <div className="w-full sm:w-32 h-24 relative bg-gradient-to-br from-amber-500 via-orange-500 to-red-500 flex items-center justify-center text-white p-3 text-center shrink-0">
+                            <div className="absolute inset-0 opacity-10 flex items-center justify-center">
+                              <svg className="w-12 h-12" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.04-.42 1.99-1.07 2.75z" />
+                              </svg>
                             </div>
-                          )}
+                            <span className="font-black text-[10px] uppercase tracking-wider relative z-10 leading-snug">Teatro</span>
+                          </div>
+                          <div className="p-4 flex flex-col justify-between flex-grow">
+                            <div className="space-y-0.5">
+                              <h4 className="font-extrabold text-xs text-slate-900 leading-snug">Teatro: A Comédia do Ano</h4>
+                              <span className="text-[9px] text-slate-400 font-bold uppercase block">SET 30, 2026</span>
+                            </div>
+                            <div className="pt-2">
+                              <button
+                                onClick={() => router.push('/')}
+                                className="bg-[#6200EE] hover:bg-[#5000c7] text-white px-3.5 py-1.5 rounded-xl font-bold text-[9px] transition-all cursor-pointer"
+                              >
+                                Comprar Ingressos
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    );
-                  })}
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           </div>
         )}

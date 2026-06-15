@@ -33,7 +33,11 @@ exports.ticketValidationWorker = new bullmq_1.Worker('TicketValidationQueue', as
             return;
         }
         if (ticket.status === 'PENDING_VALIDATION') {
-            console.log(`[WORKER] ⚠️ SLA estourado para meia-entrada do ingresso ${ticketId}. Executando estorno e compensação...`);
+            if (ticket.hmacSignature) {
+                console.log(`[WORKER] Ingresso meia-entrada ${ticketId} pago (assinatura presente). Não será revogado (No-show).`);
+                return;
+            }
+            console.log(`[WORKER] ⚠️ SLA estourado para meia-entrada do ingresso ${ticketId} sem pagamento. Executando estorno e compensação...`);
             // 1. Revoga o ingresso no Postgres
             await tx.ticket.update({
                 where: { id: ticketId },

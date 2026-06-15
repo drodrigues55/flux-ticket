@@ -104,9 +104,10 @@ export default function EventsCatalog() {
           : '/api/read/events';
         const response = await fetch(url);
         const data = await response.json();
-        setEvents(data);
+        setEvents(Array.isArray(data) ? data : []);
       } catch (err) {
         console.error(err);
+        setEvents([]);
       } finally {
         setLoading(false);
       }
@@ -114,14 +115,14 @@ export default function EventsCatalog() {
     loadEvents();
   }, [selectedCategory]);
 
-  const filteredEvents = events.filter(event => {
+  const filteredEvents = Array.isArray(events) ? events.filter(event => {
     if (!activeSearch) return true;
     const query = activeSearch.toLowerCase();
     return (
       (event.title && event.title.toLowerCase().includes(query)) ||
       (event.location && event.location.toLowerCase().includes(query))
     );
-  });
+  }) : [];
 
   // Abre o popup do evento correspondente se o eventId vier na query string
   useEffect(() => {
@@ -129,7 +130,7 @@ export default function EventsCatalog() {
     const { eventId } = router.query;
     if (eventId) {
       // Tenta encontrar o evento localmente na lista já carregada para abrir instantaneamente
-      const localEvent = events.find(e => e.id === eventId);
+      const localEvent = Array.isArray(events) ? events.find(e => e.id === eventId) : null;
       if (localEvent) {
         setSelectedEvent(localEvent);
       } else if (!loading) {

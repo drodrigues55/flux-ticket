@@ -22,6 +22,7 @@ export declare class CheckoutService {
         buyerId: string;
         buyerCpf: string;
         price: import("@prisma/client/runtime/library").Decimal;
+        meiaEntrada: boolean;
         hmacSignature: string | null;
         expiresAt: Date;
         updatedAt: Date;
@@ -37,6 +38,7 @@ export declare class CheckoutService {
         buyerId: string;
         buyerCpf: string;
         price: import("@prisma/client/runtime/library").Decimal;
+        meiaEntrada: boolean;
         hmacSignature: string | null;
         expiresAt: Date;
         updatedAt: Date;
