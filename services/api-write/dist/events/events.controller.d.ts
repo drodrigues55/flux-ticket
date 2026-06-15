@@ -57,6 +57,7 @@ export declare class EventsController {
         sectorId: number | null;
         sectorName: string | null;
         meiaEntrada: boolean;
+        isActive: boolean;
         eventId: string;
         createdAt: Date;
         updatedAt: Date;
@@ -74,6 +75,7 @@ export declare class EventsController {
         sectorId: number | null;
         sectorName: string | null;
         meiaEntrada: boolean;
+        isActive: boolean;
         eventId: string;
         createdAt: Date;
         updatedAt: Date;

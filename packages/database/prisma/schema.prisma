@@ -53,6 +53,7 @@ model TicketBatch {
   sectorId          Int?
   sectorName        String?
   meiaEntrada       Boolean  @default(false)
+  isActive          Boolean  @default(true)
   eventId           String
   event             Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   tickets           Ticket[]
@@ -74,6 +75,9 @@ model Ticket {
   createdAt DateTime     @default(now())
   expiresAt DateTime
   updatedAt DateTime     @updatedAt
+  holderName String?
+  holderCpf  String?
+  isTransferred Boolean @default(false)
 }
 
 model OutboxEvent {

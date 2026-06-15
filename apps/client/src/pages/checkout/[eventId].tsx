@@ -25,7 +25,8 @@ interface InstallmentOption {
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { eventId, ticketId: queryTicketId, userId: queryUserId, batchId: queryBatchId } = router.query;
+  const { eventId, ticketId: queryTicketId, userId: queryUserId, batchId: queryBatchId, quantity: queryQuantity } = router.query;
+  const activeQuantity = Number(queryQuantity) || 1;
 
   // Estados de Identidade da Reserva
   const [ticketId, setTicketId] = useState<string>('');
@@ -63,6 +64,9 @@ export default function CheckoutPage() {
   const [eventTitle, setEventTitle] = useState('Carregando evento...');
   const [copied, setCopied] = useState(false);
 
+  // Dados dos titulares adicionais
+  const [holders, setHolders] = useState<Array<{ name: string; cpf: string }>>([]);
+
   // Dados do PIX recebidos do MP
   const [pixCode, setPixCode] = useState('');
   const [pixQrBase64, setPixQrBase64] = useState('');
@@ -81,6 +85,30 @@ export default function CheckoutPage() {
   const [cpfTouched, setCpfTouched] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [buttonAlertText, setButtonAlertText] = useState('');
+
+  // Inicializa o array de holders com base na quantidade selecionada
+  useEffect(() => {
+    if (activeQuantity > 0) {
+      setHolders(
+        Array.from({ length: activeQuantity }, (_, i) => ({
+          name: i === 0 ? buyerName : '',
+          cpf: i === 0 ? buyerCpf : '',
+        }))
+      );
+    }
+  }, [activeQuantity]);
+
+  // Sincroniza o primeiro titular com os dados do comprador
+  useEffect(() => {
+    setHolders((prev) => {
+      const updated = [...prev];
+      if (updated[0]) {
+        updated[0].name = buyerName;
+        updated[0].cpf = buyerCpf;
+      }
+      return updated;
+    });
+  }, [buyerName, buyerCpf]);
 
   const validateEmail = () => {
     if (!email) {
@@ -102,6 +130,11 @@ export default function CheckoutPage() {
     !emailError &&
     (buyerCpf.length === 14 || buyerCpf.length === 18);
 
+  const isHoldersInfoComplete = holders.every((h, idx) => {
+    if (idx === 0) return true;
+    return h.name.trim().length > 3 && (h.cpf.length === 14 || h.cpf.length === 18);
+  });
+
   const isCardInfoComplete =
     cardNumber.length === 19 &&
     cardholderName.trim().length > 3 &&
@@ -111,6 +144,7 @@ export default function CheckoutPage() {
   // Validador de Formulário Completo
   const isFormComplete =
     isBuyerInfoComplete &&
+    isHoldersInfoComplete &&
     (paymentMethod === 'pix' || (paymentMethod === 'credit_card' && isCardInfoComplete));
 
   const isNameInvalid = (nameTouched || submitAttempted) && buyerName.trim().length <= 3;
@@ -184,7 +218,7 @@ export default function CheckoutPage() {
 
         const priceInReais = Number(matchingBatch.price);
         setTicketPrice(priceInReais);
-        calculateInstallments(priceInReais);
+        calculateInstallments(priceInReais * activeQuantity);
 
         // 2. Cria a reserva do ingresso no backend se não vier da URL
         if (!queryTicketId && !ticketId) {
@@ -198,6 +232,7 @@ export default function CheckoutPage() {
               batchId: activeBatchId,
               price: priceInReais,
               isHalfPrice: !!matchingBatch.meiaEntrada,
+              quantity: activeQuantity,
             }),
           });
 
@@ -217,7 +252,7 @@ export default function CheckoutPage() {
     };
 
     fetchDetailsAndReserve();
-  }, [activeEventId, activeBatchId, queryTicketId, ticketId]);
+  }, [activeEventId, activeBatchId, queryTicketId, ticketId, activeQuantity]);
 
   // Calcula opções de parcelamento com base no valor (máximo 4x com taxas fictícias/juros)
   const calculateInstallments = (price: number) => {
@@ -343,6 +378,7 @@ export default function CheckoutPage() {
         paymentMethod: {
           method: paymentMethod,
         },
+        holders,
       };
 
       if (paymentMethod === 'credit_card') {
@@ -606,6 +642,70 @@ export default function CheckoutPage() {
                       )}
                     </div>
                   </div>
+
+                  {/* Titularidade dos ingressos */}
+                  {activeQuantity > 1 && (
+                    <div className="p-6 md:p-8 border-b border-neutral-100 space-y-4">
+                      <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Identificação dos Ingressos</h4>
+                      <p className="text-slate-400 text-xs leading-normal">
+                        Preencha o Nome e o CPF de cada titular. Você poderá alterar estas informações posteriormente no seu perfil.
+                      </p>
+                      
+                      {holders.map((holder, index) => {
+                        if (index === 0) return null; // O primeiro ingresso usa os dados do comprador
+                        return (
+                          <div key={index} className="p-4 bg-slate-50 border border-neutral-200/60 rounded-2xl space-y-3">
+                            <span className="text-xs font-bold text-slate-600 block">
+                              Ingresso #{index + 1}
+                            </span>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Nome do Titular *</label>
+                                <input
+                                  type="text"
+                                  placeholder="Nome Completo do Titular"
+                                  required
+                                  value={holder.name}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setHolders((prev) => {
+                                      const next = [...prev];
+                                      if (next[index]) next[index].name = val;
+                                      return next;
+                                    });
+                                  }}
+                                  className="w-full bg-white border border-neutral-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 focus:border-[#6200EE] transition-all"
+                                />
+                              </div>
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">CPF do Titular *</label>
+                                <input
+                                  type="text"
+                                  placeholder="000.000.000-00"
+                                  required
+                                  value={holder.cpf}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    const clean = val.replace(/\D/g, '').substring(0, 11);
+                                    const formatted = clean
+                                      .replace(/(\d{3})(\d)/, '$1.$2')
+                                      .replace(/(\d{3})(\d)/, '$1.$2')
+                                      .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+                                    setHolders((prev) => {
+                                      const next = [...prev];
+                                      if (next[index]) next[index].cpf = formatted;
+                                      return next;
+                                    });
+                                  }}
+                                  className="w-full bg-white border border-neutral-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 focus:border-[#6200EE] transition-all"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
                   {/* 2. MÉTODO DE PAGAMENTO */}
                   <div>
@@ -881,14 +981,14 @@ export default function CheckoutPage() {
               <div className="space-y-3">
                 <div className="flex justify-between items-center text-sm">
                   <div>
-                    <span className="font-bold text-slate-800">1x Ingresso</span>
+                    <span className="font-bold text-slate-800">{activeQuantity}x Ingresso(s)</span>
                     {selectedBatch && (
                       <span className="text-xs text-slate-400 block mt-0.5 font-semibold text-slate-600">
                         Setor: {selectedBatch.sectorName?.toUpperCase() || 'SUPERIOR'}
                       </span>
                     )}
                   </div>
-                  <span className="font-sans text-slate-800 font-bold">R$ {ticketPrice.toFixed(2).replace('.', ',')}</span>
+                  <span className="font-sans text-slate-800 font-bold">R$ {(ticketPrice * activeQuantity).toFixed(2).replace('.', ',')}</span>
                 </div>
 
                 <div className="space-y-1.5 text-xs text-slate-400 pt-2 border-t border-neutral-100">
@@ -933,7 +1033,7 @@ export default function CheckoutPage() {
 
                 <div className="flex justify-between items-center pt-4 border-t border-neutral-100">
                   <span className="text-base font-extrabold text-slate-800">Total</span>
-                  <span className="text-3xl font-sans text-[#6200EE] font-black tracking-tight">R$ {ticketPrice.toFixed(2).replace('.', ',')}</span>
+                  <span className="text-3xl font-sans text-[#6200EE] font-black tracking-tight">R$ {(ticketPrice * activeQuantity).toFixed(2).replace('.', ',')}</span>
                 </div>
               </div>
 

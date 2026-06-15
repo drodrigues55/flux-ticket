@@ -1,4 +1,3 @@
-npm warn Unknown env config "filter". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
 
 > @flux/database@1.0.0 build
 > tsc && prisma generate
@@ -6,7 +5,7 @@ npm warn Unknown env config "filter". This will stop working in the next major v
 Environment variables loaded from .env
 Prisma schema loaded from prisma\schema.prisma
 Error: 
-EPERM: operation not permitted, rename 'C:\Users\DRODRIGUES\Documents\flux-ticket\node_modules\.prisma\client\query_engine-windows.dll.node.tmp24796' -> 'C:\Users\DRODRIGUES\Documents\flux-ticket\node_modules\.prisma\client\query_engine-windows.dll.node'
+EPERM: operation not permitted, rename 'C:\Users\DRODRIGUES\Documents\flux-ticket\node_modules\.prisma\client\query_engine-windows.dll.node.tmp23768' -> 'C:\Users\DRODRIGUES\Documents\flux-ticket\node_modules\.prisma\client\query_engine-windows.dll.node'
 
 
 npm error Lifecycle script `build` failed with error:

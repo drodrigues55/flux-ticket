@@ -30,6 +30,7 @@ export declare class CheckoutController {
         batchId: string;
         price: number;
         isHalfPrice?: boolean;
+        quantity?: number;
     }): Promise<{
         ticketId: string;
         userId: string;

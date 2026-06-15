@@ -1,7 +1,7 @@
 import { FluxEngineService } from './flux-engine.service';
 import { TicketCryptoService } from './ticket-crypto.service';
 export declare class CheckoutService {
-    private readonly fluxEngine;
+    readonly fluxEngine: FluxEngineService;
     private readonly ticketCryptoService;
     constructor(fluxEngine: FluxEngineService, ticketCryptoService: TicketCryptoService);
     /**
@@ -26,6 +26,9 @@ export declare class CheckoutService {
         hmacSignature: string | null;
         expiresAt: Date;
         updatedAt: Date;
+        holderName: string | null;
+        holderCpf: string | null;
+        isTransferred: boolean;
     }>;
     /**
      * Aprova o pagamento de um ingresso, gerando a assinatura HMAC offline.
@@ -42,6 +45,9 @@ export declare class CheckoutService {
         hmacSignature: string | null;
         expiresAt: Date;
         updatedAt: Date;
+        holderName: string | null;
+        holderCpf: string | null;
+        isTransferred: boolean;
     }>;
     /**
      * Delega a renovação do lock temporário do ingresso no Redis.

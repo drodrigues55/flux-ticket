@@ -153,13 +153,16 @@ export default function EventsCatalog() {
 
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F8F9FA] font-sans antialiased text-slate-900">
+    <div className="min-h-screen flex flex-col bg-[#03060B] font-sans antialiased text-white relative overflow-hidden">
+      {/* Background Glows */}
+      <div className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] rounded-full bg-purple-600/5 blur-[180px] pointer-events-none" />
+      <div className="absolute bottom-[-20%] right-[-20%] w-[60%] h-[60%] rounded-full bg-blue-600/5 blur-[180px] pointer-events-none" />
       <Header />
 
       {/* HERO SECTION WITH SLANTED/CLIPPED BOTTOM */}
-      <section className="bg-gradient-to-br from-[#4A148C] via-[#6200EE] to-[#3700B3] text-white pt-20 pb-8 px-6 relative overflow-hidden">
+      <section className="bg-gradient-to-br from-[#12072B] via-[#080314] to-[#03060B] text-white pt-20 pb-8 px-6 relative overflow-hidden border-b border-white/5">
         {/* Subtle decorative lights to simulate stage overlay */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-500/20 via-purple-500/5 to-transparent pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-purple-50/10 via-purple-50/5 to-transparent pointer-events-none" />
 
         <div className="max-w-4xl mx-auto relative z-10 text-center flex flex-col items-center justify-center space-y-6">
           <div className="space-y-4">
@@ -175,7 +178,7 @@ export default function EventsCatalog() {
           </div>
 
           {/* SEARCH BAR MD3 COMPLIANT */}
-          <div className="flex items-center bg-white p-2 rounded-2xl shadow-xl w-full max-w-2xl border border-neutral-200/20 mx-auto">
+          <div className="flex items-center bg-[#18181B]/80 p-2 rounded-2xl shadow-xl w-full max-w-2xl border border-white/10 mx-auto backdrop-blur-md">
             <svg className="w-5 h-5 text-slate-400 ml-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
@@ -189,11 +192,11 @@ export default function EventsCatalog() {
                   handleSearchSubmit();
                 }
               }}
-              className="flex-grow bg-transparent outline-none text-slate-800 px-2 py-3 text-sm placeholder-neutral-400"
+              className="flex-grow bg-transparent outline-none text-white px-2 py-3 text-sm placeholder-neutral-500"
             />
             <button
               onClick={handleSearchSubmit}
-              className="bg-[#6200EE] hover:bg-[#5000c7] text-white px-8 py-3 rounded-xl font-bold transition-all shadow-md active:scale-95 cursor-pointer"
+              className="bg-[#9146FF] hover:bg-[#A970FF] text-white px-8 py-3 rounded-xl font-bold transition-all shadow-md active:scale-95 cursor-pointer"
             >
               Buscar
             </button>
@@ -229,8 +232,8 @@ export default function EventsCatalog() {
                     }
                   }}
                   className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold backdrop-blur-sm transition-all border cursor-pointer ${isActive
-                    ? 'bg-white text-[#6200EE] border-white shadow-md scale-105'
-                    : 'bg-white/10 hover:bg-white/20 text-white border-white/10'
+                    ? 'bg-[#9146FF] text-white border-[#B388FF] shadow-[0_0_15px_rgba(145,70,255,0.4)] scale-105'
+                    : 'bg-[#18181B] hover:bg-[#252528] text-slate-400 border-white/10 hover:text-white'
                     }`}
                 >
                   {cat.icon}
@@ -247,7 +250,7 @@ export default function EventsCatalog() {
       <main id="eventos" ref={eventsRef} className="max-w-7xl mx-auto px-6 pt-8 pb-16 flex-grow w-full min-h-[800px] space-y-12">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 space-y-3">
-            <div className="w-8 h-8 border-4 border-slate-200 border-t-[#6200EE] rounded-full animate-spin" />
+            <div className="w-8 h-8 border-4 border-white/5 border-t-[#9146FF] rounded-full animate-spin" />
             <p className="text-sm font-semibold text-slate-400">Carregando catálogo...</p>
           </div>
         ) : (
@@ -255,7 +258,7 @@ export default function EventsCatalog() {
             {/* Seção Trending Now (Apenas na página inicial sem filtros/busca) */}
             {!selectedCategory && !activeSearch && (
               <div>
-                <h2 className="text-2xl font-extrabold text-slate-900 mb-6 flex items-center gap-2">
+                <h2 className="text-2xl font-extrabold text-white mb-6 flex items-center gap-2">
                   Trending Now
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
@@ -286,7 +289,7 @@ export default function EventsCatalog() {
 
             {/* Seção Listagem Geral */}
             <div>
-              <h2 className="text-2xl font-extrabold text-slate-900 mb-6">
+              <h2 className="text-2xl font-extrabold text-white mb-6">
                 {activeSearch
                   ? `Resultados para: "${activeSearch}"`
                   : (selectedCategory ? 'Eventos Encontrados' : 'Todos os Eventos')}
@@ -323,7 +326,7 @@ export default function EventsCatalog() {
       </main>
 
       {/* Footer Simples */}
-      <footer className="py-8 text-center text-slate-400 text-sm border-t border-neutral-200/60 max-w-7xl mx-auto w-full">
+      <footer className="py-8 text-center text-slate-500 text-sm border-t border-white/5 max-w-7xl mx-auto w-full">
         &copy; {new Date().getFullYear()} Flux Tickets. Todos os direitos reservados.
       </footer>
 
@@ -331,8 +334,8 @@ export default function EventsCatalog() {
         isOpen={!!selectedEvent}
         onClose={() => setSelectedEvent(null)}
         event={selectedEvent}
-        onBuy={(eventId, batchId) => {
-          router.push(`/checkout/${eventId}${batchId ? `?batchId=${batchId}` : ''}`);
+        onBuy={(eventId, batchId, qty) => {
+          router.push(`/checkout/${eventId}${batchId ? `?batchId=${batchId}&quantity=${qty || 1}` : ''}`);
         }}
       />
     </div>

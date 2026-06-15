@@ -55,6 +55,16 @@ export declare const CheckoutPaymentSchema: z.ZodObject<{
         installments: number;
         issuerId: string;
     }>]>;
+    holders: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        name: z.ZodString;
+        cpf: z.ZodString;
+    }, "strip", z.ZodTypeAny, {
+        name: string;
+        cpf: string;
+    }, {
+        name: string;
+        cpf: string;
+    }>, "many">>;
 }, "strip", z.ZodTypeAny, {
     buyerCpf: string;
     ticketId: string;
@@ -69,6 +79,10 @@ export declare const CheckoutPaymentSchema: z.ZodObject<{
         installments: number;
         issuerId: string;
     };
+    holders?: {
+        name: string;
+        cpf: string;
+    }[] | undefined;
 }, {
     buyerCpf: string;
     ticketId: string;
@@ -83,6 +97,10 @@ export declare const CheckoutPaymentSchema: z.ZodObject<{
         installments: number;
         issuerId: string;
     };
+    holders?: {
+        name: string;
+        cpf: string;
+    }[] | undefined;
 }>;
 export type CheckoutPaymentDto = z.infer<typeof CheckoutPaymentSchema>;
 //# sourceMappingURL=payments.dto.d.ts.map

@@ -8,11 +8,15 @@ module.exports = {
     extend: {
       colors: {
         cosmic: {
-          dark: '#121212',
-          slate: '#1E1E1E',
-          neon: '#00E5FF',
-          grey: '#2C2C2C',
+          dark: '#0E0E10',
+          slate: '#18181B',
+          neon: '#9146FF',
+          grey: '#1F1F23',
+          border: '#2F2F35',
         }
+      },
+      fontFamily: {
+        sans: ['var(--font-inter)', 'sans-serif'],
       },
     },
   },

@@ -13,7 +13,7 @@ exports.PaymentMethodCardSchema = zod_1.z.object({
     email: zod_1.z.string().email('E-mail inválido'),
 });
 exports.CheckoutPaymentSchema = zod_1.z.object({
-    ticketId: zod_1.z.string().uuid('ID do ingresso inválido'),
+    ticketId: zod_1.z.string().min(1, 'ID do ingresso inválido'),
     buyerCpf: zod_1.z.string().min(11, 'CPF do comprador é obrigatório (mínimo 11 caracteres)'),
     email: zod_1.z.string().email('E-mail do comprador é obrigatório'),
     buyerName: zod_1.z.string().min(3, 'Nome do comprador é obrigatório (mínimo 3 caracteres)'),
@@ -21,5 +21,9 @@ exports.CheckoutPaymentSchema = zod_1.z.object({
         exports.PaymentMethodPixSchema,
         exports.PaymentMethodCardSchema,
     ]),
+    holders: zod_1.z.array(zod_1.z.object({
+        name: zod_1.z.string().min(3, 'Nome do titular é obrigatório'),
+        cpf: zod_1.z.string().min(11, 'CPF do titular é obrigatório'),
+    })).optional(),
 });
 //# sourceMappingURL=payments.dto.js.map

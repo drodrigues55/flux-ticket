@@ -15,27 +15,42 @@ import {
 } from 'react-icons/fa6';
 
 interface SuccessPageProps {
-  ticket: {
+  tickets: Array<{
     id: string;
     meiaEntrada: boolean;
     price: number;
     status: string;
+    holderName: string | null;
+    holderCpf: string | null;
+    buyerName: string;
     batch: {
       name: string;
-      sectorName: string;
+      sectorName: string | null;
       event: {
         title: string;
         date: string;
         location: string;
       };
     };
-  };
+  }>;
 }
 
-export default function CheckoutSuccessPage({ ticket }: SuccessPageProps) {
+export default function CheckoutSuccessPage({ tickets = [] }: SuccessPageProps) {
   const router = useRouter();
 
-  const formattedDate = new Date(ticket.batch.event.date).toLocaleDateString('pt-BR', {
+  if (tickets.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-800">
+        Carregando...
+      </div>
+    );
+  }
+
+  const primaryTicket = tickets[0];
+  const totalPaid = tickets.reduce((sum, t) => sum + t.price, 0);
+  const hasMeia = tickets.some((t) => t.meiaEntrada);
+
+  const formattedDate = new Date(primaryTicket.batch.event.date).toLocaleDateString('pt-BR', {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
@@ -62,7 +77,7 @@ export default function CheckoutSuccessPage({ ticket }: SuccessPageProps) {
             <div className="space-y-1.5">
               <h2 className="text-3xl font-black tracking-tight text-slate-900">Compra Aprovada!</h2>
               <p className="text-slate-500 text-sm max-w-md mx-auto">
-                Seu ingresso foi reservado e a transação de pagamento concluída com sucesso.
+                Seu{tickets.length > 1 ? 's' : ''} ingresso{tickets.length > 1 ? 's foram' : ' foi'} reservado{tickets.length > 1 ? 's' : ''} e a transação de pagamento concluída com sucesso.
               </p>
             </div>
           </div>
@@ -77,7 +92,7 @@ export default function CheckoutSuccessPage({ ticket }: SuccessPageProps) {
                 <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-0.5 bg-neutral-100 z-0" />
                 <div 
                   className="absolute left-0 top-1/2 -translate-y-1/2 h-0.5 bg-emerald-500 transition-all duration-500 z-0" 
-                  style={{ width: ticket.meiaEntrada ? '50%' : '100%' }}
+                  style={{ width: hasMeia ? '50%' : '100%' }}
                 />
 
                 {/* Step 1: Compra Aprovada */}
@@ -89,7 +104,7 @@ export default function CheckoutSuccessPage({ ticket }: SuccessPageProps) {
                 </div>
 
                 {/* Step 2 & 3 */}
-                {ticket.meiaEntrada ? (
+                {hasMeia ? (
                   <>
                     <div className="flex flex-col items-center z-10 bg-white px-2">
                       <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shadow-sm animate-pulse">
@@ -121,10 +136,10 @@ export default function CheckoutSuccessPage({ ticket }: SuccessPageProps) {
                 <div>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Evento</span>
                   <h3 className="text-lg font-extrabold text-slate-900 leading-tight">
-                    {ticket.batch.event.title}
+                    {primaryTicket.batch.event.title}
                   </h3>
                 </div>
-                {ticket.meiaEntrada && (
+                {hasMeia && (
                   <span className="bg-slate-100 text-slate-700 border border-slate-200 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wide">
                     Meia-Entrada
                   </span>
@@ -144,7 +159,7 @@ export default function CheckoutSuccessPage({ ticket }: SuccessPageProps) {
                   <FaLocationDot className="w-4 h-4 text-slate-400 shrink-0" />
                   <div>
                     <span className="text-[10px] text-slate-400 font-bold block uppercase leading-none">Local</span>
-                    <span className="text-xs font-semibold text-slate-700">{ticket.batch.event.location}</span>
+                    <span className="text-xs font-semibold text-slate-700">{primaryTicket.batch.event.location}</span>
                   </div>
                 </div>
               </div>
@@ -154,26 +169,28 @@ export default function CheckoutSuccessPage({ ticket }: SuccessPageProps) {
                   <FaTicketSimple className="w-4 h-4 text-slate-400 shrink-0" />
                   <div>
                     <span className="text-[10px] text-slate-400 font-bold block uppercase leading-none">Ingresso / Setor</span>
-                    <span className="text-xs font-semibold text-slate-700">{ticket.batch.name}</span>
+                    <span className="text-xs font-semibold text-slate-700">
+                      {tickets.length}x {primaryTicket.batch.name}
+                    </span>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 text-slate-600">
                   <FaTag className="w-4 h-4 text-slate-400 shrink-0" />
                   <div>
                     <span className="text-[10px] text-slate-400 font-bold block uppercase leading-none">Valor Pago</span>
-                    <span className="text-base font-bold text-slate-700">R$ {ticket.price.toFixed(2).replace('.', ',')}</span>
+                    <span className="text-base font-bold text-slate-700">R$ {totalPaid.toFixed(2).replace('.', ',')}</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {ticket.meiaEntrada && (
+            {hasMeia && (
               <div className="bg-slate-50 border border-neutral-200 border-l-4 border-l-red-600 p-5 rounded-r-2xl rounded-l-md flex gap-3.5 items-start">
                 <FaAddressCard className="w-6 h-6 text-red-600 shrink-0 mt-0.5" />
                 <div className="space-y-1">
                   <h4 className="font-bold text-sm text-slate-900">Atenção: Valide sua meia-entrada</h4>
                   <p className="text-xs leading-relaxed text-slate-600">
-                    Seu ingresso está pendente até que o comprovante (DNE ou similar) seja enviado.
+                    Seu{tickets.length > 1 ? 's' : ''} ingresso{tickets.length > 1 ? 's estão' : ' está'} pendente{tickets.length > 1 ? 's' : ''} até que o comprovante (DNE ou similar) seja enviado na sua carteira de ingressos.
                   </p>
                 </div>
               </div>
@@ -181,56 +198,25 @@ export default function CheckoutSuccessPage({ ticket }: SuccessPageProps) {
 
             {/* Action Buttons */}
             <div className="flex flex-col gap-3 pt-4 border-t border-neutral-100">
-              {ticket.meiaEntrada ? (
-                <>
-                  <div className="flex flex-col sm:flex-row gap-3 w-full">
-                    <button
-                      onClick={() => router.push(`/profile/validate/${ticket.id}`)}
-                      className="flex-1 bg-[#6200EE] hover:bg-[#5000c7] text-white px-6 py-3.5 rounded-2xl font-bold transition-all shadow-md active:scale-95 text-sm flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      <FaAddressCard className="w-4 h-4" />
-                      Validar Meia-Entrada
-                    </button>
-                    <button
-                      onClick={() => router.push('/profile')}
-                      className="flex-1 border-2 border-[#6200EE] text-[#6200EE] hover:bg-[#6200EE]/5 px-6 py-3.5 rounded-2xl font-bold transition-all active:scale-95 text-sm flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      <FaTicketSimple className="w-4 h-4" />
-                      Ver Meus Ingressos
-                      <FaArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  <button
-                    onClick={() => router.push('/')}
-                    className="w-full text-slate-500 hover:text-slate-800 py-2 font-bold text-sm flex items-center justify-center gap-2 hover:underline cursor-pointer"
-                  >
-                    <FaHouse className="w-4 h-4" />
-                    Voltar ao início
-                  </button>
-                </>
-              ) : (
-                <div className="flex flex-col sm:flex-row gap-3 w-full">
-                  <button
-                    onClick={() => router.push('/profile')}
-                    className="flex-1 bg-[#6200EE] hover:bg-[#5000c7] text-white px-6 py-3.5 rounded-2xl font-bold transition-all shadow-md active:scale-95 text-sm flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <FaTicketSimple className="w-4 h-4" />
-                    Ver Meus Ingressos
-                    <FaArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => router.push('/')}
-                    className="bg-white hover:bg-neutral-50 text-slate-600 hover:text-slate-800 border border-slate-200 px-6 py-3.5 rounded-2xl font-bold transition-all active:scale-95 text-sm flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <FaHouse className="w-4 h-4" />
-                    Voltar ao início
-                  </button>
-                </div>
-              )}
+              <div className="flex flex-col sm:flex-row gap-3 w-full">
+                <button
+                  onClick={() => router.push('/profile')}
+                  className="flex-1 bg-[#6200EE] hover:bg-[#5000c7] text-white px-6 py-3.5 rounded-2xl font-bold transition-all shadow-md active:scale-95 text-sm flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <FaTicketSimple className="w-4 h-4" />
+                  Acessar Carteira de Ingressos
+                  <FaArrowRight className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => router.push('/')}
+                  className="bg-white hover:bg-neutral-50 text-slate-600 hover:text-slate-800 border border-slate-200 px-6 py-3.5 rounded-2xl font-bold transition-all active:scale-95 text-sm flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <FaHouse className="w-4 h-4" />
+                  Voltar ao início
+                </button>
+              </div>
             </div>
           </div>
-
-
 
         </div>
       </main>
@@ -254,8 +240,9 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   }
 
   try {
-    const ticket = await prisma.ticket.findUnique({
-      where: { id: ticketId },
+    const ticketIds = ticketId.split(',');
+    const tickets = await prisma.ticket.findMany({
+      where: { id: { in: ticketIds } },
       include: {
         batch: {
           include: {
@@ -265,7 +252,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       },
     });
 
-    if (!ticket) {
+    if (tickets.length === 0) {
       return {
         redirect: {
           destination: '/',
@@ -274,27 +261,31 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       };
     }
 
+    const serializedTickets = tickets.map((t) => ({
+      id: t.id,
+      meiaEntrada: t.meiaEntrada,
+      price: t.price.toNumber(),
+      status: t.status,
+      holderName: t.holderName,
+      holderCpf: t.holderCpf,
+      batch: {
+        name: t.batch.name,
+        sectorName: t.batch.sectorName,
+        event: {
+          title: t.batch.event.title,
+          date: t.batch.event.date.toISOString(),
+          location: t.batch.event.location,
+        },
+      },
+    }));
+
     return {
       props: {
-        ticket: {
-          id: ticket.id,
-          meiaEntrada: ticket.meiaEntrada,
-          price: ticket.price.toNumber(),
-          status: ticket.status,
-          batch: {
-            name: ticket.batch.name,
-            sectorName: ticket.batch.sectorName,
-            event: {
-              title: ticket.batch.event.title,
-              date: ticket.batch.event.date.toISOString(),
-              location: ticket.batch.event.location,
-            },
-          },
-        },
+        tickets: serializedTickets,
       },
     };
   } catch (error) {
-    console.error('Error fetching ticket in success page:', error);
+    console.error('Error fetching tickets in success page:', error);
     return {
       redirect: {
         destination: '/',

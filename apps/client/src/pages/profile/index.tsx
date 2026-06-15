@@ -13,7 +13,9 @@ import {
   FaQrcode,
   FaXmark,
   FaApple,
-  FaGooglePay
+  FaGooglePay,
+  FaLink,
+  FaRotate
 } from 'react-icons/fa6';
 
 interface Ticket {
@@ -22,7 +24,11 @@ interface Ticket {
   price: number;
   meiaEntrada: boolean;
   hmacSignature?: string;
+  buyerCpf: string;
   createdAt: string;
+  holderName?: string | null;
+  holderCpf?: string | null;
+  isTransferred: boolean;
   batch: {
     name: string;
     sectorName?: string;
@@ -50,6 +56,15 @@ export default function ProfilePage() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loadingTickets, setLoadingTickets] = useState(false);
   const [selectedQrTicket, setSelectedQrTicket] = useState<Ticket | null>(null);
+
+  // Transfer modal state
+  const [selectedTransferTicket, setSelectedTransferTicket] = useState<Ticket | null>(null);
+  const [transferName, setTransferName] = useState('');
+  const [transferCpf, setTransferCpf] = useState('');
+  const [transferLoading, setTransferLoading] = useState(false);
+  const [transferError, setTransferError] = useState('');
+  const [transferSuccess, setTransferSuccess] = useState(false);
+  const [copiedLinkTicketId, setCopiedLinkTicketId] = useState<string | null>(null);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -153,6 +168,61 @@ export default function ProfilePage() {
     setTickets([]);
   };
 
+  const handleTransferSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedTransferTicket || !loggedInUser) return;
+
+    setTransferLoading(true);
+    setTransferError('');
+    setTransferSuccess(false);
+
+    try {
+      const res = await fetch('/api/tickets/transfer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticketId: selectedTransferTicket.id,
+          holderName: transferName,
+          holderCpf: transferCpf,
+          currentUserId: loggedInUser.id,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao realizar transferência.');
+
+      setTransferSuccess(true);
+
+      // Refresh tickets list
+      const ticketRes = await fetch(`/api/tickets/user?userId=${loggedInUser.id}`);
+      if (ticketRes.ok) {
+        const ticketData = await ticketRes.json();
+        setTickets(ticketData);
+      }
+
+      // Close modal after delay
+      setTimeout(() => {
+        setSelectedTransferTicket(null);
+        setTransferName('');
+        setTransferCpf('');
+        setTransferSuccess(false);
+      }, 2000);
+    } catch (err: any) {
+      setTransferError(err.message);
+    } finally {
+      setTransferLoading(false);
+    }
+  };
+
+  const handleCopyAccessLink = (ticketId: string) => {
+    const url = window.location.origin + '/ticket/' + ticketId;
+    navigator.clipboard.writeText(url);
+    setCopiedLinkTicketId(ticketId);
+    setTimeout(() => {
+      setCopiedLinkTicketId(null);
+    }, 2500);
+  };
+
   const handleDownloadPkpass = (ticketId: string) => {
     // Direct trigger download of pkpass
     window.location.href = `/api/tickets/${ticketId}/pkpass`;
@@ -173,19 +243,22 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F8F9FA] font-sans antialiased text-slate-900">
+    <div className="min-h-screen flex flex-col bg-[#03060B] font-sans antialiased text-white relative overflow-hidden">
+      {/* Background Glows */}
+      <div className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] rounded-full bg-purple-600/5 blur-[180px] pointer-events-none" />
+      <div className="absolute bottom-[-20%] right-[-20%] w-[60%] h-[60%] rounded-full bg-blue-600/5 blur-[180px] pointer-events-none" />
       <Header />
 
       <main className="flex-grow max-w-6xl mx-auto w-full px-6 py-12 flex flex-col">
         {!loggedInUser ? (
           // Auth Section
           <div className="flex-grow flex items-center justify-center py-10">
-            <div className="w-full max-w-md bg-white rounded-3xl border border-neutral-200/60 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-              <div className="p-6 md:p-8 border-b border-neutral-100 bg-gradient-to-r from-purple-50/50 to-indigo-50/30 text-center space-y-2">
-                <div className="w-12 h-12 bg-[#6200EE]/10 text-[#6200EE] rounded-2xl flex items-center justify-center mx-auto text-xl">
+            <div className="w-full max-w-md bg-[#18181B] rounded-3xl border border-white/10 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+              <div className="p-6 md:p-8 border-b border-white/5 bg-gradient-to-r from-[#1F1F23]/50 to-[#252528]/30 text-center space-y-2">
+                <div className="w-12 h-12 bg-[#9146FF]/10 text-[#B388FF] rounded-2xl flex items-center justify-center mx-auto text-xl">
                   <FaKey />
                 </div>
-                <h2 className="text-xl font-extrabold text-slate-900">Acesse seus Ingressos</h2>
+                <h2 className="text-xl font-extrabold text-white">Acesse seus Ingressos</h2>
                 <p className="text-slate-500 text-xs leading-relaxed max-w-xs mx-auto">
                   Enviaremos um código único de 6 dígitos para o seu e-mail para acesso seguro.
                 </p>
@@ -201,7 +274,7 @@ export default function ProfilePage() {
                 {step === 'email' ? (
                   <form onSubmit={handleSendOtp} className="space-y-4">
                     <div className="space-y-1.5">
-                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Endereço de E-mail</label>
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-450">Endereço de E-mail</label>
                       <div className="relative">
                         <FaEnvelope className="absolute left-4 top-3.5 text-slate-400" />
                         <input
@@ -210,7 +283,7 @@ export default function ProfilePage() {
                           required
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
-                          className="w-full bg-[#F8F9FA] border border-neutral-200 rounded-xl pl-11 pr-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 focus:border-[#6200EE] focus:bg-white transition-all duration-200"
+                          className="w-full bg-[#080D1A]/50 border border-white/10 rounded-xl pl-11 pr-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-[#9146FF]/20 focus:border-[#9146FF] focus:bg-[#080D1A] transition-all duration-200"
                         />
                       </div>
                     </div>
@@ -218,7 +291,7 @@ export default function ProfilePage() {
                     <button
                       type="submit"
                       disabled={loading}
-                      className="w-full py-3.5 bg-[#6200EE] hover:bg-[#5000c7] text-white rounded-2xl font-bold transition-all text-sm flex items-center justify-center gap-2 shadow-md cursor-pointer disabled:opacity-50"
+                      className="w-full py-3.5 bg-[#9146FF] hover:bg-[#A970FF] text-white rounded-2xl font-bold transition-all text-sm flex items-center justify-center gap-2 shadow-md cursor-pointer disabled:opacity-50"
                     >
                       {loading ? <FaSpinner className="w-4 h-4 animate-spin" /> : 'Enviar Código'}
                     </button>
@@ -226,7 +299,7 @@ export default function ProfilePage() {
                 ) : (
                   <form onSubmit={handleVerifyOtp} className="space-y-4">
                     <div className="space-y-1.5">
-                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Código de 6 dígitos</label>
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-450">Código de 6 dígitos</label>
                       <div className="relative">
                         <FaKey className="absolute left-4 top-3.5 text-slate-400" />
                         <input
@@ -236,7 +309,7 @@ export default function ProfilePage() {
                           required
                           value={otpCode}
                           onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
-                          className="w-full bg-[#F8F9FA] border border-neutral-200 rounded-xl pl-11 pr-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 focus:border-[#6200EE] focus:bg-white transition-all duration-200 text-center tracking-widest font-mono text-lg font-bold"
+                          className="w-full bg-[#080D1A]/50 border border-white/10 rounded-xl pl-11 pr-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-[#9146FF]/20 focus:border-[#9146FF] focus:bg-[#080D1A] transition-all duration-200 text-center tracking-widest font-mono text-lg font-bold"
                         />
                       </div>
                     </div>
@@ -252,7 +325,7 @@ export default function ProfilePage() {
                     <button
                       type="button"
                       onClick={() => setStep('email')}
-                      className="w-full text-center text-xs font-semibold text-slate-500 hover:text-[#6200EE] mt-2 block border-none bg-transparent cursor-pointer"
+                      className="w-full text-center text-xs font-semibold text-slate-400 hover:text-[#B388FF] mt-2 block border-none bg-transparent cursor-pointer"
                     >
                       Alterar E-mail
                     </button>
@@ -295,31 +368,31 @@ export default function ProfilePage() {
 
             {/* Main Content Layout (Sidebar + Content) */}
             <div className="space-y-4 pt-2">
-              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
-                <span className="w-1 h-4 bg-[#6200EE] rounded-full inline-block" />
+              <h3 className="text-base font-black text-white flex items-center gap-2">
+                <span className="w-1 h-4 bg-[#9146FF] rounded-full inline-block" />
                 Meus Ingressos
               </h3>
 
               <div className="flex flex-col md:flex-row gap-6 items-start">
                 {/* Left Sidebar */}
-                <div className="w-full md:w-52 shrink-0 bg-white border border-neutral-200/60 rounded-3xl p-3 space-y-1 shadow-sm">
-                  <button className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-xs font-bold bg-[#6200EE]/10 text-[#6200EE] transition-colors cursor-pointer text-left">
+                <div className="w-full md:w-52 shrink-0 bg-[#18181B] border border-white/5 rounded-3xl p-3 space-y-1 shadow-sm">
+                  <button className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-xs font-bold bg-[#9146FF]/10 text-[#B388FF] transition-colors cursor-pointer text-left">
                     <FaTicketSimple className="w-3.5 h-3.5" />
                     Meus Ingressos
                   </button>
-                  <button className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-xs font-semibold text-slate-500 hover:text-slate-850 hover:bg-slate-50 transition-colors cursor-pointer text-left">
+                  <button className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-[#252528] transition-colors cursor-pointer text-left">
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     Histórico
                   </button>
-                  <button className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-xs font-semibold text-slate-500 hover:text-slate-855 hover:bg-slate-50 transition-colors cursor-pointer text-left">
+                  <button className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-[#252528] transition-colors cursor-pointer text-left">
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
                     Perfil
                   </button>
-                  <button className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-xs font-semibold text-slate-500 hover:text-slate-855 hover:bg-slate-50 transition-colors cursor-pointer text-left">
+                  <button className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-[#252528] transition-colors cursor-pointer text-left">
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                     </svg>
@@ -330,17 +403,17 @@ export default function ProfilePage() {
                 {/* Right Content */}
                 <div className="flex-grow space-y-6 w-full">
                   {loadingTickets ? (
-                    <div className="flex flex-col items-center justify-center py-20 space-y-3 bg-white border border-neutral-200/60 rounded-3xl">
-                      <FaSpinner className="w-8 h-8 animate-spin text-[#6200EE]" />
+                    <div className="flex flex-col items-center justify-center py-20 space-y-3 bg-[#18181B] border border-white/5 rounded-3xl">
+                      <FaSpinner className="w-8 h-8 animate-spin text-[#9146FF]" />
                       <p className="text-sm font-semibold text-slate-400">Carregando seus ingressos...</p>
                     </div>
                   ) : filteredTickets.length === 0 ? (
-                    <div className="text-center py-16 px-6 border border-neutral-200/60 bg-white rounded-3xl space-y-5 flex flex-col items-center justify-center shadow-sm animate-in fade-in duration-300">
-                      <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center text-slate-400">
+                    <div className="text-center py-16 px-6 border border-white/5 bg-[#18181B] rounded-3xl space-y-5 flex flex-col items-center justify-center shadow-sm animate-in fade-in duration-300">
+                      <div className="w-12 h-12 bg-neutral-900 rounded-full flex items-center justify-center text-slate-400">
                         <FaTicketSimple className="w-6 h-6" />
                       </div>
                       <div className="space-y-1.5 text-center">
-                        <h4 className="font-extrabold text-sm text-slate-900">
+                        <h4 className="font-extrabold text-sm text-white">
                           {searchQuery ? 'Nenhum ingresso encontrado para sua busca.' : 'Você não possui ingressos ativos no momento.'}
                         </h4>
                         <p className="text-slate-400 text-xs max-w-sm mx-auto">
@@ -355,7 +428,7 @@ export default function ProfilePage() {
                             router.push('/');
                           }
                         }}
-                        className="bg-[#6200EE] hover:bg-[#5000c7] text-white px-6 py-2.5 rounded-xl font-bold text-xs shadow-sm transition-all cursor-pointer"
+                        className="bg-[#9146FF] hover:bg-[#A970FF] text-white px-6 py-2.5 rounded-xl font-bold text-xs shadow-sm transition-all cursor-pointer"
                       >
                         {searchQuery ? 'Limpar Busca' : 'Ver Catálogo Completo'}
                       </button>
@@ -375,7 +448,11 @@ export default function ProfilePage() {
                         return (
                           <div
                             key={ticket.id}
-                            className="bg-white border border-neutral-200/60 rounded-3xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
+                            className={`bg-[#18181B] border border-white/5 rounded-3xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between ${
+                              ticket.isTransferred || (ticket.holderCpf && ticket.holderCpf !== ticket.buyerCpf)
+                                ? 'opacity-70 saturate-50 hover:opacity-85'
+                                : ''
+                            }`}
                           >
                             <div className="p-6 space-y-4">
                               {/* Event info */}
@@ -384,43 +461,53 @@ export default function ProfilePage() {
                                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                                     {ticket.batch.name}
                                   </span>
-                                  <h4 className="font-extrabold text-sm text-slate-900 leading-snug">
+                                  <h4 className="font-extrabold text-sm text-white leading-snug">
                                     {ticket.batch.event.title}
                                   </h4>
+                                  {ticket.holderName && (
+                                    <div className="text-[10px] text-slate-400 font-semibold mt-1">
+                                      Titular: <span className="font-bold text-slate-200">{ticket.holderName}</span>
+                                    </div>
+                                  )}
                                 </div>
 
                                 {ticket.meiaEntrada && (
-                                  <span className="bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider">
+                                  <span className="bg-white/5 text-slate-350 border border-white/10 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider">
                                     Meia
                                   </span>
                                 )}
                               </div>
 
-                              <div className="space-y-2 border-t border-neutral-100 pt-3">
-                                <div className="flex items-center gap-2 text-xs text-slate-600">
-                                  <FaCalendarDays className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              <div className="space-y-2 border-t border-white/5 pt-3">
+                                <div className="flex items-center gap-2 text-xs text-slate-350">
+                                  <FaCalendarDays className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                                   <span>{eventDate}</span>
                                 </div>
-                                <div className="flex items-center gap-2 text-xs text-slate-600">
-                                  <FaLocationDot className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                <div className="flex items-center gap-2 text-xs text-slate-350">
+                                  <FaLocationDot className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                                   <span className="truncate">{ticket.batch.event.location}</span>
                                 </div>
                               </div>
 
                               {/* Status Badge */}
-                              <div className="pt-2">
+                              <div className="pt-2 flex flex-wrap gap-1.5">
+                                {(ticket.isTransferred || (ticket.holderCpf && ticket.holderCpf !== ticket.buyerCpf)) && (
+                                  <span className="inline-flex items-center gap-1.5 text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full font-bold">
+                                    Transferido
+                                  </span>
+                                )}
                                 {ticket.status === 'VALID' ? (
-                                  <span className="inline-flex items-center gap-1.5 text-[10px] text-emerald-600 font-bold bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
-                                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                                  <span className="inline-flex items-center gap-1.5 text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
+                                    <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full" />
                                     Ingresso Ativo
                                   </span>
                                 ) : ticket.status === 'PENDING_VALIDATION' ? (
-                                  <span className="inline-flex items-center gap-1.5 text-[10px] text-red-600 font-bold bg-red-50 px-3 py-1 rounded-full border border-red-100">
-                                    <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-ping" />
+                                  <span className="inline-flex items-center gap-1.5 text-[10px] text-red-400 font-bold bg-red-500/10 px-3 py-1 rounded-full border border-red-500/20">
+                                    <span className="w-1.5 h-1.5 bg-red-400 rounded-full animate-ping" />
                                     Pendente de Comprovação
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1.5 text-[10px] text-red-600 font-bold bg-red-50 px-3 py-1 rounded-full border border-red-100">
+                                  <span className="inline-flex items-center gap-1.5 text-[10px] text-red-400 font-bold bg-red-500/10 px-3 py-1 rounded-full border border-red-500/20">
                                     {ticket.status}
                                   </span>
                                 )}
@@ -428,8 +515,27 @@ export default function ProfilePage() {
                             </div>
 
                             {/* Card footer action buttons */}
-                            <div className="bg-slate-50 border-t border-neutral-100 p-4 flex flex-col gap-2.5">
-                              {isValid ? (
+                            <div className="bg-[#0D1526]/50 border-t border-white/5 p-4 flex flex-col gap-2.5">
+                              {ticket.isTransferred || (ticket.holderCpf && ticket.holderCpf !== ticket.buyerCpf) ? (
+                                <>
+                                  <button
+                                    onClick={() => handleCopyAccessLink(ticket.id)}
+                                    className="w-full py-2.5 bg-emerald-650 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                                  >
+                                    <FaLink className="w-3.5 h-3.5" />
+                                    {copiedLinkTicketId === ticket.id ? 'Link Copiado!' : 'Copiar Link de Acesso'}
+                                  </button>
+                                  {!ticket.isTransferred && (
+                                    <button
+                                      onClick={() => setSelectedTransferTicket(ticket)}
+                                      className="w-full py-2.5 bg-white hover:bg-neutral-50 text-slate-700 border border-neutral-300 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                                    >
+                                      <FaRotate className="w-3.5 h-3.5" />
+                                      Alterar Titularidade
+                                    </button>
+                                  )}
+                                </>
+                              ) : isValid ? (
                                 <>
                                   <div className="grid grid-cols-2 gap-2">
                                     <button
@@ -454,15 +560,31 @@ export default function ProfilePage() {
                                     <FaQrcode className="w-3.5 h-3.5" />
                                     Visualizar QR Code
                                   </button>
+                                  <button
+                                    onClick={() => setSelectedTransferTicket(ticket)}
+                                    className="w-full py-2.5 bg-white hover:bg-neutral-50 text-slate-700 border border-neutral-300 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                                  >
+                                    <FaRotate className="w-3.5 h-3.5" />
+                                    Alterar Titularidade
+                                  </button>
                                 </>
                               ) : ticket.status === 'PENDING_VALIDATION' ? (
-                                <button
-                                  onClick={() => router.push(`/profile/validate/${ticket.id}`)}
-                                  className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
-                                >
-                                  <FaAddressCard className="w-4 h-4" />
-                                  Validar Meia-Entrada
-                                </button>
+                                <>
+                                  <button
+                                    onClick={() => router.push(`/profile/validate/${ticket.id}`)}
+                                    className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                                  >
+                                    <FaAddressCard className="w-4 h-4" />
+                                    Validar Meia-Entrada
+                                  </button>
+                                  <button
+                                    onClick={() => setSelectedTransferTicket(ticket)}
+                                    className="w-full py-2.5 bg-white hover:bg-neutral-50 text-slate-700 border border-neutral-300 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                                  >
+                                    <FaRotate className="w-3.5 h-3.5" />
+                                    Alterar Titularidade
+                                  </button>
+                                </>
                               ) : (
                                 <div className="text-center text-xs text-slate-400 py-1.5">
                                   Este ingresso não está ativo.
@@ -586,6 +708,84 @@ export default function ProfilePage() {
                 </p>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Transfer Ownership Modal */}
+      {selectedTransferTicket && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-neutral-200 shadow-2xl p-6 w-full max-w-md relative animate-in fade-in zoom-in-95 duration-200">
+            <button
+              onClick={() => {
+                setSelectedTransferTicket(null);
+                setTransferName('');
+                setTransferCpf('');
+                setTransferError('');
+                setTransferSuccess(false);
+              }}
+              className="absolute top-4 right-4 bg-slate-100 hover:bg-slate-200 p-1.5 rounded-full cursor-pointer text-slate-500 transition-all duration-200 z-10"
+            >
+              <FaXmark className="w-4 h-4" />
+            </button>
+
+            <form onSubmit={handleTransferSubmit} className="space-y-5 py-2">
+              <div className="space-y-1">
+                <h3 className="font-extrabold text-slate-900 text-lg leading-tight">
+                  Alterar Titularidade
+                </h3>
+                <p className="text-slate-400 text-xs font-medium">
+                  Transfira este ingresso para outra pessoa. Esta ação é irreversível e o ingresso ficará cinza na sua lista.
+                </p>
+              </div>
+
+              {transferError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 text-xs p-4 rounded-xl font-medium">
+                  {transferError}
+                </div>
+              )}
+
+              {transferSuccess ? (
+                <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs p-4 rounded-xl font-medium">
+                  Titularidade alterada com sucesso!
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Nome do Novo Titular</label>
+                    <input
+                      type="text"
+                      required
+                      value={transferName}
+                      onChange={(e) => setTransferName(e.target.value)}
+                      placeholder="Nome completo do amigo/filiado"
+                      className="w-full bg-[#F8F9FA] border border-neutral-200 rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 focus:border-[#6200EE] focus:bg-white transition-all duration-200"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">CPF do Novo Titular</label>
+                    <input
+                      type="text"
+                      required
+                      value={transferCpf}
+                      onChange={(e) => setTransferCpf(e.target.value.replace(/\D/g, ''))}
+                      placeholder="Somente números (ex: 12345678909)"
+                      maxLength={11}
+                      className="w-full bg-[#F8F9FA] border border-neutral-200 rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 focus:border-[#6200EE] focus:bg-white transition-all duration-200 font-mono"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={transferLoading}
+                    className="w-full py-3.5 bg-[#6200EE] hover:bg-[#5000c7] text-white rounded-2xl font-bold transition-all text-sm flex items-center justify-center gap-2 shadow-md cursor-pointer disabled:opacity-50"
+                  >
+                    {transferLoading ? <FaSpinner className="w-4 h-4 animate-spin" /> : 'Confirmar Transferência'}
+                  </button>
+                </>
+              )}
+            </form>
           </div>
         </div>
       )}

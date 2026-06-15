@@ -111,19 +111,22 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
      * Processa o pagamento do checkout do ingresso.
      */
     async processCheckout(dto) {
-        // 1. Recupera o ingresso pré-reservado no Postgres
-        const ticket = await database_1.prisma.ticket.findUnique({
-            where: { id: dto.ticketId },
+        const ticketIds = dto.ticketId.split(',');
+        // 1. Recupera os ingressos pré-reservados no Postgres
+        const tickets = await database_1.prisma.ticket.findMany({
+            where: { id: { in: ticketIds } },
             include: { batch: { include: { event: true } } },
         });
-        if (!ticket) {
-            throw new common_1.BadRequestException('Ingresso não encontrado.');
+        if (tickets.length === 0) {
+            throw new common_1.BadRequestException('Ingressos não encontrados.');
         }
-        if (ticket.status !== 'PENDING_VALIDATION' && ticket.status !== 'PENDING_PAYMENT') {
-            throw new common_1.BadRequestException('Este ingresso não está elegível para pagamento.');
-        }
-        if (ticket.expiresAt.getTime() < Date.now()) {
-            throw new common_1.BadRequestException('Sua reserva expirou e o ingresso foi liberado de volta ao estoque.');
+        for (const ticket of tickets) {
+            if (ticket.status !== 'PENDING_VALIDATION' && ticket.status !== 'PENDING_PAYMENT') {
+                throw new common_1.BadRequestException('Um ou mais ingressos não estão elegíveis para pagamento.');
+            }
+            if (ticket.expiresAt.getTime() < Date.now()) {
+                throw new common_1.BadRequestException('Sua reserva expirou e o ingresso foi liberado de volta ao estoque.');
+            }
         }
         // 1.5. Busca ou cria o usuário com o e-mail real do comprador
         let user = await database_1.prisma.user.findUnique({
@@ -139,17 +142,28 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                 },
             });
         }
-        await database_1.prisma.ticket.update({
-            where: { id: ticket.id },
-            data: {
-                buyerCpf: dto.buyerCpf,
-                buyerId: user.id,
-            },
-        });
-        ticket.buyerCpf = dto.buyerCpf;
-        ticket.buyerId = user.id;
+        // 1.6. Atualiza comprador, titulares e CPFs de cada ingresso
+        for (let i = 0; i < tickets.length; i++) {
+            const ticket = tickets[i];
+            const holder = dto.holders?.[i];
+            const hName = holder ? holder.name : dto.buyerName;
+            const hCpf = holder ? holder.cpf : dto.buyerCpf;
+            await database_1.prisma.ticket.update({
+                where: { id: ticket.id },
+                data: {
+                    buyerCpf: dto.buyerCpf,
+                    buyerId: user.id,
+                    holderName: hName,
+                    holderCpf: hCpf,
+                },
+            });
+            ticket.buyerCpf = dto.buyerCpf;
+            ticket.buyerId = user.id;
+            ticket.holderName = hName;
+            ticket.holderCpf = hCpf;
+        }
         // 2. Calcula o valor em reais (o banco guarda em valor decimal normal)
-        const amount = Number(ticket.price);
+        const amount = tickets.reduce((sum, t) => sum + Number(t.price), 0);
         let mpStatus = 'approved';
         let qrCode = '00020126580014br.gov.bcb.pix2536pix.example.com/qr/v2/mock-code-12345';
         let qrCodeBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
@@ -160,8 +174,8 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             // 3. Chamada real à API do Mercado Pago
             const payload = {
                 transaction_amount: amount,
-                description: `Ingresso do Show: ${ticket.batch.event.title} - Lote: ${ticket.batch.name}`,
-                external_reference: ticket.id,
+                description: `Ingressos do Show: ${tickets[0].batch.event.title} (${tickets.length}x)`,
+                external_reference: dto.ticketId,
                 payer: {
                     email: dto.paymentMethod.method === 'credit_card' ? dto.paymentMethod.email : 'pix-buyer@flux.com',
                 },
@@ -198,13 +212,13 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                 }
             }
             catch (err) {
-                this.logger.error(`[MERCADO PAGO API ERROR] Falha no pagamento do ticket ${ticket.id}`, err);
+                this.logger.error(`[MERCADO PAGO API ERROR] Falha no pagamento do ticket ${dto.ticketId}`, err);
                 mpStatus = 'rejected';
             }
         }
         else {
             // 4. Modo Mock local de simulação
-            this.logger.log(`[MERCADO PAGO MOCK MODE] Processando pagamento de R$ ${amount} no ticket ${ticket.id}`);
+            this.logger.log(`[MERCADO PAGO MOCK MODE] Processando pagamento de R$ ${amount} no ticket ${dto.ticketId}`);
             if (dto.paymentMethod.method === 'credit_card') {
                 const tokenStr = dto.paymentMethod.token;
                 if (tokenStr.includes('pending') || tokenStr.includes('process')) {
@@ -223,52 +237,56 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             }
         }
         // 5. Máquina de Estado e compensação
-        return this.handlePaymentState(ticket, mpStatus, { qrCode, qrCodeBase64, paymentId });
+        return this.handlePaymentState(tickets, mpStatus, { qrCode, qrCodeBase64, paymentId });
     }
     /**
      * Gerencia a máquina de estados do pagamento.
      */
-    async handlePaymentState(ticket, status, meta) {
+    async handlePaymentState(tickets, status, meta) {
         if (status === 'approved') {
-            // 1. Aprovado: Verifica se é estudante (meia-entrada)
-            const isStudent = ticket.meiaEntrada === true;
-            // 2. Gera a assinatura HMAC
-            const signature = this.ticketCryptoService.generateSignature(ticket.id, ticket.buyerCpf, ticket.batchId);
-            // 3. Atualiza o status e a assinatura
-            await database_1.prisma.ticket.update({
-                where: { id: ticket.id },
-                data: {
-                    status: isStudent ? 'PENDING_VALIDATION' : 'VALID',
-                    hmacSignature: signature,
-                    expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // Válido por 1 ano
-                },
-            });
-            // 4. Libera o lock do Redis
-            await this.fluxEngine.releaseTicketLock(ticket.batchId, ticket.buyerId, ticket.id);
-            this.logger.log(`[PAYMENT SUCCESS] Ticket ${ticket.id} aprovado. Assinatura gerada.`);
+            for (const ticket of tickets) {
+                // 1. Aprovado: Verifica se é estudante (meia-entrada)
+                const isStudent = ticket.meiaEntrada === true;
+                // 2. Gera a assinatura HMAC usando o CPF do titular (ou comprador se nulo)
+                const activeCpf = ticket.holderCpf || ticket.buyerCpf;
+                const signature = this.ticketCryptoService.generateSignature(ticket.id, activeCpf, ticket.batchId);
+                // 3. Atualiza o status e a assinatura
+                await database_1.prisma.ticket.update({
+                    where: { id: ticket.id },
+                    data: {
+                        status: isStudent ? 'PENDING_VALIDATION' : 'VALID',
+                        hmacSignature: signature,
+                        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // Válido por 1 ano
+                    },
+                });
+                // 4. Libera o lock do Redis
+                await this.fluxEngine.releaseTicketLock(ticket.batchId, ticket.buyerId, ticket.id);
+            }
+            this.logger.log(`[PAYMENT SUCCESS] ${tickets.length} tickets aprovados.`);
             return {
                 status: 'approved',
-                ticketId: ticket.id,
-                isStudent,
-                signature,
+                ticketId: tickets.map(t => t.id).join(','),
+                isStudent: tickets.some(t => t.meiaEntrada === true),
             };
         }
         else if (status === 'in_process' || status === 'pending') {
             // Pendente / Em Análise: Salva como PENDING_PAYMENT e estende expirations
             const newExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // +15 minutos
-            await database_1.prisma.ticket.update({
-                where: { id: ticket.id },
-                data: {
-                    status: 'PENDING_PAYMENT',
-                    expiresAt: newExpiresAt,
-                },
-            });
-            // Estende o lock no Redis para 15 minutos (900s)
-            await this.fluxEngine.extendTicketLock(ticket.buyerId, ticket.id, ticket.batchId, 900);
-            this.logger.log(`[PAYMENT PENDING] Ticket ${ticket.id} pendente/em análise. Lock do Redis estendido por 15min.`);
+            for (const ticket of tickets) {
+                await database_1.prisma.ticket.update({
+                    where: { id: ticket.id },
+                    data: {
+                        status: 'PENDING_PAYMENT',
+                        expiresAt: newExpiresAt,
+                    },
+                });
+                // Estende o lock no Redis para 15 minutos (900s)
+                await this.fluxEngine.extendTicketLock(ticket.buyerId, ticket.id, ticket.batchId, 900);
+            }
+            this.logger.log(`[PAYMENT PENDING] ${tickets.length} tickets pendentes. Locks do Redis estendidos por 15min.`);
             return {
                 status: status === 'in_process' ? 'in_process' : 'pending',
-                ticketId: ticket.id,
+                ticketId: tickets.map(t => t.id).join(','),
                 qrCode: meta.qrCode,
                 qrCodeBase64: meta.qrCodeBase64,
                 paymentId: meta.paymentId,
@@ -276,22 +294,24 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
         }
         else {
             // Rejeitado / Cancelado: Executa a ação de compensação (devolve estoque)
-            this.logger.warn(`[PAYMENT REJECTED] Ticket ${ticket.id} rejeitado. Executando compensação e estorno...`);
-            // Devolve o estoque do Redis
-            await this.fluxEngine.releaseTicketLock(ticket.batchId, ticket.buyerId, ticket.id);
-            // Restaura o estoque no PostgreSQL
-            await database_1.prisma.ticketBatch.update({
-                where: { id: ticket.batchId },
-                data: {
-                    availableQuantity: {
-                        increment: 1,
+            this.logger.warn(`[PAYMENT REJECTED] Ingressos rejeitados. Executando compensação...`);
+            for (const ticket of tickets) {
+                // Devolve o estoque do Redis
+                await this.fluxEngine.releaseTicketLock(ticket.batchId, ticket.buyerId, ticket.id);
+                // Restaura o estoque no PostgreSQL
+                await database_1.prisma.ticketBatch.update({
+                    where: { id: ticket.batchId },
+                    data: {
+                        availableQuantity: {
+                            increment: 1,
+                        },
                     },
-                },
-            });
-            // Exclui a linha correspondente no PostgreSQL
-            await database_1.prisma.ticket.delete({
-                where: { id: ticket.id },
-            });
+                });
+                // Exclui a linha correspondente no PostgreSQL
+                await database_1.prisma.ticket.delete({
+                    where: { id: ticket.id },
+                });
+            }
             throw new common_1.BadRequestException('O pagamento foi recusado pela instituição financeira ou cancelado.');
         }
     }
@@ -339,21 +359,22 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
         }
         if (!externalReference)
             return;
-        // Busca o Ticket associado
-        const ticket = await database_1.prisma.ticket.findUnique({
-            where: { id: externalReference },
+        // Busca os Tickets associados
+        const ticketIds = externalReference.split(',');
+        const tickets = await database_1.prisma.ticket.findMany({
+            where: { id: { in: ticketIds } },
         });
-        if (!ticket) {
-            this.logger.warn(`[PAYMENTS WEBHOOK] Ticket com ID ${externalReference} não localizado.`);
+        if (tickets.length === 0) {
+            this.logger.warn(`[PAYMENTS WEBHOOK] Tickets com IDs ${externalReference} não localizados.`);
             return;
         }
-        this.logger.log(`[PAYMENTS WEBHOOK] Atualizando ticket ${ticket.id} para status tardio: ${status}`);
+        this.logger.log(`[PAYMENTS WEBHOOK] Atualizando ${tickets.length} tickets para status tardio: ${status}`);
         // Atualiza usando a máquina de estados existente
         try {
-            await this.handlePaymentState(ticket, status, { qrCode: '', qrCodeBase64: '', paymentId });
+            await this.handlePaymentState(tickets, status, { qrCode: '', qrCodeBase64: '', paymentId });
         }
         catch (err) {
-            this.logger.error(`[PAYMENTS WEBHOOK ERROR] Falha ao transicionar estado do ticket ${ticket.id}`, err);
+            this.logger.error(`[PAYMENTS WEBHOOK ERROR] Falha ao transicionar estado dos tickets ${externalReference}`, err);
         }
     }
 };

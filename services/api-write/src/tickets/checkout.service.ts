@@ -7,7 +7,7 @@ import * as crypto from 'crypto';
 @Injectable()
 export class CheckoutService {
   constructor(
-    private readonly fluxEngine: FluxEngineService,
+    public readonly fluxEngine: FluxEngineService,
     private readonly ticketCryptoService: TicketCryptoService
   ) {}
 
@@ -25,15 +25,22 @@ export class CheckoutService {
     const ticketId = crypto.randomUUID();
     const reservationId = `${data.userId}:${ticketId}`;
     
+    const batch = await prisma.ticketBatch.findUnique({
+      where: { id: data.batchId },
+    });
+
+    if (!batch) {
+      throw new BadRequestException('Lote não encontrado.');
+    }
+
+    if (!batch.isActive) {
+      throw new BadRequestException('As vendas para este lote estão pausadas temporariamente.');
+    }
+
     // 0. Autoreparação: se o estoque não estiver inicializado no Redis (ex: após seed direto no banco), carrega do Postgres
     const isInitialized = await this.fluxEngine.isStockInitialized(data.batchId);
     if (!isInitialized) {
-      const batch = await prisma.ticketBatch.findUnique({
-        where: { id: data.batchId },
-      });
-      if (batch) {
-        await this.fluxEngine.setBatchStock(data.batchId, batch.availableQuantity);
-      }
+      await this.fluxEngine.setBatchStock(data.batchId, batch.availableQuantity);
     }
     
     // 1. Reserva atômica no Redis (Lock temporário de 180 segundos)

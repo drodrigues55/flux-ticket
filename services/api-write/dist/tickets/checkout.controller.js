@@ -55,9 +55,15 @@ let CheckoutController = class CheckoutController {
             throw new common_1.BadRequestException('userId, ticketId e batchId são obrigatórios.');
         }
         try {
-            const success = await this.checkoutService.renewTicketLock(userId, ticketId, batchId);
+            const ticketIds = ticketId.split(',');
+            let allSuccess = true;
+            for (const tId of ticketIds) {
+                const success = await this.checkoutService.renewTicketLock(userId, tId, batchId);
+                if (!success)
+                    allSuccess = false;
+            }
             return {
-                success,
+                success: allSuccess,
             };
         }
         catch (error) {
@@ -68,7 +74,7 @@ let CheckoutController = class CheckoutController {
      * Endpoint de Reserva de Ingresso: Chamado na inicialização da página de checkout para garantir a reserva do lote.
      */
     async reserve(body) {
-        const { eventId, batchId, price, isHalfPrice = false } = body;
+        const { eventId, batchId, price, isHalfPrice = false, quantity = 1 } = body;
         if (!eventId || !batchId || price === undefined) {
             throw new common_1.BadRequestException('eventId, batchId e price são obrigatórios.');
         }
@@ -86,17 +92,40 @@ let CheckoutController = class CheckoutController {
                 },
             });
         }
-        // 2. Chamar o checkout do CheckoutService para criar a reserva no banco/Redis
-        const ticket = await this.checkoutService.checkout({
-            userId: user.id,
-            eventId,
-            batchId,
-            buyerCpf: '000.000.000-00', // Placeholder temporário a ser atualizado no pagamento
-            price,
-            isHalfPrice,
-        });
+        // 2. Chamar o checkout do CheckoutService em loop para criar a quantidade de reservas solicitadas
+        const ticketIds = [];
+        try {
+            for (let i = 0; i < quantity; i++) {
+                const ticket = await this.checkoutService.checkout({
+                    userId: user.id,
+                    eventId,
+                    batchId,
+                    buyerCpf: '000.000.000-00', // Placeholder temporário a ser atualizado no pagamento
+                    price,
+                    isHalfPrice,
+                });
+                ticketIds.push(ticket.id);
+            }
+        }
+        catch (error) {
+            // Compensação imediata em caso de falha de estoque ou outra falha no loop
+            for (const tId of ticketIds) {
+                try {
+                    await this.checkoutService.fluxEngine.releaseTicketLock(batchId, user.id, tId);
+                    await database_1.prisma.ticketBatch.update({
+                        where: { id: batchId },
+                        data: { availableQuantity: { increment: 1 } },
+                    });
+                    await database_1.prisma.ticket.delete({ where: { id: tId } });
+                }
+                catch (cleanupErr) {
+                    console.error('[CLEANUP ERROR]', cleanupErr);
+                }
+            }
+            throw error;
+        }
         return {
-            ticketId: ticket.id,
+            ticketId: ticketIds.join(','),
             userId: user.id,
         };
     }

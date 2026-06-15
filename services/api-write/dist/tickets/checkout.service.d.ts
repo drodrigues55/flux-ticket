@@ -1,7 +1,7 @@
 import { FluxEngineService } from './flux-engine.service';
 import { TicketCryptoService } from './ticket-crypto.service';
 export declare class CheckoutService {
-    private readonly fluxEngine;
+    readonly fluxEngine: FluxEngineService;
     private readonly ticketCryptoService;
     constructor(fluxEngine: FluxEngineService, ticketCryptoService: TicketCryptoService);
     /**
@@ -24,6 +24,9 @@ export declare class CheckoutService {
         status: import(".prisma/client").$Enums.TicketStatus;
         hmacSignature: string | null;
         expiresAt: Date;
+        holderName: string | null;
+        holderCpf: string | null;
+        isTransferred: boolean;
         buyerId: string;
         batchId: string;
     }>;
@@ -40,6 +43,9 @@ export declare class CheckoutService {
         status: import(".prisma/client").$Enums.TicketStatus;
         hmacSignature: string | null;
         expiresAt: Date;
+        holderName: string | null;
+        holderCpf: string | null;
+        isTransferred: boolean;
         buyerId: string;
         batchId: string;
     }>;
