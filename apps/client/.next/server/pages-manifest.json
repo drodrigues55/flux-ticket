@@ -2,12 +2,7 @@
   "/_app": "pages/_app.js",
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
-  "/checkout/[eventId]": "pages/checkout/[eventId].js",
-  "/checkout/success": "pages/checkout/success.js",
-  "/profile": "pages/profile.js",
-  "/api/events/[id]": "pages/api/events/[id].js",
-  "/api/tickets/reserve": "pages/api/tickets/reserve.js",
-  "/api/payments/checkout": "pages/api/payments/checkout.js",
   "/": "pages/index.js",
-  "/api/read/events": "pages/api/read/events.js"
+  "/profile/validate/[ticketId]": "pages/profile/validate/[ticketId].js",
+  "/checkout/success": "pages/checkout/success.js"
 }

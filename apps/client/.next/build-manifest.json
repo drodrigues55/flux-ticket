@@ -27,20 +27,15 @@
       "static/chunks/main.js",
       "static/chunks/pages/_error.js"
     ],
-    "/checkout/[eventId]": [
-      "static/chunks/webpack.js",
-      "static/chunks/main.js",
-      "static/chunks/pages/checkout/[eventId].js"
-    ],
     "/checkout/success": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
       "static/chunks/pages/checkout/success.js"
     ],
-    "/profile": [
+    "/profile/validate/[ticketId]": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
-      "static/chunks/pages/profile.js"
+      "static/chunks/pages/profile/validate/[ticketId].js"
     ]
   },
   "ampFirstPages": []

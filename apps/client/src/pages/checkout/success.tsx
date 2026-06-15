@@ -10,7 +10,8 @@ import {
   FaLocationDot,
   FaArrowRight,
   FaAddressCard,
-  FaHouse
+  FaHouse,
+  FaTag
 } from 'react-icons/fa6';
 
 interface SuccessPageProps {
@@ -68,10 +69,54 @@ export default function CheckoutSuccessPage({ ticket }: SuccessPageProps) {
 
           {/* Ticket Information Section */}
           <div className="p-8 space-y-6">
-            <div className="bg-slate-50 border border-neutral-200/50 rounded-2xl p-6 space-y-4 relative overflow-hidden">
-              {/* Ticket background icon decoration */}
-              <FaTicketSimple className="absolute -right-6 -bottom-6 w-32 h-32 text-slate-200/50 pointer-events-none transform -rotate-12" />
+            
+            {/* Stepper Status Bar */}
+            <div className="border-b border-neutral-100 pb-6">
+              <div className="flex items-center justify-between w-full relative">
+                {/* Progress Line */}
+                <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-0.5 bg-neutral-100 z-0" />
+                <div 
+                  className="absolute left-0 top-1/2 -translate-y-1/2 h-0.5 bg-emerald-500 transition-all duration-500 z-0" 
+                  style={{ width: ticket.meiaEntrada ? '50%' : '100%' }}
+                />
 
+                {/* Step 1: Compra Aprovada */}
+                <div className="flex flex-col items-center z-10 bg-white px-2">
+                  <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shadow-sm">
+                    ✓
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-600 mt-2 text-center">Compra Aprovada</span>
+                </div>
+
+                {/* Step 2 & 3 */}
+                {ticket.meiaEntrada ? (
+                  <>
+                    <div className="flex flex-col items-center z-10 bg-white px-2">
+                      <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shadow-sm animate-pulse">
+                        2
+                      </div>
+                      <span className="text-[10px] font-bold text-emerald-600 mt-2 text-center">Validação Pendente</span>
+                    </div>
+
+                    <div className="flex flex-col items-center z-10 bg-white px-2">
+                      <div className="w-8 h-8 rounded-full bg-neutral-100 text-neutral-400 border border-neutral-200/60 flex items-center justify-center text-xs font-bold">
+                        3
+                      </div>
+                      <span className="text-[10px] font-bold text-neutral-400 mt-2 text-center">Ingresso Liberado</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center z-10 bg-white px-2">
+                    <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shadow-sm">
+                      ✓
+                    </div>
+                    <span className="text-[10px] font-bold text-emerald-600 mt-2 text-center">Ingresso Liberado</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-slate-50 border border-neutral-200/50 rounded-2xl p-6 space-y-4 relative overflow-hidden">
               <div className="border-b border-neutral-200/60 pb-3 flex justify-between items-start">
                 <div>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Evento</span>
@@ -80,7 +125,7 @@ export default function CheckoutSuccessPage({ ticket }: SuccessPageProps) {
                   </h3>
                 </div>
                 {ticket.meiaEntrada && (
-                  <span className="bg-[#FF9100]/10 text-[#FF6D00] border border-[#FF9100]/20 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wide">
+                  <span className="bg-slate-100 text-slate-700 border border-slate-200 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wide">
                     Meia-Entrada
                   </span>
                 )}
@@ -88,76 +133,104 @@ export default function CheckoutSuccessPage({ ticket }: SuccessPageProps) {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="flex items-center gap-3 text-slate-600">
-                  <FaCalendarDays className="w-4 h-4 text-[#6200EE] shrink-0" />
+                  <FaCalendarDays className="w-4 h-4 text-slate-400 shrink-0" />
                   <div>
                     <span className="text-[10px] text-slate-400 font-bold block uppercase leading-none">Data e Hora</span>
-                    <span className="text-xs font-semibold">{formattedDate}</span>
+                    <span className="text-xs font-semibold text-slate-700">{formattedDate}</span>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3 text-slate-600">
-                  <FaLocationDot className="w-4 h-4 text-[#6200EE] shrink-0" />
+                  <FaLocationDot className="w-4 h-4 text-slate-400 shrink-0" />
                   <div>
                     <span className="text-[10px] text-slate-400 font-bold block uppercase leading-none">Local</span>
-                    <span className="text-xs font-semibold">{ticket.batch.event.location}</span>
+                    <span className="text-xs font-semibold text-slate-700">{ticket.batch.event.location}</span>
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 border-t border-neutral-200/60 pt-4">
-                <div>
-                  <span className="text-[10px] text-slate-400 font-bold block uppercase">Ingresso / Setor</span>
-                  <span className="text-sm font-bold text-slate-800">{ticket.batch.name}</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-neutral-200/60 pt-4">
+                <div className="flex items-center gap-3 text-slate-600">
+                  <FaTicketSimple className="w-4 h-4 text-slate-400 shrink-0" />
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold block uppercase leading-none">Ingresso / Setor</span>
+                    <span className="text-xs font-semibold text-slate-700">{ticket.batch.name}</span>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-[10px] text-slate-400 font-bold block uppercase">Valor Pago</span>
-                  <span className="text-lg font-black text-[#6200EE]">R$ {ticket.price.toFixed(2).replace('.', ',')}</span>
+                <div className="flex items-center gap-3 text-slate-600">
+                  <FaTag className="w-4 h-4 text-slate-400 shrink-0" />
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold block uppercase leading-none">Valor Pago</span>
+                    <span className="text-base font-bold text-slate-700">R$ {ticket.price.toFixed(2).replace('.', ',')}</span>
+                  </div>
                 </div>
               </div>
             </div>
 
             {ticket.meiaEntrada && (
-              <div className="bg-[#FFF3E0] border border-[#FFE0B2] text-[#E65100] rounded-2xl p-5 flex gap-3.5 items-start">
-                <FaAddressCard className="w-6 h-6 shrink-0 mt-0.5" />
+              <div className="bg-slate-50 border border-neutral-200 border-l-4 border-l-red-600 p-5 rounded-r-2xl rounded-l-md flex gap-3.5 items-start">
+                <FaAddressCard className="w-6 h-6 text-red-600 shrink-0 mt-0.5" />
                 <div className="space-y-1">
-                  <h4 className="font-bold text-sm">Validação de Meia-Entrada Necessária</h4>
-                  <p className="text-xs leading-relaxed text-[#EF6C00]">
-                    Como você adquiriu um ingresso do tipo **Meia-Entrada**, seu ingresso ficará pendente de validação até que você envie um comprovante de estudante válido (DNE ou similar).
+                  <h4 className="font-bold text-sm text-slate-900">Atenção: Valide sua meia-entrada</h4>
+                  <p className="text-xs leading-relaxed text-slate-600">
+                    Seu ingresso está pendente até que o comprovante (DNE ou similar) seja enviado.
                   </p>
                 </div>
               </div>
             )}
 
             {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-neutral-100">
-              {ticket.meiaEntrada && (
-                <button
-                  onClick={() => router.push(`/profile/validate/${ticket.id}`)}
-                  className="flex-1 bg-[#FF6D00] hover:bg-[#E65100] text-white px-6 py-3.5 rounded-2xl font-bold transition-all shadow-md active:scale-95 text-sm flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <FaAddressCard className="w-4 h-4" />
-                  Validar Meia-Entrada
-                </button>
+            <div className="flex flex-col gap-3 pt-4 border-t border-neutral-100">
+              {ticket.meiaEntrada ? (
+                <>
+                  <div className="flex flex-col sm:flex-row gap-3 w-full">
+                    <button
+                      onClick={() => router.push(`/profile/validate/${ticket.id}`)}
+                      className="flex-1 bg-[#6200EE] hover:bg-[#5000c7] text-white px-6 py-3.5 rounded-2xl font-bold transition-all shadow-md active:scale-95 text-sm flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <FaAddressCard className="w-4 h-4" />
+                      Validar Meia-Entrada
+                    </button>
+                    <button
+                      onClick={() => router.push('/profile')}
+                      className="flex-1 border-2 border-[#6200EE] text-[#6200EE] hover:bg-[#6200EE]/5 px-6 py-3.5 rounded-2xl font-bold transition-all active:scale-95 text-sm flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <FaTicketSimple className="w-4 h-4" />
+                      Ver Meus Ingressos
+                      <FaArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => router.push('/')}
+                    className="w-full text-slate-500 hover:text-slate-800 py-2 font-bold text-sm flex items-center justify-center gap-2 hover:underline cursor-pointer"
+                  >
+                    <FaHouse className="w-4 h-4" />
+                    Voltar ao início
+                  </button>
+                </>
+              ) : (
+                <div className="flex flex-col sm:flex-row gap-3 w-full">
+                  <button
+                    onClick={() => router.push('/profile')}
+                    className="flex-1 bg-[#6200EE] hover:bg-[#5000c7] text-white px-6 py-3.5 rounded-2xl font-bold transition-all shadow-md active:scale-95 text-sm flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <FaTicketSimple className="w-4 h-4" />
+                    Ver Meus Ingressos
+                    <FaArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => router.push('/')}
+                    className="bg-white hover:bg-neutral-50 text-slate-600 hover:text-slate-800 border border-slate-200 px-6 py-3.5 rounded-2xl font-bold transition-all active:scale-95 text-sm flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <FaHouse className="w-4 h-4" />
+                    Voltar ao início
+                  </button>
+                </div>
               )}
-              
-              <button
-                onClick={() => router.push('/profile')}
-                className="flex-1 bg-[#6200EE] hover:bg-[#5000c7] text-white px-6 py-3.5 rounded-2xl font-bold transition-all shadow-md active:scale-95 text-sm flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <FaTicketSimple className="w-4 h-4" />
-                Ver Meus Ingressos
-                <FaArrowRight className="w-3.5 h-3.5" />
-              </button>
-
-              <button
-                onClick={() => router.push('/')}
-                className="bg-white hover:bg-neutral-50 text-slate-600 hover:text-slate-800 border border-slate-200 px-6 py-3.5 rounded-2xl font-bold transition-all active:scale-95 text-sm flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <FaHouse className="w-4 h-4" />
-                Voltar ao início
-              </button>
             </div>
           </div>
+
+
 
         </div>
       </main>
