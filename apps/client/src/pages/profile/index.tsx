@@ -520,7 +520,7 @@ export default function ProfilePage() {
                                 <>
                                   <button
                                     onClick={() => handleCopyAccessLink(ticket.id)}
-                                    className="w-full py-2.5 bg-emerald-650 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
                                   >
                                     <FaLink className="w-3.5 h-3.5" />
                                     {copiedLinkTicketId === ticket.id ? 'Link Copiado!' : 'Copiar Link de Acesso'}
@@ -528,7 +528,7 @@ export default function ProfilePage() {
                                   {!ticket.isTransferred && (
                                     <button
                                       onClick={() => setSelectedTransferTicket(ticket)}
-                                      className="w-full py-2.5 bg-white hover:bg-neutral-50 text-slate-700 border border-neutral-300 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                                      className="w-full py-2.5 bg-transparent hover:bg-white/5 text-slate-300 border border-white/10 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
                                     >
                                       <FaRotate className="w-3.5 h-3.5" />
                                       Alterar Titularidade
@@ -547,7 +547,7 @@ export default function ProfilePage() {
                                     </button>
                                     <button
                                       onClick={() => handleSaveGooglePay(ticket.id)}
-                                      className="bg-white hover:bg-neutral-50 text-slate-800 border border-slate-200 px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                                      className="bg-transparent hover:bg-white/5 text-slate-300 border border-white/10 px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
                                     >
                                       <FaGooglePay className="w-6 h-6 text-[#1A73E8]" />
                                       Google Pay
@@ -555,14 +555,14 @@ export default function ProfilePage() {
                                   </div>
                                   <button
                                     onClick={() => setSelectedQrTicket(ticket)}
-                                    className="w-full py-2 bg-[#6200EE] hover:bg-[#5000c7] text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                                    className="w-full py-2 bg-[#9146FF] hover:bg-[#A970FF] text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
                                   >
                                     <FaQrcode className="w-3.5 h-3.5" />
                                     Visualizar QR Code
                                   </button>
                                   <button
                                     onClick={() => setSelectedTransferTicket(ticket)}
-                                    className="w-full py-2.5 bg-white hover:bg-neutral-50 text-slate-700 border border-neutral-300 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                                    className="w-full py-2.5 bg-transparent hover:bg-white/5 text-slate-300 border border-white/10 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
                                   >
                                     <FaRotate className="w-3.5 h-3.5" />
                                     Alterar Titularidade
@@ -572,14 +572,14 @@ export default function ProfilePage() {
                                 <>
                                   <button
                                     onClick={() => router.push(`/profile/validate/${ticket.id}`)}
-                                    className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                                    className="w-full py-2.5 bg-red-650 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
                                   >
                                     <FaAddressCard className="w-4 h-4" />
                                     Validar Meia-Entrada
                                   </button>
                                   <button
                                     onClick={() => setSelectedTransferTicket(ticket)}
-                                    className="w-full py-2.5 bg-white hover:bg-neutral-50 text-slate-700 border border-neutral-300 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                                    className="w-full py-2.5 bg-transparent hover:bg-white/5 text-slate-300 border border-white/10 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
                                   >
                                     <FaRotate className="w-3.5 h-3.5" />
                                     Alterar Titularidade
@@ -600,13 +600,13 @@ export default function ProfilePage() {
                   {/* Suggestions block shows up if tickets is empty */}
                   {tickets.length === 0 && (
                     <div className="space-y-4 pt-2 animate-in fade-in duration-300 delay-100">
-                      <h3 className="text-sm font-black text-slate-900">
+                      <h3 className="text-sm font-black text-white">
                         Sugestões para Você
                       </h3>
 
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                         {/* Event 1 */}
-                        <div className="bg-white border border-neutral-200/60 rounded-3xl overflow-hidden shadow-sm flex flex-col sm:flex-row hover:shadow-md transition-all">
+                        <div className="bg-[#18181B] border border-white/5 rounded-3xl overflow-hidden shadow-sm flex flex-col sm:flex-row hover:shadow-[0_0_15px_rgba(145,70,255,0.15)] transition-all">
                           <div className="w-full sm:w-32 h-24 relative bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center text-white p-3 text-center shrink-0">
                             <div className="absolute inset-0 opacity-10 flex items-center justify-center">
                               <svg className="w-12 h-12" fill="currentColor" viewBox="0 0 24 24">
@@ -617,13 +617,13 @@ export default function ProfilePage() {
                           </div>
                           <div className="p-4 flex flex-col justify-between flex-grow">
                             <div className="space-y-0.5">
-                              <h4 className="font-extrabold text-xs text-slate-900 leading-snug">Festival de Música da Cidade</h4>
+                              <h4 className="font-extrabold text-xs text-white leading-snug">Festival de Música da Cidade</h4>
                               <span className="text-[9px] text-slate-400 font-bold uppercase block">OUT 12, 2026</span>
                             </div>
                             <div className="pt-2">
                               <button
                                 onClick={() => router.push('/')}
-                                className="bg-[#6200EE] hover:bg-[#5000c7] text-white px-3.5 py-1.5 rounded-xl font-bold text-[9px] transition-all cursor-pointer"
+                                className="bg-[#9146FF] hover:bg-[#A970FF] text-white px-3.5 py-1.5 rounded-xl font-bold text-[9px] transition-all cursor-pointer border-none"
                               >
                                 Ver Detalhes
                               </button>
@@ -632,7 +632,7 @@ export default function ProfilePage() {
                         </div>
 
                         {/* Event 2 */}
-                        <div className="bg-white border border-neutral-200/60 rounded-3xl overflow-hidden shadow-sm flex flex-col sm:flex-row hover:shadow-md transition-all">
+                        <div className="bg-[#18181B] border border-white/5 rounded-3xl overflow-hidden shadow-sm flex flex-col sm:flex-row hover:shadow-[0_0_15px_rgba(145,70,255,0.15)] transition-all">
                           <div className="w-full sm:w-32 h-24 relative bg-gradient-to-br from-amber-500 via-orange-500 to-red-500 flex items-center justify-center text-white p-3 text-center shrink-0">
                             <div className="absolute inset-0 opacity-10 flex items-center justify-center">
                               <svg className="w-12 h-12" fill="currentColor" viewBox="0 0 24 24">
@@ -643,13 +643,13 @@ export default function ProfilePage() {
                           </div>
                           <div className="p-4 flex flex-col justify-between flex-grow">
                             <div className="space-y-0.5">
-                              <h4 className="font-extrabold text-xs text-slate-900 leading-snug">Teatro: A Comédia do Ano</h4>
+                              <h4 className="font-extrabold text-xs text-white leading-snug">Teatro: A Comédia do Ano</h4>
                               <span className="text-[9px] text-slate-400 font-bold uppercase block">SET 30, 2026</span>
                             </div>
                             <div className="pt-2">
                               <button
                                 onClick={() => router.push('/')}
-                                className="bg-[#6200EE] hover:bg-[#5000c7] text-white px-3.5 py-1.5 rounded-xl font-bold text-[9px] transition-all cursor-pointer"
+                                className="bg-[#9146FF] hover:bg-[#A970FF] text-white px-3.5 py-1.5 rounded-xl font-bold text-[9px] transition-all cursor-pointer border-none"
                               >
                                 Comprar Ingressos
                               </button>
@@ -669,17 +669,17 @@ export default function ProfilePage() {
       {/* QR Code Viewer Modal */}
       {selectedQrTicket && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border border-neutral-200 shadow-2xl p-6 w-full max-w-sm relative animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-[#18181B] rounded-3xl border border-white/10 shadow-2xl p-6 w-full max-w-sm relative animate-in fade-in zoom-in-95 duration-200">
             <button
               onClick={() => setSelectedQrTicket(null)}
-              className="absolute top-4 right-4 bg-slate-100 hover:bg-slate-200 p-1.5 rounded-full cursor-pointer text-slate-500 transition-all duration-200 z-10"
+              className="absolute top-4 right-4 bg-white/5 hover:bg-white/10 p-1.5 rounded-full cursor-pointer text-slate-400 transition-all duration-200 z-10 border-none"
             >
               <FaXmark className="w-4 h-4" />
             </button>
 
             <div className="text-center space-y-5 py-4">
               <div className="space-y-1">
-                <h3 className="font-extrabold text-slate-900 text-lg leading-tight">
+                <h3 className="font-extrabold text-white text-lg leading-tight">
                   {selectedQrTicket.batch.event.title}
                 </h3>
                 <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">
@@ -688,7 +688,7 @@ export default function ProfilePage() {
               </div>
 
               {/* Dynamic QR Code based on HMAC signature link */}
-              <div className="bg-slate-50 p-4 rounded-2xl w-48 h-48 mx-auto border border-neutral-200/80 shadow-md flex items-center justify-center">
+              <div className="bg-white p-4 rounded-2xl w-48 h-48 mx-auto flex items-center justify-center">
                 <img
                   src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
                     `https://flux-tickets.com/verify/${selectedQrTicket.id}?sig=${selectedQrTicket.hmacSignature}`
@@ -699,7 +699,7 @@ export default function ProfilePage() {
               </div>
 
               <div className="space-y-2">
-                <div className="inline-flex items-center gap-1 text-[10px] text-emerald-600 font-extrabold uppercase bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
+                <div className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-extrabold uppercase bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
                   <FaQrcode className="w-3.5 h-3.5" />
                   Assinatura HMAC Válida
                 </div>
@@ -715,7 +715,7 @@ export default function ProfilePage() {
       {/* Transfer Ownership Modal */}
       {selectedTransferTicket && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border border-neutral-200 shadow-2xl p-6 w-full max-w-md relative animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-[#18181B] rounded-3xl border border-white/10 shadow-2xl p-6 w-full max-w-md relative animate-in fade-in zoom-in-95 duration-200">
             <button
               onClick={() => {
                 setSelectedTransferTicket(null);
@@ -724,14 +724,14 @@ export default function ProfilePage() {
                 setTransferError('');
                 setTransferSuccess(false);
               }}
-              className="absolute top-4 right-4 bg-slate-100 hover:bg-slate-200 p-1.5 rounded-full cursor-pointer text-slate-500 transition-all duration-200 z-10"
+              className="absolute top-4 right-4 bg-white/5 hover:bg-white/10 p-1.5 rounded-full cursor-pointer text-slate-400 transition-all duration-200 z-10 border-none"
             >
               <FaXmark className="w-4 h-4" />
             </button>
 
             <form onSubmit={handleTransferSubmit} className="space-y-5 py-2">
               <div className="space-y-1">
-                <h3 className="font-extrabold text-slate-900 text-lg leading-tight">
+                <h3 className="font-extrabold text-white text-lg leading-tight">
                   Alterar Titularidade
                 </h3>
                 <p className="text-slate-400 text-xs font-medium">
@@ -740,31 +740,31 @@ export default function ProfilePage() {
               </div>
 
               {transferError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 text-xs p-4 rounded-xl font-medium">
+                <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-4 rounded-xl font-medium">
                   {transferError}
                 </div>
               )}
 
               {transferSuccess ? (
-                <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs p-4 rounded-xl font-medium">
+                <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs p-4 rounded-xl font-medium">
                   Titularidade alterada com sucesso!
                 </div>
               ) : (
                 <>
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Nome do Novo Titular</label>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Nome do Novo Titular</label>
                     <input
                       type="text"
                       required
                       value={transferName}
                       onChange={(e) => setTransferName(e.target.value)}
                       placeholder="Nome completo do amigo/filiado"
-                      className="w-full bg-[#F8F9FA] border border-neutral-200 rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 focus:border-[#6200EE] focus:bg-white transition-all duration-200"
+                      className="w-full bg-[#080D1A]/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-[#9146FF]/20 focus:border-[#9146FF] focus:bg-[#080D1A] transition-all duration-200"
                     />
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">CPF do Novo Titular</label>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-400">CPF do Novo Titular</label>
                     <input
                       type="text"
                       required
@@ -772,14 +772,14 @@ export default function ProfilePage() {
                       onChange={(e) => setTransferCpf(e.target.value.replace(/\D/g, ''))}
                       placeholder="Somente números (ex: 12345678909)"
                       maxLength={11}
-                      className="w-full bg-[#F8F9FA] border border-neutral-200 rounded-xl px-4 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-[#6200EE]/20 focus:border-[#6200EE] focus:bg-white transition-all duration-200 font-mono"
+                      className="w-full bg-[#080D1A]/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-[#9146FF]/20 focus:border-[#9146FF] focus:bg-[#080D1A] transition-all duration-200 font-mono"
                     />
                   </div>
 
                   <button
                     type="submit"
                     disabled={transferLoading}
-                    className="w-full py-3.5 bg-[#6200EE] hover:bg-[#5000c7] text-white rounded-2xl font-bold transition-all text-sm flex items-center justify-center gap-2 shadow-md cursor-pointer disabled:opacity-50"
+                    className="w-full py-3.5 bg-[#9146FF] hover:bg-[#A970FF] text-white rounded-2xl font-bold transition-all text-sm flex items-center justify-center gap-2 shadow-md cursor-pointer disabled:opacity-50 border-none"
                   >
                     {transferLoading ? <FaSpinner className="w-4 h-4 animate-spin" /> : 'Confirmar Transferência'}
                   </button>
@@ -790,7 +790,7 @@ export default function ProfilePage() {
         </div>
       )}
 
-      <footer className="text-center text-xs text-slate-400 py-8 border-t border-neutral-200/60 max-w-6xl mx-auto w-full">
+      <footer className="text-center text-xs text-slate-550 py-8 border-t border-white/5 max-w-6xl mx-auto w-full">
         &copy; {new Date().getFullYear()} Flux Tickets. Todos os direitos reservados.
       </footer>
     </div>

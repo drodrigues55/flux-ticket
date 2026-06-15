@@ -111,24 +111,27 @@ export default function ValidateTicketPage({ ticket }: ValidatePageProps) {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F8F9FA] font-sans antialiased text-slate-900">
+    <div className="min-h-screen flex flex-col bg-[#03060B] font-sans antialiased text-white relative overflow-hidden">
+      {/* Background Glows */}
+      <div className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] rounded-full bg-purple-600/5 blur-[180px] pointer-events-none" />
+      <div className="absolute bottom-[-20%] right-[-20%] w-[60%] h-[60%] rounded-full bg-blue-600/5 blur-[180px] pointer-events-none" />
       <Header />
 
-      <main className="flex-grow flex items-center justify-center px-6 py-12 bg-gradient-to-tr from-[#f3e5f5] via-[#fafafa] to-[#ede7f6]">
-        <div className="relative w-full max-w-xl bg-white rounded-3xl border border-neutral-200/60 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+      <main className="flex-grow flex items-center justify-center px-6 py-12 relative z-10">
+        <div className="relative w-full max-w-xl bg-[#18181B] rounded-3xl border border-white/10 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-300">
           
-          <div className="p-6 md:p-8 border-b border-neutral-100 bg-gradient-to-r from-purple-50/50 to-indigo-50/30">
+          <div className="p-6 md:p-8 border-b border-white/5 bg-gradient-to-r from-[#1F1F23]/50 to-[#252528]/30">
             <button
               onClick={() => router.back()}
-              className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-[#6200EE] transition-colors mb-4 cursor-pointer border-none bg-transparent"
+              className="flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-[#B388FF] transition-colors mb-4 cursor-pointer border-none bg-transparent"
             >
               <FaArrowLeft className="w-3.5 h-3.5" />
               Voltar
             </button>
-            <h2 className="text-2xl font-extrabold text-slate-900 leading-tight">
+            <h2 className="text-2xl font-extrabold text-white leading-tight">
               Validação de Meia-Entrada
             </h2>
-            <p className="text-slate-500 text-sm mt-1">
+            <p className="text-slate-400 text-sm mt-1">
               Envie o comprovante de estudante para liberar seu ingresso do evento **{ticket.batch.event.title}**.
             </p>
           </div>
@@ -136,28 +139,28 @@ export default function ValidateTicketPage({ ticket }: ValidatePageProps) {
           <div className="p-8 space-y-6">
             {isSuccess ? (
               <div className="text-center py-8 space-y-4 animate-in fade-in zoom-in-95 duration-200">
-                <div className="w-16 h-16 bg-emerald-50 border-4 border-emerald-100 rounded-full flex items-center justify-center mx-auto text-emerald-600 shadow-sm">
+                <div className="w-16 h-16 bg-emerald-500/10 border-4 border-emerald-500/20 rounded-full flex items-center justify-center mx-auto text-emerald-400 shadow-sm">
                   <FaCircleCheck className="w-9 h-9" />
                 </div>
-                <h3 className="text-xl font-bold text-slate-900">Meia-Entrada Validada!</h3>
-                <p className="text-slate-500 text-xs leading-relaxed max-w-sm mx-auto">
+                <h3 className="text-xl font-bold text-white">Meia-Entrada Validada!</h3>
+                <p className="text-slate-400 text-xs leading-relaxed max-w-sm mx-auto">
                   Seu comprovante foi aprovado com sucesso. Seu ingresso agora está **ATIVO / VÁLIDO** e pronto para uso. Redirecionando para seu perfil...
                 </p>
               </div>
             ) : uploading ? (
               <div className="text-center py-8 space-y-6 animate-in fade-in duration-200">
-                <div className="relative w-16 h-16 flex items-center justify-center mx-auto text-[#6200EE]">
-                  <FaSpinner className="w-10 h-10 animate-spin text-[#6200EE]" />
+                <div className="relative w-16 h-16 flex items-center justify-center mx-auto text-[#9146FF]">
+                  <FaSpinner className="w-10 h-10 animate-spin text-[#9146FF]" />
                 </div>
                 <div className="space-y-3">
-                  <h4 className="font-bold text-sm text-slate-800">Processando Comprovante</h4>
-                  <div className="w-full bg-slate-100 rounded-full h-2 max-w-xs mx-auto overflow-hidden">
+                  <h4 className="font-bold text-sm text-white">Processando Comprovante</h4>
+                  <div className="w-full bg-white/5 rounded-full h-2 max-w-xs mx-auto overflow-hidden">
                     <div
-                      className="bg-gradient-to-r from-[#6200EE] to-[#00E676] h-full transition-all duration-300"
+                      className="bg-gradient-to-r from-[#9146FF] to-[#00E676] h-full transition-all duration-300"
                       style={{ width: `${uploadProgress}%` }}
                     />
                   </div>
-                  <p className="text-slate-500 text-[11px] font-semibold tracking-wide uppercase">
+                  <p className="text-slate-400 text-[11px] font-semibold tracking-wide uppercase">
                     {ocrStatus}
                   </p>
                 </div>
@@ -171,8 +174,8 @@ export default function ValidateTicketPage({ ticket }: ValidatePageProps) {
                   onDrop={handleDrop}
                   className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all ${
                     file
-                      ? 'border-emerald-400 bg-emerald-50/15'
-                      : 'border-slate-300 bg-slate-50/50 hover:border-[#6200EE] hover:bg-purple-50/10'
+                      ? 'border-emerald-500/50 bg-emerald-500/5'
+                      : 'border-white/10 bg-[#080D1A]/50 hover:border-[#9146FF] hover:bg-[#9146FF]/5'
                   }`}
                   onClick={() => document.getElementById('file-input')?.click()}
                 >
@@ -186,25 +189,25 @@ export default function ValidateTicketPage({ ticket }: ValidatePageProps) {
 
                   <div className="flex flex-col items-center space-y-3">
                     <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                      file ? 'bg-emerald-50 text-emerald-600' : 'bg-[#6200EE]/10 text-[#6200EE]'
+                      file ? 'bg-emerald-500/10 text-emerald-400' : 'bg-[#9146FF]/10 text-[#B388FF]'
                     }`}>
                       {file ? <FaFileLines className="w-6 h-6" /> : <FaCloudArrowUp className="w-6 h-6" />}
                     </div>
                     {file ? (
                       <div className="space-y-1">
-                        <p className="text-sm font-bold text-slate-800">{file.name}</p>
-                        <p className="text-xs text-slate-500">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                        <p className="text-sm font-bold text-white">{file.name}</p>
+                        <p className="text-xs text-slate-450">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
                       </div>
                     ) : (
                       <div className="space-y-1">
-                        <p className="text-sm font-bold text-slate-800">Arraste ou escolha um arquivo</p>
-                        <p className="text-xs text-slate-400">PDF, PNG ou JPG de até 5MB</p>
+                        <p className="text-sm font-bold text-white">Arraste ou escolha um arquivo</p>
+                        <p className="text-xs text-slate-500">PDF, PNG ou JPG de até 5MB</p>
                       </div>
                     )}
                   </div>
                 </div>
 
-                <div className="bg-[#FFF3E0] border border-[#FFE0B2] text-[#E65100] rounded-2xl p-4 flex gap-3 items-start text-xs leading-relaxed">
+                <div className="bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-2xl p-4 flex gap-3 items-start text-xs leading-relaxed">
                   <FaAddressCard className="w-5 h-5 shrink-0 mt-0.5" />
                   <span>
                     Certifique-se de que a foto da carteira de estudante ou documento equivalente esteja nítida, com nome completo e data de validade visíveis.
@@ -214,10 +217,10 @@ export default function ValidateTicketPage({ ticket }: ValidatePageProps) {
                 <button
                   type="submit"
                   disabled={!file}
-                  className={`w-full py-3.5 rounded-2xl font-bold transition-all text-sm block text-center ${
+                  className={`w-full py-3.5 rounded-2xl font-bold transition-all text-sm block text-center border-none ${
                     !file
-                      ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed shadow-none'
-                      : 'bg-[#6200EE] hover:bg-[#5000c7] text-white cursor-pointer hover:shadow-lg shadow-purple-600/30 active:scale-[0.98]'
+                      ? 'bg-white/5 text-slate-500 cursor-not-allowed shadow-none'
+                      : 'bg-[#9146FF] hover:bg-[#A970FF] text-white cursor-pointer hover:shadow-lg shadow-[#9146FF]/20 active:scale-[0.98]'
                   }`}
                 >
                   Confirmar e Validar
@@ -229,7 +232,7 @@ export default function ValidateTicketPage({ ticket }: ValidatePageProps) {
         </div>
       </main>
 
-      <footer className="text-center text-xs text-slate-400 py-8 border-t border-neutral-200/60 max-w-6xl mx-auto w-full">
+      <footer className="text-center text-xs text-slate-550 py-8 border-t border-white/5 max-w-6xl mx-auto w-full">
         &copy; {new Date().getFullYear()} Flux Tickets. Todos os direitos reservados.
       </footer>
     </div>

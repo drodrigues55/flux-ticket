@@ -59,24 +59,27 @@ export default function CheckoutSuccessPage({ tickets = [] }: SuccessPageProps) 
   });
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F8F9FA] font-sans antialiased text-slate-900">
+    <div className="min-h-screen flex flex-col bg-[#03060B] font-sans antialiased text-white relative overflow-hidden">
+      {/* Background Glows */}
+      <div className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] rounded-full bg-purple-600/5 blur-[180px] pointer-events-none" />
+      <div className="absolute bottom-[-20%] right-[-20%] w-[60%] h-[60%] rounded-full bg-blue-600/5 blur-[180px] pointer-events-none" />
       <Header />
 
-      <main className="flex-grow flex items-center justify-center px-6 py-16 bg-gradient-to-tr from-[#f3e5f5] via-[#fafafa] to-[#ede7f6]">
-        <div className="relative w-full max-w-2xl bg-white rounded-3xl border border-neutral-200/60 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+      <main className="flex-grow flex items-center justify-center px-6 py-16 relative z-10">
+        <div className="relative w-full max-w-2xl bg-[#18181B] rounded-3xl border border-white/10 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-300">
           
           {/* Top color accent strip - Solid Green */}
           <div className="h-2 w-full bg-emerald-500" />
 
           {/* Success Hero Header */}
-          <div className="p-8 text-center border-b border-neutral-100 space-y-4">
-            <div className="w-20 h-20 bg-emerald-50 border-4 border-emerald-100 rounded-full flex items-center justify-center mx-auto text-emerald-500 shadow-sm">
+          <div className="p-8 text-center border-b border-white/5 space-y-4">
+            <div className="w-20 h-20 bg-emerald-500/10 border-4 border-emerald-500/20 rounded-full flex items-center justify-center mx-auto text-emerald-400 shadow-sm">
               <FaCircleCheck className="w-12 h-12" />
             </div>
             
             <div className="space-y-1.5">
-              <h2 className="text-3xl font-black tracking-tight text-slate-900">Compra Aprovada!</h2>
-              <p className="text-slate-500 text-sm max-w-md mx-auto">
+              <h2 className="text-3xl font-black tracking-tight text-white">Compra Aprovada!</h2>
+              <p className="text-slate-450 text-sm max-w-md mx-auto">
                 Seu{tickets.length > 1 ? 's' : ''} ingresso{tickets.length > 1 ? 's foram' : ' foi'} reservado{tickets.length > 1 ? 's' : ''} e a transação de pagamento concluída com sucesso.
               </p>
             </div>
@@ -86,110 +89,110 @@ export default function CheckoutSuccessPage({ tickets = [] }: SuccessPageProps) 
           <div className="p-8 space-y-6">
             
             {/* Stepper Status Bar */}
-            <div className="border-b border-neutral-100 pb-6">
+            <div className="border-b border-white/5 pb-6">
               <div className="flex items-center justify-between w-full relative">
                 {/* Progress Line */}
-                <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-0.5 bg-neutral-100 z-0" />
+                <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-0.5 bg-white/5 z-0" />
                 <div 
                   className="absolute left-0 top-1/2 -translate-y-1/2 h-0.5 bg-emerald-500 transition-all duration-500 z-0" 
                   style={{ width: hasMeia ? '50%' : '100%' }}
                 />
 
                 {/* Step 1: Compra Aprovada */}
-                <div className="flex flex-col items-center z-10 bg-white px-2">
+                <div className="flex flex-col items-center z-10 bg-[#18181B] px-2">
                   <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shadow-sm">
                     ✓
                   </div>
-                  <span className="text-[10px] font-bold text-emerald-600 mt-2 text-center">Compra Aprovada</span>
+                  <span className="text-[10px] font-bold text-emerald-400 mt-2 text-center">Compra Aprovada</span>
                 </div>
 
                 {/* Step 2 & 3 */}
                 {hasMeia ? (
                   <>
-                    <div className="flex flex-col items-center z-10 bg-white px-2">
+                    <div className="flex flex-col items-center z-10 bg-[#18181B] px-2">
                       <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shadow-sm animate-pulse">
                         2
                       </div>
-                      <span className="text-[10px] font-bold text-emerald-600 mt-2 text-center">Validação Pendente</span>
+                      <span className="text-[10px] font-bold text-emerald-400 mt-2 text-center">Validação Pendente</span>
                     </div>
 
-                    <div className="flex flex-col items-center z-10 bg-white px-2">
-                      <div className="w-8 h-8 rounded-full bg-neutral-100 text-neutral-400 border border-neutral-200/60 flex items-center justify-center text-xs font-bold">
+                    <div className="flex flex-col items-center z-10 bg-[#18181B] px-2">
+                      <div className="w-8 h-8 rounded-full bg-white/5 text-slate-400 border border-white/10 flex items-center justify-center text-xs font-bold">
                         3
                       </div>
-                      <span className="text-[10px] font-bold text-neutral-400 mt-2 text-center">Ingresso Liberado</span>
+                      <span className="text-[10px] font-bold text-slate-400 mt-2 text-center">Ingresso Liberado</span>
                     </div>
                   </>
                 ) : (
-                  <div className="flex flex-col items-center z-10 bg-white px-2">
+                  <div className="flex flex-col items-center z-10 bg-[#18181B] px-2">
                     <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shadow-sm">
                       ✓
                     </div>
-                    <span className="text-[10px] font-bold text-emerald-600 mt-2 text-center">Ingresso Liberado</span>
+                    <span className="text-[10px] font-bold text-emerald-400 mt-2 text-center">Ingresso Liberado</span>
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="bg-slate-50 border border-neutral-200/50 rounded-2xl p-6 space-y-4 relative overflow-hidden">
-              <div className="border-b border-neutral-200/60 pb-3 flex justify-between items-start">
+            <div className="bg-[#080D1A]/50 border border-white/10 rounded-2xl p-6 space-y-4 relative overflow-hidden">
+              <div className="border-b border-white/5 pb-3 flex justify-between items-start">
                 <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Evento</span>
-                  <h3 className="text-lg font-extrabold text-slate-900 leading-tight">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-450">Evento</span>
+                  <h3 className="text-lg font-extrabold text-white leading-tight">
                     {primaryTicket.batch.event.title}
                   </h3>
                 </div>
                 {hasMeia && (
-                  <span className="bg-slate-100 text-slate-700 border border-slate-200 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wide">
+                  <span className="bg-white/5 text-slate-350 border border-white/10 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wide">
                     Meia-Entrada
                   </span>
                 )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex items-center gap-3 text-slate-600">
-                  <FaCalendarDays className="w-4 h-4 text-slate-400 shrink-0" />
+                <div className="flex items-center gap-3 text-slate-450">
+                  <FaCalendarDays className="w-4 h-4 text-slate-450 shrink-0" />
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold block uppercase leading-none">Data e Hora</span>
-                    <span className="text-xs font-semibold text-slate-700">{formattedDate}</span>
+                    <span className="text-[10px] text-slate-450 font-bold block uppercase leading-none">Data e Hora</span>
+                    <span className="text-xs font-semibold text-white">{formattedDate}</span>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 text-slate-600">
-                  <FaLocationDot className="w-4 h-4 text-slate-400 shrink-0" />
+                <div className="flex items-center gap-3 text-slate-450">
+                  <FaLocationDot className="w-4 h-4 text-slate-450 shrink-0" />
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold block uppercase leading-none">Local</span>
-                    <span className="text-xs font-semibold text-slate-700">{primaryTicket.batch.event.location}</span>
+                    <span className="text-[10px] text-slate-450 font-bold block uppercase leading-none">Local</span>
+                    <span className="text-xs font-semibold text-white">{primaryTicket.batch.event.location}</span>
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-neutral-200/60 pt-4">
-                <div className="flex items-center gap-3 text-slate-600">
-                  <FaTicketSimple className="w-4 h-4 text-slate-400 shrink-0" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-white/5 pt-4">
+                <div className="flex items-center gap-3 text-slate-450">
+                  <FaTicketSimple className="w-4 h-4 text-slate-450 shrink-0" />
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold block uppercase leading-none">Ingresso / Setor</span>
-                    <span className="text-xs font-semibold text-slate-700">
+                    <span className="text-[10px] text-slate-450 font-bold block uppercase leading-none">Ingresso / Setor</span>
+                    <span className="text-xs font-semibold text-white">
                       {tickets.length}x {primaryTicket.batch.name}
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 text-slate-600">
-                  <FaTag className="w-4 h-4 text-slate-400 shrink-0" />
+                <div className="flex items-center gap-3 text-slate-450">
+                  <FaTag className="w-4 h-4 text-slate-450 shrink-0" />
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold block uppercase leading-none">Valor Pago</span>
-                    <span className="text-base font-bold text-slate-700">R$ {totalPaid.toFixed(2).replace('.', ',')}</span>
+                    <span className="text-[10px] text-slate-450 font-bold block uppercase leading-none">Valor Pago</span>
+                    <span className="text-base font-bold text-white">R$ {totalPaid.toFixed(2).replace('.', ',')}</span>
                   </div>
                 </div>
               </div>
             </div>
 
             {hasMeia && (
-              <div className="bg-slate-50 border border-neutral-200 border-l-4 border-l-red-600 p-5 rounded-r-2xl rounded-l-md flex gap-3.5 items-start">
-                <FaAddressCard className="w-6 h-6 text-red-600 shrink-0 mt-0.5" />
+              <div className="bg-red-500/10 border border-red-500/20 border-l-4 border-l-red-600 p-5 rounded-r-2xl rounded-l-md flex gap-3.5 items-start">
+                <FaAddressCard className="w-6 h-6 text-red-650 shrink-0 mt-0.5" />
                 <div className="space-y-1">
-                  <h4 className="font-bold text-sm text-slate-900">Atenção: Valide sua meia-entrada</h4>
-                  <p className="text-xs leading-relaxed text-slate-600">
+                  <h4 className="font-bold text-sm text-white">Atenção: Valide sua meia-entrada</h4>
+                  <p className="text-xs leading-relaxed text-slate-400">
                     Seu{tickets.length > 1 ? 's' : ''} ingresso{tickets.length > 1 ? 's estão' : ' está'} pendente{tickets.length > 1 ? 's' : ''} até que o comprovante (DNE ou similar) seja enviado na sua carteira de ingressos.
                   </p>
                 </div>
@@ -197,11 +200,11 @@ export default function CheckoutSuccessPage({ tickets = [] }: SuccessPageProps) 
             )}
 
             {/* Action Buttons */}
-            <div className="flex flex-col gap-3 pt-4 border-t border-neutral-100">
+            <div className="flex flex-col gap-3 pt-4 border-t border-white/5">
               <div className="flex flex-col sm:flex-row gap-3 w-full">
                 <button
                   onClick={() => router.push('/profile')}
-                  className="flex-1 bg-[#6200EE] hover:bg-[#5000c7] text-white px-6 py-3.5 rounded-2xl font-bold transition-all shadow-md active:scale-95 text-sm flex items-center justify-center gap-2 cursor-pointer"
+                  className="flex-1 bg-[#9146FF] hover:bg-[#A970FF] text-white px-6 py-3.5 rounded-2xl font-bold transition-all shadow-md active:scale-95 text-sm flex items-center justify-center gap-2 cursor-pointer border-none"
                 >
                   <FaTicketSimple className="w-4 h-4" />
                   Acessar Carteira de Ingressos
@@ -209,7 +212,7 @@ export default function CheckoutSuccessPage({ tickets = [] }: SuccessPageProps) 
                 </button>
                 <button
                   onClick={() => router.push('/')}
-                  className="bg-white hover:bg-neutral-50 text-slate-600 hover:text-slate-800 border border-slate-200 px-6 py-3.5 rounded-2xl font-bold transition-all active:scale-95 text-sm flex items-center justify-center gap-2 cursor-pointer"
+                  className="bg-transparent hover:bg-white/5 text-slate-350 hover:text-white border border-white/10 px-6 py-3.5 rounded-2xl font-bold transition-all active:scale-95 text-sm flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <FaHouse className="w-4 h-4" />
                   Voltar ao início
@@ -221,7 +224,7 @@ export default function CheckoutSuccessPage({ tickets = [] }: SuccessPageProps) 
         </div>
       </main>
 
-      <footer className="text-center text-xs text-slate-400 py-8 border-t border-neutral-200/60 max-w-6xl mx-auto w-full">
+      <footer className="text-center text-xs text-slate-550 py-8 border-t border-white/5 max-w-6xl mx-auto w-full">
         &copy; {new Date().getFullYear()} Flux Tickets. Todos os direitos reservados.
       </footer>
     </div>
