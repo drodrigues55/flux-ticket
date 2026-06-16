@@ -16,38 +16,46 @@ export declare class CheckoutService {
         isHalfPrice: boolean;
     }): Promise<{
         id: string;
+        eventId: string;
         price: import("@prisma/client/runtime/library").Decimal;
         meiaEntrada: boolean;
         createdAt: Date;
         updatedAt: Date;
         buyerCpf: string;
-        status: import(".prisma/client").$Enums.TicketStatus;
-        hmacSignature: string | null;
-        expiresAt: Date;
         holderName: string | null;
         holderCpf: string | null;
+        status: import(".prisma/client").$Enums.TicketStatus;
+        channel: import(".prisma/client").$Enums.SalesChannel;
         isTransferred: boolean;
-        buyerId: string;
+        hmacSignature: string | null;
+        checkedInAt: Date | null;
+        refundedAt: Date | null;
+        expiresAt: Date;
         batchId: string;
+        buyerId: string;
     }>;
     /**
      * Aprova o pagamento de um ingresso, gerando a assinatura HMAC offline.
      */
     approveTicketPayment(ticketId: string): Promise<{
         id: string;
+        eventId: string;
         price: import("@prisma/client/runtime/library").Decimal;
         meiaEntrada: boolean;
         createdAt: Date;
         updatedAt: Date;
         buyerCpf: string;
-        status: import(".prisma/client").$Enums.TicketStatus;
-        hmacSignature: string | null;
-        expiresAt: Date;
         holderName: string | null;
         holderCpf: string | null;
+        status: import(".prisma/client").$Enums.TicketStatus;
+        channel: import(".prisma/client").$Enums.SalesChannel;
         isTransferred: boolean;
-        buyerId: string;
+        hmacSignature: string | null;
+        checkedInAt: Date | null;
+        refundedAt: Date | null;
+        expiresAt: Date;
         batchId: string;
+        buyerId: string;
     }>;
     /**
      * Delega a renovação do lock temporário do ingresso no Redis.

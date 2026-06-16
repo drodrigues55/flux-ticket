@@ -24,7 +24,7 @@ export class CheckoutService {
   }) {
     const ticketId = crypto.randomUUID();
     const reservationId = `${data.userId}:${ticketId}`;
-    
+
     const batch = await prisma.ticketBatch.findUnique({
       where: { id: data.batchId },
     });
@@ -32,6 +32,9 @@ export class CheckoutService {
     if (!batch) {
       throw new BadRequestException('Lote não encontrado.');
     }
+
+    // Guarantee the eventId is always consistent with the batch
+    const resolvedEventId = batch.eventId || data.eventId;
 
     // Verifica se as vendas estão suspensas globalmente
     const isPaused = await this.fluxEngine.isSalesPaused();
@@ -82,15 +85,18 @@ export class CheckoutService {
           },
         });
 
-        // Criação do Ticket com status PENDING_VALIDATION
+        // Criação do Ticket com status PENDING_VALIDATION.
+        // eventId é armazenado diretamente para evitar joins no dashboard.
         const ticket = await tx.ticket.create({
           data: {
             id: ticketId,
+            eventId: resolvedEventId,
             buyerId: data.userId,
             batchId: data.batchId,
             buyerCpf: data.buyerCpf,
             price: data.price,
             status: 'PENDING_VALIDATION',
+            channel: 'ONLINE',
             meiaEntrada: data.isHalfPrice,
             expiresAt: new Date(Date.now() + 180 * 1000), // Válido por 3 minutos
           },

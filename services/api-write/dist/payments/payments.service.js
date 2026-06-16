@@ -237,30 +237,98 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
             }
         }
         // 5. Máquina de Estado e compensação
-        return this.handlePaymentState(tickets, mpStatus, { qrCode, qrCodeBase64, paymentId });
+        return this.handlePaymentState(tickets, mpStatus, { qrCode, qrCodeBase64, paymentId }, dto, isMockMode);
     }
     /**
      * Gerencia a máquina de estados do pagamento.
      */
-    async handlePaymentState(tickets, status, meta) {
+    async handlePaymentState(tickets, status, meta, dto, isMockMode) {
         if (status === 'approved') {
+            const finalStatuses = [];
             for (const ticket of tickets) {
-                // 1. Aprovado: Verifica se é estudante (meia-entrada)
                 const isStudent = ticket.meiaEntrada === true;
-                // 2. Gera a assinatura HMAC usando o CPF do titular (ou comprador se nulo)
                 const activeCpf = ticket.holderCpf || ticket.buyerCpf;
                 const signature = this.ticketCryptoService.generateSignature(ticket.id, activeCpf, ticket.batchId);
-                // 3. Atualiza o status e a assinatura
+                const newStatus = isStudent ? 'PENDING_VALIDATION' : 'VALID';
                 await database_1.prisma.ticket.update({
                     where: { id: ticket.id },
                     data: {
-                        status: isStudent ? 'PENDING_VALIDATION' : 'VALID',
+                        status: newStatus,
                         hmacSignature: signature,
-                        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // Válido por 1 ano
+                        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
                     },
                 });
-                // 4. Libera o lock do Redis
                 await this.fluxEngine.releaseTicketLock(ticket.batchId, ticket.buyerId, ticket.id);
+                finalStatuses.push({ id: ticket.id, finalStatus: newStatus });
+            }
+            // ── Record Payment ──────────────────────────────────────────────
+            const totalAmount = tickets.reduce((s, t) => s + Number(t.price), 0);
+            const eventId = tickets[0].eventId || tickets[0].batch?.eventId;
+            const buyerId = tickets[0].buyerId;
+            const paymentMethod = dto?.paymentMethod?.method === 'pix' ? 'PIX' : 'CREDIT_CARD';
+            let payment = null;
+            try {
+                payment = await database_1.prisma.payment.create({
+                    data: {
+                        eventId,
+                        buyerId,
+                        method: paymentMethod,
+                        status: 'APPROVED',
+                        amount: totalAmount,
+                        installments: Number(dto?.paymentMethod?.installments) || 1,
+                        provider: isMockMode ? 'MOCK' : 'MERCADO_PAGO',
+                        providerPaymentId: meta.paymentId || null,
+                        paidAt: new Date(),
+                        tickets: { connect: tickets.map(t => ({ id: t.id })) },
+                    },
+                });
+            }
+            catch (err) {
+                this.logger.warn('[PAYMENT RECORD] Could not create Payment record (non-fatal):', err);
+            }
+            // ── Record SaleLog per ticket ────────────────────────────────────
+            for (const ticket of tickets) {
+                try {
+                    await database_1.prisma.saleLog.create({
+                        data: {
+                            eventId: ticket.eventId || ticket.batch?.eventId,
+                            ticketId: ticket.id,
+                            batchId: ticket.batchId,
+                            paymentId: payment?.id || null,
+                            buyerName: dto?.buyerName || ticket.buyer?.name || 'Unknown',
+                            buyerEmail: dto?.email || ticket.buyer?.email || '',
+                            holderName: ticket.holderName || null,
+                            batchName: ticket.batch?.name || '',
+                            eventTitle: ticket.batch?.event?.title || '',
+                            price: ticket.price,
+                            channel: 'ONLINE',
+                            method: paymentMethod,
+                            status: finalStatuses.find(s => s.id === ticket.id)?.finalStatus || 'VALID',
+                        },
+                    });
+                }
+                catch (err) {
+                    this.logger.warn('[SALE LOG] Could not create SaleLog record (non-fatal):', err);
+                }
+            }
+            // ── Upsert DailySalesSnapshot ─────────────────────────────────────
+            try {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const eventId = tickets[0].eventId || tickets[0].batch?.eventId;
+                if (eventId) {
+                    await database_1.prisma.dailySalesSnapshot.upsert({
+                        where: { eventId_date: { eventId, date: today } },
+                        create: { eventId, date: today, revenue: totalAmount, ticketsSold: tickets.length },
+                        update: {
+                            revenue: { increment: totalAmount },
+                            ticketsSold: { increment: tickets.length },
+                        },
+                    });
+                }
+            }
+            catch (err) {
+                this.logger.warn('[SNAPSHOT] Could not upsert DailySalesSnapshot (non-fatal):', err);
             }
             this.logger.log(`[PAYMENT SUCCESS] ${tickets.length} tickets aprovados.`);
             return {

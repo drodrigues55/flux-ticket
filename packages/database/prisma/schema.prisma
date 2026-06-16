@@ -10,6 +10,10 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
+
 enum TicketStatus {
   PENDING_VALIDATION
   PENDING_PAYMENT
@@ -18,34 +22,111 @@ enum TicketStatus {
   CONSUMED
 }
 
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+  ENDED
+}
+
+enum SalesChannel {
+  ONLINE
+  POS
+  COMPLIMENTARY
+}
+
+enum PaymentMethod {
+  PIX
+  CREDIT_CARD
+  DEBIT_CARD
+  BANK_TRANSFER
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REFUNDED
+  CANCELLED
+}
+
+enum AlertType {
+  LOW_STOCK
+  SLOW_SALES
+  FAST_SALES
+  CHECKIN_ISSUE
+  REFUND_SPIKE
+  MISSING_ASSET
+  FINANCIAL_ISSUE
+}
+
+enum AlertSeverity {
+  CRITICAL
+  WARNING
+  INFO
+}
+
+enum PayoutStatus {
+  PENDING
+  SCHEDULED
+  PROCESSING
+  SETTLED
+  FAILED
+}
+
+// ─────────────────────────────────────────────
+// MODELS
+// ─────────────────────────────────────────────
+
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
   password  String
   name      String
-  role      String   @default("USER") // e.g., USER, ORGANIZER, STAFF
+  role      String   @default("USER") // USER, ORGANIZER, STAFF
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  tickets   Ticket[]
-  events    Event[]  @relation("EventOrganizer")
+
+  tickets  Ticket[]
+  events   Event[]   @relation("EventOrganizer")
+  payments Payment[]
+  payouts  Payout[]
 }
 
 model Event {
-  id          String        @id @default(uuid())
-  title       String
-  description String?
-  date        DateTime
-  location    String
-  categoryId  Int?
-  organizerId String
-  organizer   User          @relation("EventOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
-  batches     TicketBatch[]
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id             String      @id @default(uuid())
+  title          String
+  description    String?
+  date           DateTime
+  location       String      // full address
+  venue          String?     // display name (e.g. "Arena São Paulo")
+  imageUrl       String?     // cover image URL
+  categoryId     Int?
+  capacityTarget Int?        // target occupancy % for alerts (default: 80)
+  status         EventStatus @default(DRAFT)
+  tags           String[]    @default([])
+  organizerId    String
+  organizer      User        @relation("EventOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  batches   TicketBatch[]
+  tickets   Ticket[]
+  payments  Payment[]
+  saleLogs  SaleLog[]
+  alerts    EventAlert[]
+  snapshots DailySalesSnapshot[]
+  payouts   Payout[]
+
+  @@index([organizerId])
+  @@index([date])
+  @@index([status])
 }
 
 model TicketBatch {
   id                String   @id @default(uuid())
+  eventId           String
+  event             Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   name              String
   price             Decimal
   totalQuantity     Int
@@ -54,32 +135,161 @@ model TicketBatch {
   sectorName        String?
   meiaEntrada       Boolean  @default(false)
   isActive          Boolean  @default(true)
-  eventId           String
-  event             Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  tickets           Ticket[]
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+
+  tickets  Ticket[]
+  saleLogs SaleLog[]
+
+  @@index([eventId])
+  @@index([eventId, isActive])
 }
 
 model Ticket {
-  id        String       @id @default(uuid())
-  buyerId   String
-  buyer     User         @relation(fields: [buyerId], references: [id], onDelete: Cascade)
-  batchId   String
-  batch     TicketBatch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  buyerCpf  String
-  status    TicketStatus @default(PENDING_VALIDATION)
-  price     Decimal
-  meiaEntrada       Boolean  @default(false)
+  id            String       @id @default(uuid())
+  // Direct FK to event (denormalized for dashboard query performance)
+  eventId       String
+  event         Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  batchId       String
+  batch         TicketBatch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  buyerId       String
+  buyer         User         @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  buyerCpf      String
+  holderName    String?
+  holderCpf     String?
+  price         Decimal
+  status        TicketStatus @default(PENDING_VALIDATION)
+  channel       SalesChannel @default(ONLINE)
+  meiaEntrada   Boolean      @default(false)
+  isTransferred Boolean      @default(false)
   hmacSignature String?
-  createdAt DateTime     @default(now())
-  expiresAt DateTime
-  updatedAt DateTime     @updatedAt
-  holderName String?
-  holderCpf  String?
-  isTransferred Boolean @default(false)
+  checkedInAt   DateTime?    // timestamp when status became CONSUMED
+  refundedAt    DateTime?
+  expiresAt     DateTime
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  payments Payment[]
+
+  // Performance indexes for dashboard aggregation queries
+  @@index([eventId])
+  @@index([eventId, status])
+  @@index([eventId, status, createdAt])
+  @@index([batchId])
+  @@index([buyerId])
+  @@index([createdAt])
+  @@index([status, createdAt])
 }
 
+model Payment {
+  id                String        @id @default(uuid())
+  eventId           String
+  event             Event         @relation(fields: [eventId], references: [id])
+  buyerId           String
+  buyer             User          @relation(fields: [buyerId], references: [id])
+  method            PaymentMethod
+  status            PaymentStatus
+  amount            Decimal       // total amount in BRL
+  installments      Int           @default(1)
+  provider          String        // "MERCADO_PAGO" | "MOCK"
+  providerPaymentId String?       // external payment ID (MP ID)
+  rawResponse       Json?         // full provider response for audit
+  paidAt            DateTime?
+  refundedAt        DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  tickets  Ticket[]
+  saleLogs SaleLog[]
+
+  @@index([eventId])
+  @@index([buyerId])
+  @@index([status])
+  @@index([eventId, status])
+  @@index([createdAt])
+}
+
+/// Business-level audit trail: one record per ticket sold.
+/// Used by dashboard Recent Sales feed and financial reports.
+model SaleLog {
+  id          String        @id @default(uuid())
+  eventId     String
+  event       Event         @relation(fields: [eventId], references: [id])
+  ticketId    String
+  batchId     String
+  batch       TicketBatch   @relation(fields: [batchId], references: [id])
+  paymentId   String?
+  payment     Payment?      @relation(fields: [paymentId], references: [id])
+  buyerName   String
+  buyerEmail  String
+  holderName  String?
+  batchName   String
+  eventTitle  String
+  price       Decimal
+  channel     SalesChannel
+  method      PaymentMethod?
+  status      TicketStatus
+  occurredAt  DateTime      @default(now())
+
+  @@index([eventId, occurredAt])
+  @@index([eventId, status])
+  @@index([occurredAt])
+}
+
+/// Pre-aggregated daily revenue and ticket counts per event.
+/// Feeds the sales history chart without expensive real-time aggregations.
+model DailySalesSnapshot {
+  id          String   @id @default(uuid())
+  eventId     String
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  date        DateTime // day-truncated UTC (midnight)
+  revenue     Decimal  @default(0)
+  ticketsSold Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([eventId, date])
+  @@index([eventId, date])
+}
+
+/// Event-level operational alerts surfaced by the dashboard intelligence layer.
+model EventAlert {
+  id              String        @id @default(uuid())
+  eventId         String
+  event           Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  type            AlertType
+  severity        AlertSeverity
+  message         String
+  suggestedAction String?
+  resolvedAt      DateTime?
+  createdAt       DateTime      @default(now())
+
+  @@index([eventId, resolvedAt])
+  @@index([severity])
+}
+
+/// Scheduled and settled financial payouts to organizers.
+model Payout {
+  id            String       @id @default(uuid())
+  organizerId   String
+  organizer     User         @relation(fields: [organizerId], references: [id])
+  eventId       String?
+  event         Event?       @relation(fields: [eventId], references: [id])
+  amount        Decimal
+  status        PayoutStatus
+  scheduledDate DateTime?
+  settledAt     DateTime?
+  notes         String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([organizerId, status])
+  @@index([eventId])
+  @@index([scheduledDate])
+}
+
+/// Infrastructure-level outbox for eventual consistency delivery.
+/// Separate from SaleLog (business audit). Do not remove.
 model OutboxEvent {
   id            String   @id @default(uuid())
   aggregateType String
@@ -90,4 +300,3 @@ model OutboxEvent {
 
   @@index([status])
 }
-

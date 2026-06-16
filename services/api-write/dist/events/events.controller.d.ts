@@ -16,11 +16,16 @@ export declare class EventsController {
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        status: import(".prisma/client").$Enums.EventStatus;
         title: string;
         description: string | null;
         date: Date;
         location: string;
+        venue: string | null;
+        imageUrl: string | null;
         categoryId: number | null;
+        capacityTarget: number | null;
+        tags: string[];
         organizerId: string;
     }>;
     /**
@@ -31,11 +36,16 @@ export declare class EventsController {
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        status: import(".prisma/client").$Enums.EventStatus;
         title: string;
         description: string | null;
         date: Date;
         location: string;
+        venue: string | null;
+        imageUrl: string | null;
         categoryId: number | null;
+        capacityTarget: number | null;
+        tags: string[];
         organizerId: string;
     }[]>;
     /**
@@ -50,6 +60,7 @@ export declare class EventsController {
         sectorName?: string;
     }): Promise<{
         id: string;
+        eventId: string;
         name: string;
         price: import("@prisma/client/runtime/library").Decimal;
         totalQuantity: number;
@@ -58,7 +69,6 @@ export declare class EventsController {
         sectorName: string | null;
         meiaEntrada: boolean;
         isActive: boolean;
-        eventId: string;
         createdAt: Date;
         updatedAt: Date;
     }>;
@@ -68,6 +78,7 @@ export declare class EventsController {
      */
     findAllBatches(eventId: string): Promise<{
         id: string;
+        eventId: string;
         name: string;
         price: import("@prisma/client/runtime/library").Decimal;
         totalQuantity: number;
@@ -76,7 +87,6 @@ export declare class EventsController {
         sectorName: string | null;
         meiaEntrada: boolean;
         isActive: boolean;
-        eventId: string;
         createdAt: Date;
         updatedAt: Date;
     }[]>;
