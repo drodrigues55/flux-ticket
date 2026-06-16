@@ -54,9 +54,10 @@ const seededValue = (seed: number) => {
 };
 
 const generateSalesHistory = () => {
+  // Generate 60 days to support previous period comparisons (0-29 previous, 30-59 current)
   const days: { date: string; revenue: number; tickets: number }[] = [];
   const baseDate = dayjs().startOf('day');
-  for (let i = 29; i >= 0; i--) {
+  for (let i = 59; i >= 0; i--) {
     const d = baseDate.subtract(i, 'day');
     const base = 800 + seededValue(i + 7) * 3200;
     days.push({
@@ -158,17 +159,22 @@ export default function DashboardPage() {
   // Dynamically scale mock data based on telemetry values to ensure consistency
   const scaledSalesHistory = useMemo(() => {
     if (telemetry?.grossRevenue !== undefined && telemetry?.grossRevenue !== null) {
-      const totalMockRevenue = MOCK_SALES_HISTORY.reduce((a, b) => a + b.revenue, 0);
-      const totalMockTickets = MOCK_SALES_HISTORY.reduce((a, b) => a + b.tickets, 0);
+      // Scale based on the last 30 days of the history to match telemetry
+      const last30Mock = MOCK_SALES_HISTORY.slice(-30);
+      const totalMockRevenue = last30Mock.reduce((a, b) => a + b.revenue, 0);
+      const totalMockTickets = last30Mock.reduce((a, b) => a + b.tickets, 0);
       
       const revFactor = totalMockRevenue > 0 ? telemetry.grossRevenue / totalMockRevenue : 0;
       const tickFactor = totalMockTickets > 0 ? (telemetry.ticketsSold || totalMockTickets) / totalMockTickets : 0;
       
-      return MOCK_SALES_HISTORY.map(day => ({
-        ...day,
-        revenue: Math.round(day.revenue * revFactor * 100) / 100,
-        tickets: Math.max(1, Math.floor(day.tickets * tickFactor)),
-      }));
+      return MOCK_SALES_HISTORY.map(day => {
+        const ticketCount = Math.floor(day.tickets * tickFactor);
+        return {
+          ...day,
+          revenue: ticketCount > 0 ? Math.round(day.revenue * revFactor * 100) / 100 : 0,
+          tickets: ticketCount,
+        };
+      });
     }
     return MOCK_SALES_HISTORY;
   }, [telemetry]);
@@ -199,10 +205,11 @@ export default function DashboardPage() {
 
     return rawHourly.map((hour, h) => {
       if (h <= currentHour) {
+        const ticketCount = Math.floor(hour.tickets * tickFactor);
         return {
           date: hour.date,
-          revenue: Math.round(hour.revenue * revFactor * 100) / 100,
-          tickets: Math.max(0, Math.floor(hour.tickets * tickFactor)),
+          revenue: ticketCount > 0 ? Math.round(hour.revenue * revFactor * 100) / 100 : 0,
+          tickets: ticketCount,
         };
       } else {
         // Do not mock the rest of the day, only show until the real time of the world
@@ -215,57 +222,104 @@ export default function DashboardPage() {
     });
   }, [currentHour, scaledSalesHistory]);
 
-  // Dynamic history based on period
-  const filteredHistory = useMemo(() => {
+  // Comparative data selection for selected vs previous period to compute correct changes
+  const periodData = useMemo(() => {
+    let current: { date: string; revenue: number | null; tickets: number | null }[] = [];
+    let previous: { date: string; revenue: number | null; tickets: number | null }[] = [];
+
     if (selectedPeriod === 'today') {
-      return todayHourlyData;
+      current = todayHourlyData;
+      const yesterday = scaledSalesHistory[scaledSalesHistory.length - 2];
+      
+      // Generate yesterday's hourly mock to match today's hour-by-hour comparison
+      const yesterdayHourly = [];
+      for (let h = 0; h < 24; h++) {
+        const label = `${String(h).padStart(2, '0')}:00`;
+        const seed = h + 42;
+        const base = 120 + seededValue(seed) * 580;
+        yesterdayHourly.push({
+          date: label,
+          revenue: base,
+          tickets: Math.max(1, Math.floor(base / 45)),
+        });
+      }
+      const rawSumRevenue = yesterdayHourly.reduce((a, b) => a + b.revenue, 0);
+      const rawSumTickets = yesterdayHourly.reduce((a, b) => a + b.tickets, 0);
+
+      const yRev = yesterday?.revenue ?? 0;
+      const yTick = yesterday?.tickets ?? 0;
+      const revFactor = rawSumRevenue > 0 ? yRev / rawSumRevenue : 0;
+      const tickFactor = rawSumTickets > 0 ? yTick / rawSumTickets : 0;
+
+      previous = yesterdayHourly.map((hour, h) => {
+        if (h <= currentHour) {
+          const ticketCount = Math.floor(hour.tickets * tickFactor);
+          return {
+            date: hour.date,
+            revenue: ticketCount > 0 ? Math.round(hour.revenue * revFactor * 100) / 100 : 0,
+            tickets: ticketCount,
+          };
+        } else {
+          return { date: hour.date, revenue: null, tickets: null };
+        }
+      });
+
     } else if (selectedPeriod === '7d') {
-      return scaledSalesHistory.slice(-7);
-    } else if (selectedPeriod === '30d') {
-      return scaledSalesHistory;
+      current = scaledSalesHistory.slice(-7);
+      previous = scaledSalesHistory.slice(-14, -7);
+    } else {
+      // 30d
+      current = scaledSalesHistory.slice(-30);
+      previous = scaledSalesHistory.slice(0, 30);
     }
-    return scaledSalesHistory;
-  }, [selectedPeriod, todayHourlyData, scaledSalesHistory]);
+
+    return { current, previous };
+  }, [selectedPeriod, todayHourlyData, scaledSalesHistory, currentHour]);
+
+  // Dynamic history based on period (to feed Recharts)
+  const filteredHistory = useMemo(() => {
+    return periodData.current;
+  }, [periodData]);
 
   // KPIs computed from mock + telemetry
   const kpis = useMemo(() => {
-    const validPoints = filteredHistory.filter((p) => p.revenue !== null);
-    const periodRevenue = validPoints.reduce((a, b) => a + b.revenue!, 0);
-    const periodTickets = validPoints.reduce((a, b) => a + b.tickets!, 0);
+    const validCurrent = periodData.current.filter((p) => p.revenue !== null);
+    const validPrevious = periodData.previous.filter((p) => p.revenue !== null);
 
-    const totalRevenue = telemetry?.grossRevenue && selectedPeriod === '30d' ? telemetry.grossRevenue : periodRevenue;
-    const totalTickets = telemetry?.ticketsSold && selectedPeriod === '30d' ? telemetry.ticketsSold : periodTickets;
+    const totalRevenue = validCurrent.reduce((a, b) => a + b.revenue!, 0);
+    const totalTickets = validCurrent.reduce((a, b) => a + b.tickets!, 0);
     const avgTicket = totalTickets > 0 ? totalRevenue / totalTickets : 0;
-    const conversionRate = telemetry?.conversionRate ?? 68.4;
 
-    let revenueChange = 12.5;
-    let ticketsChange = 8.3;
-    let avgTicketChange = 3.7;
-    let conversionChange = -1.2;
+    const prevRevenue = validPrevious.reduce((a, b) => a + b.revenue!, 0);
+    const prevTickets = validPrevious.reduce((a, b) => a + b.tickets!, 0);
+    const prevAvgTicket = prevTickets > 0 ? prevRevenue / prevTickets : 0;
 
-    if (selectedPeriod === 'today') {
-      revenueChange = 4.2;
-      ticketsChange = 3.1;
-      avgTicketChange = 1.2;
-      conversionChange = 0.5;
-    } else if (selectedPeriod === '7d') {
-      revenueChange = 9.4;
-      ticketsChange = 7.2;
-      avgTicketChange = 2.1;
-      conversionChange = -0.8;
-    }
+    // Dynamic conversion rate calculation
+    const currentConversion = totalTickets > 0 ? (telemetry?.conversionRate ?? 68.4) : 0;
+    const prevConversion = prevTickets > 0 ? (telemetry?.conversionRate ?? 65.2) : 0;
+
+    // Real dynamic variance calculator
+    const calculatePctChange = (curr: number, prev: number) => {
+      if (prev === 0) return curr > 0 ? 100 : 0;
+      return ((curr - prev) / prev) * 100;
+    };
+
+    const revenueChange = calculatePctChange(totalRevenue, prevRevenue);
+    const ticketsChange = calculatePctChange(totalTickets, prevTickets);
+    const avgTicketChange = calculatePctChange(avgTicket, prevAvgTicket);
+    const conversionChange = calculatePctChange(currentConversion, prevConversion);
 
     return {
       totalRevenue,
       totalTickets,
       avgTicket,
-      conversionRate,
+      conversionRate: currentConversion,
       revenueChange,
       ticketsChange,
       avgTicketChange,
       conversionChange,
     };
-  }, [filteredHistory, telemetry, selectedPeriod]);
+  }, [periodData, telemetry, selectedPeriod]);
 
   const handleUpdateThrottle = async (limit: number) => {
     try {
@@ -329,11 +383,11 @@ export default function DashboardPage() {
       <div className="bg-white border border-[#EAEAEA] rounded-lg px-3.5 py-2.5 shadow-lg">
         <p className="text-[11px] font-semibold text-[#8A8A8A] mb-1">{label}</p>
         <p className="text-sm font-bold text-[#111111]">
-          R$ {formatReaisSimple(payload[0].value)}
+          R$ {formatReaisSimple(payload[0].value || 0)}
         </p>
         {payload[1] && (
           <p className="text-[11px] text-[#666666] mt-0.5">
-            {payload[1].value} ingressos
+            {payload[1].value || 0} ingressos
           </p>
         )}
       </div>
@@ -512,7 +566,11 @@ export default function DashboardPage() {
                     axisLine={false}
                     tickLine={false}
                     tick={{ fontSize: 11, fill: '#8A8A8A' }}
-                    tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`}
+                    domain={[0, 'auto']}
+                    tickFormatter={(v: number) => {
+                      if (v >= 1000) return `${(v / 1000).toFixed(0)}k`;
+                      return `R$ ${v.toFixed(0)}`;
+                    }}
                   />
                   <Tooltip content={<CustomTooltip />} />
                   <Area
