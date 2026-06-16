@@ -102,6 +102,15 @@ export default function StaffPortal() {
 
     if (result.success) {
       setScannedInput(''); // Limpa o campo em caso de sucesso
+    } else {
+      // Relata falha de validação/fraude para o servidor
+      if (isOnline) {
+        fetch(`/api/events/${eventId}/scan-fail`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ count: 1 })
+        }).catch(err => console.error('Falha ao reportar fraude:', err));
+      }
     }
 
     await updateCounts();
@@ -112,8 +121,21 @@ export default function StaffPortal() {
     setScanResult(null);
     const result = await validateTicket(scannedData);
     setScanResult(result);
+
+    if (!result.success) {
+      // Relata falha de validação/fraude para o servidor
+      if (isOnline) {
+        fetch(`/api/events/${eventId}/scan-fail`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ count: 1 })
+        }).catch(err => console.error('Falha ao reportar fraude:', err));
+      }
+    }
+
     await updateCounts();
   };
+
 
   // Sincroniza manualmente as mutações pendentes
   const handleManualSync = async () => {

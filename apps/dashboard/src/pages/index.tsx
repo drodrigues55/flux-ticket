@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Layout from '../components/Layout';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, Button } from '@flux/ui';
 import {
@@ -37,6 +37,13 @@ export default function OverviewPage() {
     audit: true,
   });
   const [showConfigMenu, setShowConfigMenu] = useState(false);
+
+  // Novos estados para configurações dinâmicas de pânico & busca
+  const [localThrottle, setLocalThrottle] = useState(500);
+  const isDraggingRef = useRef(false);
+  const [globalPaused, setGlobalPaused] = useState(false);
+  const [updatingSettings, setUpdatingSettings] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Load configuration from localStorage on mount
   useEffect(() => {
@@ -82,6 +89,14 @@ export default function OverviewPage() {
       const telemetry = await response.json();
       setData(telemetry);
       setError('');
+
+      // Atualiza o slider se não estiver arrastando
+      if (telemetry.checkoutLimit !== undefined && !isDraggingRef.current) {
+        setLocalThrottle(telemetry.checkoutLimit);
+      }
+      if (telemetry.salesPaused !== undefined) {
+        setGlobalPaused(telemetry.salesPaused);
+      }
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Erro ao carregar painel de telemetria.');
@@ -96,6 +111,44 @@ export default function OverviewPage() {
     const pollInterval = setInterval(fetchData, 4000);
     return () => clearInterval(pollInterval);
   }, []);
+
+  // Handler para atualizar o throttle (conexões simultâneas)
+  const handleUpdateThrottle = async (limit: number) => {
+    try {
+      setUpdatingSettings(true);
+      const res = await fetch('/api/settings/throttle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ limit }),
+      });
+      if (!res.ok) throw new Error('Erro ao atualizar limite de conexões.');
+      fetchData();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setUpdatingSettings(false);
+    }
+  };
+
+  // Handler para alternar a pausa global de vendas
+  const handleToggleGlobalPause = async () => {
+    try {
+      setUpdatingSettings(true);
+      const targetState = !globalPaused;
+      const res = await fetch('/api/settings/pause', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paused: targetState }),
+      });
+      if (!res.ok) throw new Error('Erro ao atualizar suspensão de vendas.');
+      setGlobalPaused(targetState);
+      fetchData();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setUpdatingSettings(false);
+    }
+  };
 
   // Update batch state (pause/resume sales)
   const handleToggleBatch = async (batchId: string, currentStatus: boolean) => {
@@ -154,6 +207,33 @@ export default function OverviewPage() {
     }
   };
 
+  // Estimativa inteligente de tempo para o lote esgotar
+  const calculateSellOut = (batch: any) => {
+    if (batch.availableQuantity === 0) return 'Lote Esgotado';
+    
+    const locks = data?.activeCheckoutLocks || 0;
+    const conversion = data?.conversionRate || 0;
+    
+    // Supondo lock TTL médio de 180s. Velocidade = locks * (conversão/100) / 180 (vendas por seg)
+    const velocitySec = (locks * (conversion / 100)) / 180;
+    const velocityMin = velocitySec * 60;
+    
+    if (velocityMin <= 0) return 'Demanda estável / Sem risco de esgotar';
+    
+    // Divide tráfego proporcionalmente entre os lotes ativos
+    const activeBatchesCount = data?.batches?.filter((b: any) => b.isActive && b.availableQuantity > 0).length || 1;
+    const batchVelocityMin = velocityMin / activeBatchesCount;
+    
+    const minutesLeft = Math.ceil(batch.availableQuantity / batchVelocityMin);
+    if (minutesLeft > 1440) return 'Mais de 24 horas restantes';
+    if (minutesLeft > 60) {
+      const hrs = Math.floor(minutesLeft / 60);
+      const mins = minutesLeft % 60;
+      return `Previsão: Esgota em ~${hrs}h e ${mins}m`;
+    }
+    return `Crítico: Lote esgotará em ~${minutesLeft} minutos`;
+  };
+
   // Loading Screen
   if (loading && !data) {
     return (
@@ -173,12 +253,13 @@ export default function OverviewPage() {
   const activeCheckoutLocks = data?.activeCheckoutLocks || 0;
   const currentRps = (activeCheckoutLocks * 1.3 + 1.2).toFixed(1);
   const stressPercent = Math.min(100, Math.floor((activeCheckoutLocks / 10) * 100));
-  const stressStatus = activeCheckoutLocks >= 8 ? 'Sob Recarga / Pico' : activeCheckoutLocks >= 4 ? 'Moderado' : 'Estável';
   const stressColor = activeCheckoutLocks >= 8 ? 'text-red-500' : activeCheckoutLocks >= 4 ? 'text-amber-400' : 'text-emerald-400';
+  const stressStatus = activeCheckoutLocks >= 8 ? 'Sob Recarga / Pico' : activeCheckoutLocks >= 4 ? 'Moderado' : 'Estável';
 
   return (
     <Layout>
       <div className="h-[calc(100vh-80px)] flex flex-col justify-between overflow-hidden relative">
+
         
         {/* TOP COMMAND PANEL CONTROLS */}
         <div className="flex justify-between items-center pb-4 border-b border-cosmic-border flex-shrink-0">
@@ -254,6 +335,60 @@ export default function OverviewPage() {
           </div>
         </div>
 
+        {/* CAMADA DE AÇÃO IMEDIATA (PANIC SWITCH & THROTTLE SLIDER) */}
+        <div className="bg-[#18181B] border border-red-500/20 rounded-md p-4 mt-3 flex-shrink-0 flex flex-col md:flex-row items-center justify-between gap-4 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-red-500 via-[#9146FF] to-red-500" />
+          <div className="flex items-center gap-3">
+            <span className="w-8 h-8 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-500 shrink-0">
+              <FaPowerOff className="w-4 h-4 animate-pulse" />
+            </span>
+            <div>
+              <h3 className="text-xs uppercase font-extrabold text-[#EFEFF1] tracking-wider leading-none">Camada de Ação Imediata (Controles de Pânico)</h3>
+              <p className="text-[10px] text-[#ADADB8] mt-1 font-medium">Controle de limite de checkout simultâneo e bloqueio total de vendas em emergência.</p>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center gap-6 w-full md:w-auto">
+            {/* Throttle Input Slider */}
+            <div className="flex items-center gap-3 w-full sm:w-64">
+              <span className="text-[10px] uppercase font-bold text-[#ADADB8] shrink-0 font-mono">Throttle: {localThrottle} checkouts</span>
+              <input
+                type="range"
+                min="10"
+                max="1000"
+                step="10"
+                value={localThrottle}
+                onMouseDown={() => { isDraggingRef.current = true; }}
+                onChange={(e) => setLocalThrottle(parseInt(e.target.value, 10))}
+                onMouseUp={() => {
+                  isDraggingRef.current = false;
+                  handleUpdateThrottle(localThrottle);
+                }}
+                onTouchStart={() => { isDraggingRef.current = true; }}
+                onTouchEnd={() => {
+                  isDraggingRef.current = false;
+                  handleUpdateThrottle(localThrottle);
+                }}
+                className="w-full h-1 bg-[#1F1F23] rounded-lg appearance-none cursor-pointer accent-[#9146FF]"
+              />
+            </div>
+
+            {/* Global Pause Button (Panic Switch) */}
+            <button
+              onClick={handleToggleGlobalPause}
+              disabled={updatingSettings}
+              className={`w-full sm:w-auto px-5 py-2 rounded-[4px] text-xs font-bold uppercase tracking-wider transition-all duration-75 cursor-pointer active:scale-95 border flex items-center justify-center gap-2 ${
+                globalPaused
+                  ? 'bg-[#EB0400] border-[#FF4D4D] text-white animate-pulse'
+                  : 'bg-[#EB0400]/10 border-[#EB0400]/30 text-[#EB0400] hover:bg-[#EB0400]/20'
+              }`}
+            >
+              <FaPowerOff className="w-3.5 h-3.5" />
+              {globalPaused ? 'Vendas Suspensas' : 'Pausar Vendas'}
+            </button>
+          </div>
+        </div>
+
         {error && (
           <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs p-4 rounded-xl flex-shrink-0 my-3">
             {error}
@@ -266,8 +401,26 @@ export default function OverviewPage() {
             .filter(key => visibleWidgets[key])
             .map(key => {
               if (key === 'health') {
+                const hits = data?.cacheStats?.hits || 0;
+                const misses = data?.cacheStats?.misses || 0;
+                const totalCache = hits + misses;
+                const cacheHitRatio = totalCache > 0 ? ((hits / totalCache) * 100).toFixed(1) : '100.0';
+
+                // Desenhar gráfico SVG dinâmico
+                const latencyList = data?.latencyHistory || [5, 5, 5];
+                const points = latencyList
+                  .slice()
+                  .reverse()
+                  .map((val: number, i: number, arr: number[]) => {
+                    const x = (i / Math.max(1, arr.length - 1)) * 100;
+                    const maxVal = Math.max(...arr, 50); // Mínimo de escala a 50ms
+                    const y = 35 - (val / maxVal) * 30;
+                    return `${x},${y}`;
+                  })
+                  .join(' ');
+
                 return (
-                  <div key={key} className="col-span-12 xl:col-span-4 h-[39vh] bg-cosmic-slate border border-cosmic-border rounded-md p-5 flex flex-col justify-between relative overflow-hidden transition-all duration-75 hover:shadow-[0_0_0_2px_#9146FF] hover:border-transparent">
+                  <div key={key} className="col-span-12 xl:col-span-4 h-[34vh] bg-cosmic-slate border border-cosmic-border rounded-md p-5 flex flex-col justify-between relative overflow-hidden transition-all duration-75 hover:shadow-[0_0_0_2px_#9146FF] hover:border-transparent">
                     <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-cosmic-neon/5 blur-[50px] pointer-events-none" />
                     <div>
                       <h3 className="text-xs uppercase font-bold text-[#ADADB8] tracking-wider flex items-center gap-1.5 leading-none">
@@ -275,47 +428,77 @@ export default function OverviewPage() {
                         Saúde Operacional
                       </h3>
                       
-                      <div className="grid grid-cols-2 gap-4 mt-4">
+                      <div className="grid grid-cols-3 gap-2 mt-3.5">
                         <div>
-                          <span className="text-[10px] uppercase font-bold text-[#ADADB8] block leading-none">Faturamento</span>
-                          <span className="text-xl font-mono font-black text-[#EFEFF1] mt-1 block">
+                          <span className="text-[9px] uppercase font-bold text-[#ADADB8] block leading-none">Faturamento</span>
+                          <span className="text-base font-mono font-black text-[#EFEFF1] mt-1 block truncate">
                             R$ {data?.grossRevenue.toFixed(2).replace('.', ',')}
                           </span>
                         </div>
                         <div>
-                          <span className="text-[10px] uppercase font-bold text-[#ADADB8] block leading-none">Conversão</span>
-                          <span className="text-xl font-mono font-black text-[#EFEFF1] mt-1 block">
+                          <span className="text-[9px] uppercase font-bold text-[#ADADB8] block leading-none">Conversão</span>
+                          <span className="text-base font-mono font-black text-[#EFEFF1] mt-1 block truncate">
                             {data?.conversionRate.toFixed(1)}%
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[9px] uppercase font-bold text-[#ADADB8] block leading-none">Redis Cache</span>
+                          <span className="text-base font-mono font-black text-[#00C853] mt-1 block truncate">
+                            {cacheHitRatio}%
                           </span>
                         </div>
                       </div>
                       
-                      {/* Stress Load Radial/Progress Indicator */}
-                      <div className="mt-5 border-t border-cosmic-border pt-4 space-y-2">
-                        <div className="flex justify-between items-center text-xs">
+                      {/* Gráfico SVG de Latência de API */}
+                      <div className="mt-4 border-t border-cosmic-border/60 pt-3">
+                        <div className="flex justify-between items-center text-[10px] mb-1.5">
+                          <span className="text-[#ADADB8] font-bold">Latência de API (últimos 20 polls)</span>
+                          <span className="text-white font-mono font-bold">Média: {(latencyList.reduce((a:number,b:number)=>a+b, 0) / Math.max(1, latencyList.length)).toFixed(0)}ms</span>
+                        </div>
+                        <div className="w-full bg-[#0E0E10] rounded border border-cosmic-border/30 h-14 overflow-hidden relative p-1">
+                          {latencyList.length > 1 ? (
+                            <svg className="w-full h-full overflow-visible" viewBox="0 0 100 35" preserveAspectRatio="none">
+                              <defs>
+                                <linearGradient id="latencyGrad" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor="#9146FF" stopOpacity="0.4" />
+                                  <stop offset="100%" stopColor="#9146FF" stopOpacity="0.0" />
+                                </linearGradient>
+                              </defs>
+                              <polygon
+                                fill="url(#latencyGrad)"
+                                points={`0,35 ${points} 100,35`}
+                              />
+                              <polyline
+                                fill="none"
+                                stroke="#9146FF"
+                                strokeWidth="1.5"
+                                points={points}
+                              />
+                            </svg>
+                          ) : (
+                            <div className="h-full flex items-center justify-center text-[9px] text-neutral-600 font-mono">Gerando gráfico...</div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Stress de Lotação (RPS) */}
+                      <div className="mt-3.5 border-t border-cosmic-border/60 pt-3 space-y-1">
+                        <div className="flex justify-between items-center text-[10px]">
                           <span className="text-[#ADADB8] font-bold flex items-center gap-1">
                             <FaGauge className="w-3.5 h-3.5" />
                             Stress de Lotação (RPS)
                           </span>
                           <span className={`font-black uppercase tracking-wider ${stressColor}`}>{stressStatus}</span>
                         </div>
-                        <div className="w-full bg-[#0E0E10] rounded-full h-2 max-w-xs overflow-hidden">
+                        <div className="w-full bg-[#0E0E10] rounded-full h-1.5 overflow-hidden">
                           <div
                             className={`h-full transition-all duration-1000 ${
-                              activeCheckoutLocks >= 8 ? 'bg-[#EB0400] shadow-[0_0_10px_rgba(235,4,0,0.5)]' : activeCheckoutLocks >= 4 ? 'bg-[#FFCA28] shadow-[0_0_10px_rgba(255,202,40,0.5)]' : 'bg-[#00C853] shadow-[0_0_10px_rgba(0,200,83,0.5)]'
+                              activeCheckoutLocks >= 8 ? 'bg-[#EB0400]' : activeCheckoutLocks >= 4 ? 'bg-[#FFCA28]' : 'bg-[#00C853]'
                             }`}
                             style={{ width: `${stressPercent}%` }}
                           />
                         </div>
-                        <span className="text-[10px] text-[#ADADB8] font-semibold block">
-                          Carga estimada: <strong className="text-[#EFEFF1] font-mono font-bold">{currentRps} req/s</strong> ({activeCheckoutLocks} locks checkout ativos)
-                        </span>
                       </div>
-                    </div>
-                    
-                    <div className="text-[10px] text-[#ADADB8] font-bold border-t border-cosmic-border pt-3 flex items-center gap-1.5 leading-none">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#00C853] animate-pulse" />
-                      Métricas em tempo real atualizadas a cada 4s
                     </div>
                   </div>
                 );
@@ -323,7 +506,7 @@ export default function OverviewPage() {
 
               if (key === 'batches') {
                 return (
-                  <div key={key} className="col-span-12 xl:col-span-4 h-[39vh] bg-cosmic-slate border border-cosmic-border rounded-md p-5 flex flex-col relative overflow-hidden transition-all duration-75 hover:shadow-[0_0_0_2px_#9146FF] hover:border-transparent">
+                  <div key={key} className="col-span-12 xl:col-span-4 h-[34vh] bg-cosmic-slate border border-cosmic-border rounded-md p-5 flex flex-col relative overflow-hidden transition-all duration-75 hover:shadow-[0_0_0_2px_#9146FF] hover:border-transparent">
                     <h3 className="text-xs uppercase font-bold text-[#ADADB8] tracking-wider flex items-center gap-1.5 leading-none flex-shrink-0">
                       <FaPowerOff className="text-cosmic-neon w-3.5 h-3.5" />
                       Controle Lotes Ativos
@@ -333,9 +516,10 @@ export default function OverviewPage() {
                       {data?.batches.map((batch: any) => {
                         const sold = batch.totalQuantity - batch.availableQuantity;
                         const percent = Math.floor((sold / batch.totalQuantity) * 100);
+                        const selloutInfo = calculateSellOut(batch);
                         return (
                           <div key={batch.id} className="p-3 bg-[#1F1F23]/60 rounded-md border border-cosmic-border flex justify-between items-center transition-all duration-75 hover:bg-[#1F1F23]">
-                            <div className="space-y-1 pr-2 min-w-0">
+                            <div className="space-y-1 pr-2 min-w-0 flex-1">
                               <div className="flex items-center gap-2">
                                 <h4 className="text-xs font-extrabold text-[#EFEFF1] truncate leading-none">{batch.name}</h4>
                                 <span className="text-[9px] font-bold text-[#ADADB8] truncate leading-none uppercase max-w-[80px]" title={batch.eventTitle}>{batch.eventTitle}</span>
@@ -343,11 +527,15 @@ export default function OverviewPage() {
                               <span className="text-[10px] text-[#ADADB8] font-mono font-bold block">
                                 R$ {batch.price.toFixed(2).replace('.', ',')} &bull; {sold}/{batch.totalQuantity} vendidos ({percent}%)
                               </span>
+                              {/* Indicador de Previsão de Esgotamento */}
+                              <span className="text-[9px] font-bold text-cosmic-neon block mt-0.5 animate-pulse">
+                                {selloutInfo}
+                              </span>
                             </div>
                             
                             <button
                               onClick={() => handleToggleBatch(batch.id, batch.isActive)}
-                              className={`px-3 py-1.5 rounded-[4px] text-[10px] font-bold uppercase tracking-wider transition-all duration-75 cursor-pointer select-none active:scale-95 border ${
+                              className={`px-3 py-1.5 rounded-[4px] text-[10px] font-bold uppercase tracking-wider transition-all duration-75 cursor-pointer select-none active:scale-95 border shrink-0 ${
                                 batch.isActive
                                   ? 'bg-[#00C853]/10 border-[#00C853]/30 text-[#00C853] hover:bg-[#00C853]/20'
                                   : 'bg-[#EB0400]/10 border-[#EB0400]/30 text-[#EB0400] hover:bg-[#EB0400]/20'
@@ -364,22 +552,90 @@ export default function OverviewPage() {
               }
 
               if (key === 'validation') {
+                const queueList = data?.queueSizeHistory || [0, 0, 0];
+                const queuePoints = queueList
+                  .slice()
+                  .reverse()
+                  .map((val: number, i: number, arr: number[]) => {
+                    const x = (i / Math.max(1, arr.length - 1)) * 100;
+                    const maxVal = Math.max(...arr, 5); // Fila mínima escala de 5
+                    const y = 30 - (val / maxVal) * 26;
+                    return `${x},${y}`;
+                  })
+                  .join(' ');
+
+                // Busca rápida baseada em CPF / Nome
+                const filteredQueue = data?.validationQueue.filter((ticket: any) => {
+                  const query = searchQuery.toLowerCase();
+                  return (
+                    (ticket.buyerName || '').toLowerCase().includes(query) ||
+                    (ticket.holderName || '').toLowerCase().includes(query) ||
+                    (ticket.buyerCpf || '').includes(query) ||
+                    (ticket.holderCpf || '').includes(query)
+                  );
+                }) || [];
+
                 return (
-                  <div key={key} className="col-span-12 xl:col-span-4 h-[83vh] xl:row-span-2 bg-cosmic-slate border border-cosmic-border rounded-md p-5 flex flex-col relative overflow-hidden transition-all duration-75 hover:shadow-[0_0_0_2px_#9146FF] hover:border-transparent">
+                  <div key={key} className="col-span-12 xl:col-span-4 h-[71vh] xl:row-span-2 bg-cosmic-slate border border-cosmic-border rounded-md p-5 flex flex-col relative overflow-hidden transition-all duration-75 hover:shadow-[0_0_0_2px_#9146FF] hover:border-transparent">
                     <h3 className="text-xs uppercase font-bold text-[#ADADB8] tracking-wider flex items-center gap-1.5 leading-none flex-shrink-0">
                       <FaAddressCard className="text-cosmic-neon w-3.5 h-3.5" />
                       Validação de Meia-Entrada
                     </h3>
+
+                    {/* Minigráfico de Crescimento de Fila */}
+                    <div className="mt-3 bg-[#0E0E10] border border-cosmic-border/30 rounded p-3 flex-shrink-0 flex items-center justify-between gap-4">
+                      <div>
+                        <span className="text-[9px] uppercase font-bold text-[#ADADB8] block leading-none">Fila Pendente</span>
+                        <span className="text-base font-mono font-black text-[#EFEFF1] block mt-1.5">
+                          {data?.validationQueue?.length || 0} pendentes
+                        </span>
+                      </div>
+                      <div className="w-32 h-8 overflow-hidden relative">
+                        {queueList.length > 1 ? (
+                          <svg className="w-full h-full overflow-visible" viewBox="0 0 100 30" preserveAspectRatio="none">
+                            <defs>
+                              <linearGradient id="queueGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#00C853" stopOpacity="0.4" />
+                                <stop offset="100%" stopColor="#00C853" stopOpacity="0" />
+                              </linearGradient>
+                            </defs>
+                            <polygon
+                              fill="url(#queueGrad)"
+                              points={`0,30 ${queuePoints} 100,30`}
+                            />
+                            <polyline
+                              fill="none"
+                              stroke="#00C853"
+                              strokeWidth="1.5"
+                              points={queuePoints}
+                            />
+                          </svg>
+                        ) : (
+                          <span className="text-[8px] text-neutral-600 font-mono">Gerando...</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Filtros de Busca Rápida */}
+                    <div className="mt-3 flex-shrink-0">
+                      <input
+                        type="text"
+                        placeholder="Buscar CPF ou nome..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full bg-[#18181B] border border-cosmic-border rounded-[4px] px-3 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-[#9146FF] transition-all"
+                      />
+                    </div>
                     
-                    <div className="flex-grow overflow-y-auto mt-4 pr-1 space-y-3.5">
-                      {data?.validationQueue.length === 0 ? (
-                        <div className="h-[60vh] flex flex-col items-center justify-center text-center p-6 space-y-3 text-[#ADADB8]">
+                    <div className="flex-grow overflow-y-auto mt-3 pr-1 space-y-3.5">
+                      {filteredQueue.length === 0 ? (
+                        <div className="h-[30vh] flex flex-col items-center justify-center text-center p-6 space-y-3 text-[#ADADB8]">
                           <FaUserCheck className="w-10 h-10 text-neutral-600" />
                           <p className="text-xs font-bold uppercase tracking-wider leading-none">Nenhuma pendência</p>
-                          <p className="text-[10px] font-medium leading-relaxed max-w-[180px] mx-auto text-neutral-600">Todos os ingressos de estudante já foram validados ou não há compras recentes.</p>
+                          <p className="text-[10px] font-medium leading-relaxed max-w-[180px] mx-auto text-neutral-600">Não há registros na fila ou filtros ativos não encontraram correspondências.</p>
                         </div>
                       ) : (
-                        data?.validationQueue.map((ticket: any) => (
+                        filteredQueue.map((ticket: any) => (
                           <div key={ticket.id} className="p-3 bg-[#1F1F23]/60 rounded-md border border-cosmic-border flex flex-col justify-between space-y-3 transition-all duration-75 hover:bg-[#1F1F23]">
                             <div className="space-y-1 text-xs">
                               <div className="flex justify-between items-start">
@@ -419,51 +675,85 @@ export default function OverviewPage() {
 
               if (key === 'checkin') {
                 return (
-                  <div key={key} className="col-span-12 xl:col-span-4 h-[39vh] bg-cosmic-slate border border-cosmic-border rounded-md p-5 flex flex-col justify-between relative overflow-hidden transition-all duration-75 hover:shadow-[0_0_0_2px_#9146FF] hover:border-transparent">
+                  <div key={key} className="col-span-12 xl:col-span-4 h-[34vh] bg-cosmic-slate border border-cosmic-border rounded-md p-5 flex flex-col justify-between relative overflow-hidden transition-all duration-75 hover:shadow-[0_0_0_2px_#9146FF] hover:border-transparent">
                     <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-cosmic-neon/5 blur-[50px] pointer-events-none" />
-                    <div>
-                      <h3 className="text-xs uppercase font-bold text-[#ADADB8] tracking-wider flex items-center gap-1.5 leading-none">
-                        <FaUserCheck className="text-cosmic-neon w-3.5 h-3.5" />
-                        Fluxo de Portaria
-                      </h3>
+                    <div className="flex flex-col h-full justify-between">
+                      <div className="flex justify-between items-start flex-shrink-0">
+                        <h3 className="text-xs uppercase font-bold text-[#ADADB8] tracking-wider flex items-center gap-1.5 leading-none">
+                          <FaUserCheck className="text-cosmic-neon w-3.5 h-3.5" />
+                          Fluxo de Portaria
+                        </h3>
+
+                        {/* Indicador de Fraudes na Portaria */}
+                        {data?.deniedAttempts > 0 ? (
+                          <span className="px-2 py-0.5 rounded-[2px] bg-[#EB0400]/10 border border-[#EB0400]/30 text-[#EB0400] text-[8px] font-black uppercase tracking-wider animate-pulse flex items-center gap-1">
+                            <span className="w-1 h-1 rounded-full bg-[#EB0400]" />
+                            {data.deniedAttempts} Fraudes Bloqueadas
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-[2px] bg-[#00C853]/10 border border-[#00C853]/20 text-[#00C853] text-[8px] font-bold uppercase tracking-wider flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#00C853] animate-pulse" />
+                            Ambiente Seguro
+                          </span>
+                        )}
+                      </div>
                       
-                      <div className="flex gap-4 items-center mt-5">
+                      <div className="flex gap-4 items-center mt-3">
                         {/* Entry circular percentage indicator */}
-                        <div className="relative w-20 h-20 flex items-center justify-center shrink-0">
+                        <div className="relative w-14 h-14 flex items-center justify-center shrink-0">
                           <svg className="absolute inset-0 w-full h-full transform -rotate-90">
-                            <circle cx="40" cy="40" r="34" className="stroke-neutral-800" strokeWidth="4" fill="transparent" />
+                            <circle cx="28" cy="28" r="24" className="stroke-neutral-800" strokeWidth="3" fill="transparent" />
                             <circle
-                              cx="40"
-                              cy="40"
-                              r="34"
+                              cx="28"
+                              cy="28"
+                              r="24"
                               className="stroke-cosmic-neon transition-all duration-75 ease-linear"
-                              strokeWidth="4"
+                              strokeWidth="3"
                               strokeLinecap="round"
                               fill="transparent"
-                              strokeDasharray={213}
+                              strokeDasharray={151}
                               strokeDashoffset={
-                                213 - (213 * (data?.ticketsSold > 0 ? (data.checkInsCount / data.ticketsSold) * 100 : 0)) / 100
+                                151 - (151 * (data?.ticketsSold > 0 ? (data.checkInsCount / data.ticketsSold) * 100 : 0)) / 100
                               }
                             />
                           </svg>
-                          <span className="text-sm font-mono font-black text-[#EFEFF1] leading-none">
+                          <span className="text-[10px] font-mono font-black text-[#EFEFF1] leading-none">
                             {data?.ticketsSold > 0 ? Math.floor((data.checkInsCount / data.ticketsSold) * 100) : 0}%
                           </span>
                         </div>
                         
-                        <div className="space-y-1">
-                          <span className="text-[10px] uppercase font-bold text-[#ADADB8] block leading-none">Pessoas no Evento</span>
-                          <span className="text-xl font-mono font-black text-[#EFEFF1] block">
-                            {data?.checkInsCount} <span className="text-xs font-bold text-[#ADADB8]">/ {data?.ticketsSold}</span>
+                        <div className="space-y-0.5">
+                          <span className="text-[9px] uppercase font-bold text-[#ADADB8] block leading-none">Pessoas no Evento</span>
+                          <span className="text-sm font-mono font-black text-[#EFEFF1] block">
+                            {data?.checkInsCount} <span className="text-[10px] font-bold text-[#ADADB8]">/ {data?.ticketsSold}</span>
                           </span>
-                          <span className="text-[10px] text-[#ADADB8] block font-semibold leading-normal">Check-ins sincronizados via PWA Staff.</span>
+                          <span className="text-[9px] text-[#ADADB8] block font-semibold leading-none">Check-ins via PWA Staff.</span>
                         </div>
                       </div>
-                    </div>
-                    
-                    <div className="text-[10px] text-[#ADADB8] font-bold border-t border-cosmic-border pt-3 flex items-center gap-1.5 leading-none flex-shrink-0">
-                      <span className="w-1.5 h-1.5 rounded-full bg-cosmic-neon animate-pulse" />
-                      Sincronização off-line garantida pelo worker
+
+                      {/* Status de Sincronismo dos Scanners */}
+                      <div className="mt-3 border-t border-cosmic-border/60 pt-2 flex-grow overflow-y-auto space-y-1">
+                        <span className="text-[8px] uppercase font-black text-[#ADADB8] block tracking-wide">Scanners de Staff Ativos</span>
+                        {(!data?.staffDevices || data.staffDevices.length === 0) ? (
+                          <div className="text-[9px] text-neutral-600 italic mt-1">Nenhum scanner conectado nas últimas horas.</div>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-1.5 mt-1">
+                            {data.staffDevices.map((device: any) => (
+                              <div key={device.deviceId} className="flex justify-between items-center text-[9px] bg-[#18181B]/80 p-1 rounded border border-cosmic-border">
+                                <div className="truncate pr-1">
+                                  <span className="text-[#EFEFF1] font-bold block truncate">{device.deviceName}</span>
+                                  <span className="text-[7.5px] text-neutral-500 font-mono">Sync: {new Date(device.lastSyncTime).toLocaleTimeString('pt-BR')}</span>
+                                </div>
+                                <span className={`px-1 rounded-[2px] font-mono text-[8px] font-bold shrink-0 ${
+                                  device.pendingSyncCount > 0 ? 'bg-amber-500/10 border border-amber-500/20 text-amber-500 animate-pulse' : 'bg-[#00C853]/10 border border-[#00C853]/20 text-[#00C853]'
+                                }`}>
+                                  {device.pendingSyncCount} pend
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -471,7 +761,7 @@ export default function OverviewPage() {
 
               if (key === 'audit') {
                 return (
-                  <div key={key} className="col-span-12 xl:col-span-4 h-[39vh] bg-cosmic-slate border border-cosmic-border rounded-md p-5 flex flex-col relative overflow-hidden transition-all duration-75 hover:shadow-[0_0_0_2px_#9146FF] hover:border-transparent">
+                  <div key={key} className="col-span-12 xl:col-span-4 h-[34vh] bg-cosmic-slate border border-cosmic-border rounded-md p-5 flex flex-col relative overflow-hidden transition-all duration-75 hover:shadow-[0_0_0_2px_#9146FF] hover:border-transparent">
                     <h3 className="text-xs uppercase font-bold text-[#ADADB8] tracking-wider flex items-center gap-1.5 leading-none flex-shrink-0">
                       <FaWallet className="text-cosmic-neon w-3.5 h-3.5" />
                       Fluxo de Vendas Recentes
@@ -479,7 +769,7 @@ export default function OverviewPage() {
                     
                     <div className="flex-grow overflow-y-auto mt-4 pr-1 space-y-2.5">
                       {!data?.recentSales || data.recentSales.length === 0 ? (
-                        <div className="h-[25vh] flex flex-col items-center justify-center text-center p-4 space-y-2 text-[#ADADB8]">
+                        <div className="h-[20vh] flex flex-col items-center justify-center text-center p-4 space-y-2 text-[#ADADB8]">
                           <p className="text-[10px] font-bold uppercase tracking-wider">Nenhuma venda registrada</p>
                           <p className="text-[9px] font-medium leading-relaxed max-w-[150px] mx-auto text-neutral-600">Aguardando novos pedidos de clientes.</p>
                         </div>
@@ -516,10 +806,11 @@ export default function OverviewPage() {
         {/* BOTTOM FOOTER */}
         <div className="flex justify-between items-center text-[10px] text-neutral-600 border-t border-neutral-900/60 pt-3 flex-shrink-0">
           <span>&copy; {new Date().getFullYear()} Flux Tickets. Todos os direitos reservados.</span>
-          <span>Versão Operacional v1.2.0 (Build Produtor)</span>
+          <span>Versão Operacional v1.3.0 (Build Produtor)</span>
         </div>
         
       </div>
     </Layout>
   );
 }
+

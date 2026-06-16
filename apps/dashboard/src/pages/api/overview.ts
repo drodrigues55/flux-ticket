@@ -153,6 +153,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       };
     });
 
+    // Buscar id do primeiro evento ativo para passar à telemetria de portaria/scanners
+    const activeEvent = await prisma.event.findFirst({
+      where: { organizerId: organizer.id },
+      orderBy: { date: 'asc' },
+    });
+    const eventId = activeEvent?.id || '';
+
+    let telemetryData: any = {};
+    try {
+      const apiWriteUrl = process.env.API_WRITE_URL || 'http://localhost:4000';
+      const telemetryRes = await fetch(`${apiWriteUrl}/telemetry?eventId=${eventId}`);
+      if (telemetryRes.ok) {
+        telemetryData = await telemetryRes.json();
+      }
+    } catch (err) {
+      console.error('[TELEMETRY FETCH ERROR] Failed to fetch telemetry from api-write:', err);
+    }
+
     return res.status(200).json({
       grossRevenue,
       ticketsSold,
@@ -163,7 +181,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       validationQueue: serializedValidationQueue,
       checkInsCount,
       recentSales: serializedRecentSales,
+      // Configurações & telemetria do Redis
+      checkoutLimit: telemetryData.checkoutLimit ?? 1000,
+      salesPaused: telemetryData.salesPaused ?? false,
+      deniedAttempts: telemetryData.deniedAttempts ?? 0,
+      staffDevices: telemetryData.staffDevices ?? [],
+      cacheStats: telemetryData.cacheStats ?? { hits: 0, misses: 0 },
+      latencyHistory: telemetryData.latencyHistory ?? [],
+      queueSizeHistory: telemetryData.queueSizeHistory ?? [],
     });
+
   } catch (error: any) {
     console.error('[OVERVIEW API ERROR]', error);
     return res.status(500).json({ error: 'Erro interno ao carregar estatísticas do painel.' });

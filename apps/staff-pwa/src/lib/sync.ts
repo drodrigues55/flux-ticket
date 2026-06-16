@@ -10,12 +10,24 @@ export async function syncOfflineMutations(eventId: string): Promise<{ success: 
       .equals('PENDING_SYNC')
       .toArray();
 
-    if (pending.length === 0) {
-      return { success: true, count: 0, message: 'Nenhum check-in pendente de sincronização.' };
-    }
-
     const ticketIds = pending.map(record => record.ticket_id);
     console.log(`[SYNC] Tentando sincronizar ${ticketIds.length} check-ins para o evento ${eventId}...`);
+
+    // Obter ou gerar identificador do dispositivo no localStorage
+    let deviceId = '';
+    let deviceName = '';
+    if (typeof window !== 'undefined') {
+      deviceId = localStorage.getItem('flux_device_id') || '';
+      if (!deviceId) {
+        deviceId = 'dev-' + Math.random().toString(36).substring(2, 9) + '-' + Date.now().toString(36);
+        localStorage.setItem('flux_device_id', deviceId);
+      }
+      deviceName = localStorage.getItem('flux_device_name') || '';
+      if (!deviceName) {
+        deviceName = `Scanner-${deviceId.substring(4, 8).toUpperCase()}`;
+        localStorage.setItem('flux_device_name', deviceName);
+      }
+    }
 
     // Faz a chamada para a nossa rota de API Next.js que atua como proxy para a api-write
     const response = await fetch(`/api/events/${eventId}/staff-mutation`, {
@@ -23,7 +35,12 @@ export async function syncOfflineMutations(eventId: string): Promise<{ success: 
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ ticketIds }),
+      body: JSON.stringify({
+        ticketIds,
+        deviceId,
+        deviceName,
+        pendingCount: pending.length
+      }),
     });
 
     if (!response.ok) {
@@ -32,17 +49,22 @@ export async function syncOfflineMutations(eventId: string): Promise<{ success: 
 
     const data = await response.json();
     if (data.success) {
-      // Sincronização com sucesso: podemos deletar os registros processados da fila local
-      await db.mutationQueue.bulkDelete(ticketIds);
+      if (ticketIds.length > 0) {
+        // Sincronização com sucesso: podemos deletar os registros processados da fila local
+        await db.mutationQueue.bulkDelete(ticketIds);
+      }
       console.log(`[SYNC] ${ticketIds.length} check-ins sincronizados com sucesso.`);
       return {
         success: true,
         count: ticketIds.length,
-        message: `${ticketIds.length} check-ins sincronizados com o servidor relacional.`,
+        message: ticketIds.length > 0
+          ? `${ticketIds.length} check-ins sincronizados com o servidor relacional.`
+          : 'Scanner registrado / Batimento de coração ativo.',
       };
     } else {
       throw new Error('Sincronização rejeitada pelo backend.');
     }
+
   } catch (error: any) {
     console.error('[SYNC ERROR] Falha ao sincronizar check-ins offline:', error);
     return {

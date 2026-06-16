@@ -26,9 +26,15 @@ let CheckoutController = class CheckoutController {
      * Endpoint de Mutação de Borda: Chamado quando o PWA envia os check-ins offline em massa.
      */
     async staffMutation(eventId, body) {
-        const { ticketIds } = body;
+        const { ticketIds, deviceId, deviceName, pendingCount } = body;
+        if (deviceId && deviceName) {
+            await this.checkoutService.fluxEngine.registerStaffDevice(eventId, deviceId, deviceName, pendingCount || 0);
+        }
         if (!Array.isArray(ticketIds) || ticketIds.length === 0) {
-            throw new common_1.BadRequestException('ticketIds deve ser um array não vazio.');
+            return {
+                success: true,
+                count: 0,
+            };
         }
         // Executa a mutação em massa no Postgres
         const result = await database_1.prisma.ticket.updateMany({
@@ -45,6 +51,28 @@ let CheckoutController = class CheckoutController {
             success: true,
             count: result.count,
         };
+    }
+    async setThrottle(body) {
+        if (body.limit === undefined || body.limit < 0) {
+            throw new common_1.BadRequestException('limit deve ser maior ou igual a 0.');
+        }
+        await this.checkoutService.fluxEngine.setCheckoutLimit(body.limit);
+        return { success: true, limit: body.limit };
+    }
+    async setPause(body) {
+        if (body.paused === undefined) {
+            throw new common_1.BadRequestException('paused é obrigatório.');
+        }
+        await this.checkoutService.fluxEngine.setSalesPaused(body.paused);
+        return { success: true, paused: body.paused };
+    }
+    async scanFail(eventId, body) {
+        const increment = body.count || 1;
+        let finalCount = 0;
+        for (let i = 0; i < increment; i++) {
+            finalCount = await this.checkoutService.fluxEngine.incrementDeniedAttempts(eventId);
+        }
+        return { success: true, deniedAttempts: finalCount };
     }
     /**
      * Endpoint de Renovação de Lock: Chamado pelo hook React useTicketLock para evitar a expiração da reserva.
@@ -129,6 +157,44 @@ let CheckoutController = class CheckoutController {
             userId: user.id,
         };
     }
+    async getTelemetry(eventId) {
+        const startTime = Date.now();
+        // 1. Obter configurações
+        const checkoutLimit = await this.checkoutService.fluxEngine.getCheckoutLimit();
+        const salesPaused = await this.checkoutService.fluxEngine.isSalesPaused();
+        // 2. Obter tentativas negadas e dispositivos de staff
+        let deniedAttempts = 0;
+        let staffDevices = [];
+        if (eventId) {
+            deniedAttempts = await this.checkoutService.fluxEngine.getDeniedAttempts(eventId);
+            staffDevices = await this.checkoutService.fluxEngine.getStaffDevices(eventId);
+        }
+        // 3. Obter estatísticas do Cache do Redis
+        const cacheStats = await this.checkoutService.fluxEngine.getRedisInfoStats();
+        // 4. Obter/atualizar histórico da fila de validação
+        const queueSize = await database_1.prisma.ticket.count({
+            where: {
+                status: 'PENDING_VALIDATION',
+                buyerCpf: { not: '000.000.000-00' },
+            },
+        });
+        await this.checkoutService.fluxEngine.addQueueSizeMetric(queueSize);
+        // 5. Obter históricos
+        const latencyHistory = await this.checkoutService.fluxEngine.getLatencyHistory();
+        const queueSizeHistory = await this.checkoutService.fluxEngine.getQueueSizeHistory();
+        // Registrar latência deste request
+        const elapsed = Date.now() - startTime;
+        await this.checkoutService.fluxEngine.addLatencyMetric(elapsed === 0 ? 1 : elapsed);
+        return {
+            checkoutLimit,
+            salesPaused,
+            deniedAttempts,
+            staffDevices,
+            cacheStats,
+            latencyHistory,
+            queueSizeHistory,
+        };
+    }
 };
 exports.CheckoutController = CheckoutController;
 __decorate([
@@ -140,6 +206,28 @@ __decorate([
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], CheckoutController.prototype, "staffMutation", null);
+__decorate([
+    (0, common_1.Post)('settings/throttle'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], CheckoutController.prototype, "setThrottle", null);
+__decorate([
+    (0, common_1.Post)('settings/pause'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], CheckoutController.prototype, "setPause", null);
+__decorate([
+    (0, common_1.Post)('events/:id/scan-fail'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], CheckoutController.prototype, "scanFail", null);
 __decorate([
     (0, common_1.Post)('tickets/renew-lock'),
     __param(0, (0, common_1.Body)()),
@@ -154,6 +242,13 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], CheckoutController.prototype, "reserve", null);
+__decorate([
+    (0, common_1.Get)('telemetry'),
+    __param(0, (0, common_1.Query)('eventId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], CheckoutController.prototype, "getTelemetry", null);
 exports.CheckoutController = CheckoutController = __decorate([
     (0, common_1.Controller)(),
     __metadata("design:paramtypes", [checkout_service_1.CheckoutService])

@@ -33,9 +33,28 @@ export class CheckoutService {
       throw new BadRequestException('Lote não encontrado.');
     }
 
+    // Verifica se as vendas estão suspensas globalmente
+    const isPaused = await this.fluxEngine.isSalesPaused();
+    if (isPaused) {
+      throw new BadRequestException('As vendas estão suspensas globalmente de forma temporária pelo organizador.');
+    }
+
+    // Verifica se o limite de conexões de checkout (throttle) foi atingido
+    const activeLocks = await prisma.ticket.count({
+      where: {
+        buyerCpf: '000.000.000-00',
+        expiresAt: { gt: new Date() },
+      },
+    });
+    const limit = await this.fluxEngine.getCheckoutLimit();
+    if (activeLocks >= limit) {
+      throw new BadRequestException('Fila de checkout cheia. Limite de acessos simultâneos atingido. Tente novamente em alguns segundos.');
+    }
+
     if (!batch.isActive) {
       throw new BadRequestException('As vendas para este lote estão pausadas temporariamente.');
     }
+
 
     // 0. Autoreparação: se o estoque não estiver inicializado no Redis (ex: após seed direto no banco), carrega do Postgres
     const isInitialized = await this.fluxEngine.isStockInitialized(data.batchId);

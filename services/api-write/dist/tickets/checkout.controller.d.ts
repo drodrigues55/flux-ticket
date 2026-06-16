@@ -8,9 +8,30 @@ export declare class CheckoutController {
     staffMutation(eventId: string, body: {
         ticketIds: string[];
         checkInTimestamp?: string;
+        deviceId?: string;
+        deviceName?: string;
+        pendingCount?: number;
     }): Promise<{
         success: boolean;
         count: number;
+    }>;
+    setThrottle(body: {
+        limit: number;
+    }): Promise<{
+        success: boolean;
+        limit: number;
+    }>;
+    setPause(body: {
+        paused: boolean;
+    }): Promise<{
+        success: boolean;
+        paused: boolean;
+    }>;
+    scanFail(eventId: string, body: {
+        count?: number;
+    }): Promise<{
+        success: boolean;
+        deniedAttempts: number;
     }>;
     /**
      * Endpoint de Renovação de Lock: Chamado pelo hook React useTicketLock para evitar a expiração da reserva.
@@ -34,6 +55,18 @@ export declare class CheckoutController {
     }): Promise<{
         ticketId: string;
         userId: string;
+    }>;
+    getTelemetry(eventId?: string): Promise<{
+        checkoutLimit: number;
+        salesPaused: boolean;
+        deniedAttempts: number;
+        staffDevices: any[];
+        cacheStats: {
+            hits: number;
+            misses: number;
+        };
+        latencyHistory: number[];
+        queueSizeHistory: number[];
     }>;
 }
 //# sourceMappingURL=checkout.controller.d.ts.map

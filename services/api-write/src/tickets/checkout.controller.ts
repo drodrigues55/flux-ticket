@@ -1,7 +1,8 @@
-import { Controller, Post, Param, Body, BadRequestException, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Param, Body, Query, BadRequestException, UseGuards } from '@nestjs/common';
 import { prisma } from '@flux/database';
 import { CheckoutService } from './checkout.service';
 import { StaffGuard } from './staff-guard';
+
 
 @Controller()
 export class CheckoutController {
@@ -14,12 +15,19 @@ export class CheckoutController {
   @UseGuards(StaffGuard)
   async staffMutation(
     @Param('id') eventId: string,
-    @Body() body: { ticketIds: string[]; checkInTimestamp?: string }
+    @Body() body: { ticketIds: string[]; checkInTimestamp?: string; deviceId?: string; deviceName?: string; pendingCount?: number }
   ) {
-    const { ticketIds } = body;
+    const { ticketIds, deviceId, deviceName, pendingCount } = body;
+    
+    if (deviceId && deviceName) {
+      await this.checkoutService.fluxEngine.registerStaffDevice(eventId, deviceId, deviceName, pendingCount || 0);
+    }
     
     if (!Array.isArray(ticketIds) || ticketIds.length === 0) {
-      throw new BadRequestException('ticketIds deve ser um array não vazio.');
+      return {
+        success: true,
+        count: 0,
+      };
     }
     
     // Executa a mutação em massa no Postgres
@@ -40,6 +48,38 @@ export class CheckoutController {
       count: result.count,
     };
   }
+
+  @Post('settings/throttle')
+  async setThrottle(@Body() body: { limit: number }) {
+    if (body.limit === undefined || body.limit < 0) {
+      throw new BadRequestException('limit deve ser maior ou igual a 0.');
+    }
+    await this.checkoutService.fluxEngine.setCheckoutLimit(body.limit);
+    return { success: true, limit: body.limit };
+  }
+
+  @Post('settings/pause')
+  async setPause(@Body() body: { paused: boolean }) {
+    if (body.paused === undefined) {
+      throw new BadRequestException('paused é obrigatório.');
+    }
+    await this.checkoutService.fluxEngine.setSalesPaused(body.paused);
+    return { success: true, paused: body.paused };
+  }
+
+  @Post('events/:id/scan-fail')
+  async scanFail(
+    @Param('id') eventId: string,
+    @Body() body: { count?: number }
+  ) {
+    const increment = body.count || 1;
+    let finalCount = 0;
+    for (let i = 0; i < increment; i++) {
+      finalCount = await this.checkoutService.fluxEngine.incrementDeniedAttempts(eventId);
+    }
+    return { success: true, deniedAttempts: finalCount };
+  }
+
 
   /**
    * Endpoint de Renovação de Lock: Chamado pelo hook React useTicketLock para evitar a expiração da reserva.
@@ -134,5 +174,55 @@ export class CheckoutController {
       userId: user.id,
     };
   }
+
+  @Get('telemetry')
+  async getTelemetry(
+    @Query('eventId') eventId?: string
+  ) {
+    const startTime = Date.now();
+
+    // 1. Obter configurações
+    const checkoutLimit = await this.checkoutService.fluxEngine.getCheckoutLimit();
+    const salesPaused = await this.checkoutService.fluxEngine.isSalesPaused();
+
+    // 2. Obter tentativas negadas e dispositivos de staff
+    let deniedAttempts = 0;
+    let staffDevices: any[] = [];
+    if (eventId) {
+      deniedAttempts = await this.checkoutService.fluxEngine.getDeniedAttempts(eventId);
+      staffDevices = await this.checkoutService.fluxEngine.getStaffDevices(eventId);
+    }
+
+    // 3. Obter estatísticas do Cache do Redis
+    const cacheStats = await this.checkoutService.fluxEngine.getRedisInfoStats();
+
+    // 4. Obter/atualizar histórico da fila de validação
+    const queueSize = await prisma.ticket.count({
+      where: {
+        status: 'PENDING_VALIDATION',
+        buyerCpf: { not: '000.000.000-00' },
+      },
+    });
+    await this.checkoutService.fluxEngine.addQueueSizeMetric(queueSize);
+
+    // 5. Obter históricos
+    const latencyHistory = await this.checkoutService.fluxEngine.getLatencyHistory();
+    const queueSizeHistory = await this.checkoutService.fluxEngine.getQueueSizeHistory();
+
+    // Registrar latência deste request
+    const elapsed = Date.now() - startTime;
+    await this.checkoutService.fluxEngine.addLatencyMetric(elapsed === 0 ? 1 : elapsed);
+
+    return {
+      checkoutLimit,
+      salesPaused,
+      deniedAttempts,
+      staffDevices,
+      cacheStats,
+      latencyHistory,
+      queueSizeHistory,
+    };
+  }
 }
+
 
