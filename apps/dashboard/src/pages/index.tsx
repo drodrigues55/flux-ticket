@@ -38,6 +38,36 @@ export default function OverviewPage() {
   });
   const [showConfigMenu, setShowConfigMenu] = useState(false);
 
+  // Estados e manipuladores de Drag & Drop para o menu de tiles
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+
+  const handleDragStart = (index: number) => {
+    setDraggedIndex(index);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDragEnter = (index: number) => {
+    if (draggedIndex === null || draggedIndex === index) return;
+
+    const newOrder = [...widgetOrder];
+    const draggedItem = newOrder[draggedIndex];
+    newOrder.splice(draggedIndex, 1);
+    newOrder.splice(index, 0, draggedItem);
+
+    setDraggedIndex(index);
+    setWidgetOrder(newOrder);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    saveLayoutConfig(widgetOrder, visibleWidgets);
+  };
+
+
+
   // Novos estados para configurações dinâmicas de pânico & busca
   const [localThrottle, setLocalThrottle] = useState(500);
   const isDraggingRef = useRef(false);
@@ -50,10 +80,10 @@ export default function OverviewPage() {
     const savedOrder = localStorage.getItem('flux_dashboard_widget_order');
     const savedVisibility = localStorage.getItem('flux_dashboard_widget_visibility');
     if (savedOrder) {
-      try { setWidgetOrder(JSON.parse(savedOrder)); } catch (e) {}
+      try { setWidgetOrder(JSON.parse(savedOrder)); } catch (e) { }
     }
     if (savedVisibility) {
-      try { setVisibleWidgets(JSON.parse(savedVisibility)); } catch (e) {}
+      try { setVisibleWidgets(JSON.parse(savedVisibility)); } catch (e) { }
     }
   }, []);
 
@@ -64,17 +94,7 @@ export default function OverviewPage() {
     localStorage.setItem('flux_dashboard_widget_visibility', JSON.stringify(newVisibility));
   };
 
-  const moveWidget = (index: number, direction: 'up' | 'down') => {
-    const newOrder = [...widgetOrder];
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= newOrder.length) return;
 
-    // Swap elements
-    const temp = newOrder[index];
-    newOrder[index] = newOrder[targetIndex];
-    newOrder[targetIndex] = temp;
-    saveLayoutConfig(newOrder, visibleWidgets);
-  };
 
   const toggleWidgetVisibility = (widgetKey: string) => {
     const newVisibility = { ...visibleWidgets, [widgetKey]: !visibleWidgets[widgetKey] };
@@ -210,20 +230,20 @@ export default function OverviewPage() {
   // Estimativa inteligente de tempo para o lote esgotar
   const calculateSellOut = (batch: any) => {
     if (batch.availableQuantity === 0) return 'Lote Esgotado';
-    
+
     const locks = data?.activeCheckoutLocks || 0;
     const conversion = data?.conversionRate || 0;
-    
+
     // Supondo lock TTL médio de 180s. Velocidade = locks * (conversão/100) / 180 (vendas por seg)
     const velocitySec = (locks * (conversion / 100)) / 180;
     const velocityMin = velocitySec * 60;
-    
+
     if (velocityMin <= 0) return 'Demanda estável / Sem risco de esgotar';
-    
+
     // Divide tráfego proporcionalmente entre os lotes ativos
     const activeBatchesCount = data?.batches?.filter((b: any) => b.isActive && b.availableQuantity > 0).length || 1;
     const batchVelocityMin = velocityMin / activeBatchesCount;
-    
+
     const minutesLeft = Math.ceil(batch.availableQuantity / batchVelocityMin);
     if (minutesLeft > 1440) return 'Mais de 24 horas restantes';
     if (minutesLeft > 60) {
@@ -260,7 +280,7 @@ export default function OverviewPage() {
     <Layout>
       <div className="h-[calc(100vh-80px)] flex flex-col justify-between overflow-hidden relative">
 
-        
+
         {/* TOP COMMAND PANEL CONTROLS */}
         <div className="flex justify-between items-center pb-4 border-b border-cosmic-border flex-shrink-0">
           <div>
@@ -289,43 +309,55 @@ export default function OverviewPage() {
                   <h3 className="text-xs font-bold uppercase tracking-wider text-[#ADADB8]">Layout de Tiles</h3>
                   <button onClick={() => setShowConfigMenu(false)} className="text-[#ADADB8] hover:text-[#EFEFF1] border-none bg-transparent cursor-pointer"><FaXmark className="w-4 h-4" /></button>
                 </div>
-                <div className="space-y-3.5">
+                <p className="text-[9px] text-[#ADADB8] mb-3 font-semibold">Arraste os itens para reordenar os cards.</p>
+                <div className="space-y-2.5">
                   {widgetOrder.map((key, index) => {
                     const isVisible = visibleWidgets[key];
                     const label =
                       key === 'health' ? 'Saúde & Stress' :
-                      key === 'batches' ? 'Controle de Lotes' :
-                      key === 'validation' ? 'Validação Meia-Entrada' :
-                      key === 'checkin' ? 'Portaria & Entradas' : 'Fluxo de Vendas';
+                        key === 'batches' ? 'Controle de Lotes' :
+                          key === 'validation' ? 'Validação Meia-Entrada' :
+                            key === 'checkin' ? 'Portaria & Entradas' : 'Fluxo de Vendas';
+
+                    const isDragged = draggedIndex === index;
 
                     return (
-                      <div key={key} className="flex items-center justify-between text-xs font-semibold bg-[#18181B] p-2 rounded-[4px] border border-cosmic-border">
-                        <span className={`truncate ${isVisible ? 'text-white' : 'text-neutral-600 line-through'}`}>{label}</span>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button
-                            onClick={() => toggleWidgetVisibility(key)}
-                            className={`p-1 rounded hover:bg-neutral-800 ${isVisible ? 'text-cosmic-neon' : 'text-neutral-600'}`}
-                            title={isVisible ? 'Ocultar' : 'Exibir'}
-                          >
-                            {isVisible ? <FaEye className="w-4 h-4" /> : <FaEyeSlash className="w-4 h-4" />}
-                          </button>
-                          <button
-                            onClick={() => moveWidget(index, 'up')}
-                            disabled={index === 0}
-                            className="p-1 rounded hover:bg-neutral-800 text-neutral-400 disabled:opacity-30 disabled:pointer-events-none"
-                            title="Mover para Cima"
-                          >
-                            <FaArrowUp className="w-3 h-3" />
-                          </button>
-                          <button
-                            onClick={() => moveWidget(index, 'down')}
-                            disabled={index === widgetOrder.length - 1}
-                            className="p-1 rounded hover:bg-neutral-800 text-neutral-400 disabled:opacity-30 disabled:pointer-events-none"
-                            title="Mover para Baixo"
-                          >
-                            <FaArrowDown className="w-3 h-3" />
-                          </button>
+                      <div
+                        key={key}
+                        draggable
+                        onDragStart={() => handleDragStart(index)}
+                        onDragOver={handleDragOver}
+                        onDragEnter={() => handleDragEnter(index)}
+                        onDragEnd={handleDragEnd}
+                        className={`flex items-center justify-between text-xs font-semibold bg-[#18181B] p-2.5 rounded-[4px] border transition-all duration-200 ease-out select-none cursor-move ${isDragged
+                            ? 'border-[#9146FF] opacity-[0.05] bg-[#1F1F23] scale-[0.97] shadow-[0_0_10px_rgba(145,70,255,0.2)]'
+                            : 'border-cosmic-border hover:border-neutral-700'
+                          }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          {/* Drag handle dots icon */}
+                          <svg className="w-2.5 h-4 text-neutral-600 shrink-0 cursor-grab active:cursor-grabbing" fill="none" viewBox="0 0 24 24">
+                            <circle cx="8" cy="5" r="2" fill="currentColor" />
+                            <circle cx="16" cy="5" r="2" fill="currentColor" />
+                            <circle cx="8" cy="12" r="2" fill="currentColor" />
+                            <circle cx="16" cy="12" r="2" fill="currentColor" />
+                            <circle cx="8" cy="19" r="2" fill="currentColor" />
+                            <circle cx="16" cy="19" r="2" fill="currentColor" />
+                          </svg>
+                          <span className={`truncate ${isVisible ? 'text-white' : 'text-neutral-600 line-through'}`}>{label}</span>
                         </div>
+
+                        {/* iOS-Style Toggle Switch */}
+                        <button
+                          onClick={() => toggleWidgetVisibility(key)}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${isVisible ? 'bg-[#9146FF]' : 'bg-[#2D2D30]'
+                            }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${isVisible ? 'translate-x-4' : 'translate-x-0'
+                              }`}
+                          />
+                        </button>
                       </div>
                     );
                   })}
@@ -377,11 +409,10 @@ export default function OverviewPage() {
             <button
               onClick={handleToggleGlobalPause}
               disabled={updatingSettings}
-              className={`w-full sm:w-auto px-5 py-2 rounded-[4px] text-xs font-bold uppercase tracking-wider transition-all duration-75 cursor-pointer active:scale-95 border flex items-center justify-center gap-2 ${
-                globalPaused
+              className={`w-full sm:w-auto px-5 py-2 rounded-[4px] text-xs font-bold uppercase tracking-wider transition-all duration-75 cursor-pointer active:scale-95 border flex items-center justify-center gap-2 ${globalPaused
                   ? 'bg-[#EB0400] border-[#FF4D4D] text-white animate-pulse'
                   : 'bg-[#EB0400]/10 border-[#EB0400]/30 text-[#EB0400] hover:bg-[#EB0400]/20'
-              }`}
+                }`}
             >
               <FaPowerOff className="w-3.5 h-3.5" />
               {globalPaused ? 'Vendas Suspensas' : 'Pausar Vendas'}
@@ -427,7 +458,7 @@ export default function OverviewPage() {
                         <FaChartSimple className="text-cosmic-neon w-3.5 h-3.5" />
                         Saúde Operacional
                       </h3>
-                      
+
                       <div className="grid grid-cols-3 gap-2 mt-3.5">
                         <div>
                           <span className="text-[9px] uppercase font-bold text-[#ADADB8] block leading-none">Faturamento</span>
@@ -448,12 +479,12 @@ export default function OverviewPage() {
                           </span>
                         </div>
                       </div>
-                      
+
                       {/* Gráfico SVG de Latência de API */}
                       <div className="mt-4 border-t border-cosmic-border/60 pt-3">
                         <div className="flex justify-between items-center text-[10px] mb-1.5">
                           <span className="text-[#ADADB8] font-bold">Latência de API (últimos 20 polls)</span>
-                          <span className="text-white font-mono font-bold">Média: {(latencyList.reduce((a:number,b:number)=>a+b, 0) / Math.max(1, latencyList.length)).toFixed(0)}ms</span>
+                          <span className="text-white font-mono font-bold">Média: {(latencyList.reduce((a: number, b: number) => a + b, 0) / Math.max(1, latencyList.length)).toFixed(0)}ms</span>
                         </div>
                         <div className="w-full bg-[#0E0E10] rounded border border-cosmic-border/30 h-14 overflow-hidden relative p-1">
                           {latencyList.length > 1 ? (
@@ -492,9 +523,8 @@ export default function OverviewPage() {
                         </div>
                         <div className="w-full bg-[#0E0E10] rounded-full h-1.5 overflow-hidden">
                           <div
-                            className={`h-full transition-all duration-1000 ${
-                              activeCheckoutLocks >= 8 ? 'bg-[#EB0400]' : activeCheckoutLocks >= 4 ? 'bg-[#FFCA28]' : 'bg-[#00C853]'
-                            }`}
+                            className={`h-full transition-all duration-1000 ${activeCheckoutLocks >= 8 ? 'bg-[#EB0400]' : activeCheckoutLocks >= 4 ? 'bg-[#FFCA28]' : 'bg-[#00C853]'
+                              }`}
                             style={{ width: `${stressPercent}%` }}
                           />
                         </div>
@@ -511,7 +541,7 @@ export default function OverviewPage() {
                       <FaPowerOff className="text-cosmic-neon w-3.5 h-3.5" />
                       Controle Lotes Ativos
                     </h3>
-                    
+
                     <div className="flex-grow overflow-y-auto mt-4 pr-1 space-y-2.5">
                       {data?.batches.map((batch: any) => {
                         const sold = batch.totalQuantity - batch.availableQuantity;
@@ -532,14 +562,13 @@ export default function OverviewPage() {
                                 {selloutInfo}
                               </span>
                             </div>
-                            
+
                             <button
                               onClick={() => handleToggleBatch(batch.id, batch.isActive)}
-                              className={`px-3 py-1.5 rounded-[4px] text-[10px] font-bold uppercase tracking-wider transition-all duration-75 cursor-pointer select-none active:scale-95 border shrink-0 ${
-                                batch.isActive
+                              className={`px-3 py-1.5 rounded-[4px] text-[10px] font-bold uppercase tracking-wider transition-all duration-75 cursor-pointer select-none active:scale-95 border shrink-0 ${batch.isActive
                                   ? 'bg-[#00C853]/10 border-[#00C853]/30 text-[#00C853] hover:bg-[#00C853]/20'
                                   : 'bg-[#EB0400]/10 border-[#EB0400]/30 text-[#EB0400] hover:bg-[#EB0400]/20'
-                              }`}
+                                }`}
                             >
                               {batch.isActive ? 'Ativo' : 'Pausado'}
                             </button>
@@ -626,7 +655,7 @@ export default function OverviewPage() {
                         className="w-full bg-[#18181B] border border-cosmic-border rounded-[4px] px-3 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-[#9146FF] transition-all"
                       />
                     </div>
-                    
+
                     <div className="flex-grow overflow-y-auto mt-3 pr-1 space-y-3.5">
                       {filteredQueue.length === 0 ? (
                         <div className="h-[30vh] flex flex-col items-center justify-center text-center p-6 space-y-3 text-[#ADADB8]">
@@ -648,7 +677,7 @@ export default function OverviewPage() {
                               <span className="text-[9px] uppercase font-bold text-[#ADADB8] block leading-none">{ticket.batchName} &bull; {ticket.eventTitle}</span>
                               <span className="text-[10px] text-[#ADADB8] block font-mono font-medium leading-none">CPF: {ticket.holderCpf || ticket.buyerCpf}</span>
                             </div>
-                            
+
                             <div className="flex gap-2">
                               <button
                                 onClick={() => handleValidateTicket(ticket.id, 'approve')}
@@ -697,7 +726,7 @@ export default function OverviewPage() {
                           </span>
                         )}
                       </div>
-                      
+
                       <div className="flex gap-4 items-center mt-3">
                         {/* Entry circular percentage indicator */}
                         <div className="relative w-14 h-14 flex items-center justify-center shrink-0">
@@ -721,7 +750,7 @@ export default function OverviewPage() {
                             {data?.ticketsSold > 0 ? Math.floor((data.checkInsCount / data.ticketsSold) * 100) : 0}%
                           </span>
                         </div>
-                        
+
                         <div className="space-y-0.5">
                           <span className="text-[9px] uppercase font-bold text-[#ADADB8] block leading-none">Pessoas no Evento</span>
                           <span className="text-sm font-mono font-black text-[#EFEFF1] block">
@@ -744,9 +773,8 @@ export default function OverviewPage() {
                                   <span className="text-[#EFEFF1] font-bold block truncate">{device.deviceName}</span>
                                   <span className="text-[7.5px] text-neutral-500 font-mono">Sync: {new Date(device.lastSyncTime).toLocaleTimeString('pt-BR')}</span>
                                 </div>
-                                <span className={`px-1 rounded-[2px] font-mono text-[8px] font-bold shrink-0 ${
-                                  device.pendingSyncCount > 0 ? 'bg-amber-500/10 border border-amber-500/20 text-amber-500 animate-pulse' : 'bg-[#00C853]/10 border border-[#00C853]/20 text-[#00C853]'
-                                }`}>
+                                <span className={`px-1 rounded-[2px] font-mono text-[8px] font-bold shrink-0 ${device.pendingSyncCount > 0 ? 'bg-amber-500/10 border border-amber-500/20 text-amber-500 animate-pulse' : 'bg-[#00C853]/10 border border-[#00C853]/20 text-[#00C853]'
+                                  }`}>
                                   {device.pendingSyncCount} pend
                                 </span>
                               </div>
@@ -766,7 +794,7 @@ export default function OverviewPage() {
                       <FaWallet className="text-cosmic-neon w-3.5 h-3.5" />
                       Fluxo de Vendas Recentes
                     </h3>
-                    
+
                     <div className="flex-grow overflow-y-auto mt-4 pr-1 space-y-2.5">
                       {!data?.recentSales || data.recentSales.length === 0 ? (
                         <div className="h-[20vh] flex flex-col items-center justify-center text-center p-4 space-y-2 text-[#ADADB8]">
@@ -785,7 +813,7 @@ export default function OverviewPage() {
                                 {sale.batchName} &bull; {sale.eventTitle}
                               </span>
                             </div>
-                            
+
                             <div className="flex flex-col items-end gap-1.5 shrink-0 pl-1">
                               <span className="text-xs font-mono font-black text-[#EFEFF1] leading-none">
                                 R$ {sale.price.toFixed(2).replace('.', ',')}
@@ -808,7 +836,7 @@ export default function OverviewPage() {
           <span>&copy; {new Date().getFullYear()} Flux Tickets. Todos os direitos reservados.</span>
           <span>Versão Operacional v1.3.0 (Build Produtor)</span>
         </div>
-        
+
       </div>
     </Layout>
   );
