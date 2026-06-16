@@ -34,7 +34,6 @@ export default function CreateEventPage() {
       return;
     }
 
-    // Combina data e hora em uma única string ISO
     const combinedDateTime = new Date(`${date}T${time}`).toISOString();
 
     try {
@@ -56,7 +55,6 @@ export default function CreateEventPage() {
         throw new Error(data.message || 'Falha ao cadastrar evento no servidor.');
       }
 
-      // Redireciona para a lista após criação
       router.push('/events');
     } catch (err: any) {
       console.error(err);
@@ -68,28 +66,28 @@ export default function CreateEventPage() {
 
   return (
     <Layout>
-      <div className="max-w-2xl mx-auto space-y-6">
+      <div className="max-w-2xl mx-auto space-y-6 bg-[#FAFAFA]">
         <div>
-          <h1 className="text-3xl font-black text-white">Novo Evento</h1>
-          <p className="text-sm text-neutral-400 mt-1">Preencha os dados do show para abrir as vendas de ingressos.</p>
+          <h1 className="text-3xl font-black text-neutral-900 tracking-tight">Novo Evento</h1>
+          <p className="text-sm text-neutral-500 mt-1">Preencha os dados do show para abrir as vendas de ingressos.</p>
         </div>
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm p-4 rounded-lg">
+          <div className="bg-red-50 border border-red-200 text-red-500 text-sm p-4 rounded-lg">
             {error}
           </div>
         )}
 
-        <Card className="border-neutral-850">
-          <CardHeader>
-            <CardTitle>Dados Básicos do Show</CardTitle>
-            <CardDescription>Estes dados serão exibidos no portal público do consumidor.</CardDescription>
+        <Card className="border-[#EAEAEA] bg-white rounded-xl shadow-sm">
+          <CardHeader className="border-b border-[#EAEAEA]">
+            <CardTitle className="text-neutral-900 font-bold text-lg">Dados Básicos do Show</CardTitle>
+            <CardDescription className="text-neutral-500 text-sm">Estes dados serão exibidos no portal público do consumidor.</CardDescription>
           </CardHeader>
 
           <form onSubmit={handleSubmit}>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 pt-6">
               <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-neutral-400">Título do Evento *</label>
+                <label className="text-xs font-bold uppercase tracking-wider text-neutral-500">Título do Evento *</label>
                 <Input
                   type="text"
                   name="title"
@@ -98,12 +96,12 @@ export default function CreateEventPage() {
                   placeholder="Ex: Mega Show Concorrente"
                   required
                   disabled={loading}
-                  className="focus:ring-[#00E5FF] focus:border-[#00E5FF] focus:ring-1"
+                  className="w-full bg-[#FAFAFA] border border-[#DCDCDC] rounded-full px-5 py-3 text-sm text-neutral-800 outline-none transition-all duration-200 focus:bg-white focus:border-[#FF3200] focus:ring-2 focus:ring-[#FF3200]/10"
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-neutral-400">Descrição</label>
+                <label className="text-xs font-bold uppercase tracking-wider text-neutral-500">Descrição</label>
                 <textarea
                   name="description"
                   value={formData.description}
@@ -111,13 +109,13 @@ export default function CreateEventPage() {
                   placeholder="Detalhes adicionais sobre a atração ou regras do evento..."
                   rows={4}
                   disabled={loading}
-                  className="w-full bg-[#1A1A1A] border border-neutral-800 rounded-lg p-3 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-[#00E5FF] focus:ring-1 focus:ring-[#00E5FF] transition-all duration-200"
+                  className="w-full bg-[#FAFAFA] border border-[#DCDCDC] rounded-2xl p-4 text-sm text-neutral-800 placeholder-neutral-400 focus:outline-none focus:bg-white focus:border-[#FF3200] focus:ring-2 focus:ring-[#FF3200]/10 transition-all duration-200"
                 />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-wider text-neutral-400">Data do Evento *</label>
+                  <label className="text-xs font-bold uppercase tracking-wider text-neutral-500">Data do Evento *</label>
                   <Input
                     type="date"
                     name="date"
@@ -125,11 +123,11 @@ export default function CreateEventPage() {
                     onChange={handleChange}
                     required
                     disabled={loading}
-                    className="focus:ring-[#00E5FF] focus:border-[#00E5FF] focus:ring-1"
+                    className="w-full bg-[#FAFAFA] border border-[#DCDCDC] rounded-full px-5 py-3 text-sm text-neutral-800 outline-none transition-all duration-200 focus:bg-white focus:border-[#FF3200] focus:ring-2 focus:ring-[#FF3200]/10"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-wider text-neutral-400">Hora de Início *</label>
+                  <label className="text-xs font-bold uppercase tracking-wider text-neutral-500">Hora de Início *</label>
                   <Input
                     type="time"
                     name="time"
@@ -137,13 +135,13 @@ export default function CreateEventPage() {
                     onChange={handleChange}
                     required
                     disabled={loading}
-                    className="focus:ring-[#00E5FF] focus:border-[#00E5FF] focus:ring-1"
+                    className="w-full bg-[#FAFAFA] border border-[#DCDCDC] rounded-full px-5 py-3 text-sm text-neutral-800 outline-none transition-all duration-200 focus:bg-white focus:border-[#FF3200] focus:ring-2 focus:ring-[#FF3200]/10"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-neutral-400">Localização / Arena *</label>
+                <label className="text-xs font-bold uppercase tracking-wider text-neutral-500">Localização / Arena *</label>
                 <Input
                   type="text"
                   name="location"
@@ -152,28 +150,28 @@ export default function CreateEventPage() {
                   placeholder="Ex: Arena Digital, São Paulo - SP"
                   required
                   disabled={loading}
-                  className="focus:ring-[#00E5FF] focus:border-[#00E5FF] focus:ring-1"
+                  className="w-full bg-[#FAFAFA] border border-[#DCDCDC] rounded-full px-5 py-3 text-sm text-neutral-800 outline-none transition-all duration-200 focus:bg-white focus:border-[#FF3200] focus:ring-2 focus:ring-[#FF3200]/10"
                 />
               </div>
             </CardContent>
 
-            <CardFooter className="flex justify-between items-center pt-4 border-t border-neutral-800 mt-6">
-              <Button
+            <CardFooter className="flex justify-between items-center pt-4 border-t border-[#EAEAEA] mt-6">
+              <button
                 type="button"
-                variant="ghost"
                 onClick={() => router.push('/events')}
                 disabled={loading}
+                className="bg-transparent hover:bg-neutral-100 text-neutral-550 font-bold px-6 py-2.5 rounded-full border-none transition-colors cursor-pointer"
               >
                 Cancelar
-              </Button>
+              </button>
               
-              <Button
+              <button
                 type="submit"
-                variant="primary"
                 disabled={loading}
+                className="bg-[#FF3200] hover:bg-[#E62D00] text-white font-bold py-2.5 px-6 rounded-full border-none transition-all cursor-pointer shadow-sm active:scale-95"
               >
                 {loading ? 'Salvando...' : 'Salvar Evento'}
-              </Button>
+              </button>
             </CardFooter>
           </form>
         </Card>

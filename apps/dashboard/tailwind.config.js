@@ -7,12 +7,17 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        accent: {
+          DEFAULT: '#FF3200',
+          hover: '#E62D00',
+          active: '#CC2800'
+        },
         cosmic: {
-          dark: '#0E0E10',
-          slate: '#18181B',
-          neon: '#9146FF',
-          grey: '#1F1F23',
-          border: '#2F2F35',
+          dark: '#FAFAFA',
+          slate: '#FFFFFF',
+          neon: '#FF3200',
+          grey: '#EAEAEA',
+          border: '#DCDCDC',
         }
       },
       fontFamily: {

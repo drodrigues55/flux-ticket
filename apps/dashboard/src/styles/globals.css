@@ -4,26 +4,32 @@
 
 @layer base {
   body {
-    @apply bg-cosmic-dark text-white font-sans antialiased;
-    background-color: #121212;
+    @apply bg-[#FAFAFA] text-[#111111] antialiased;
+    background-color: #FAFAFA;
+    font-family: var(--font-inter), system-ui, sans-serif;
+  }
+  
+  .font-mono {
+    font-family: var(--font-inter), ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
   }
 }
 
-/* Custom Scrollbar for dashboard dark aesthetic */
+/* Custom Scrollbar for dashboard light aesthetic */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #121212;
+  background: #FAFAFA;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #2C2C2C;
+  background: #DCDCDC;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #6200EE;
+  background: #FF3200;
 }

@@ -3,9 +3,5 @@
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
   "/": "pages/index.js",
-  "/api/read/events": "pages/api/read/events.js",
-  "/api/events/[id]": "pages/api/events/[id].js",
-  "/event/[id]": "pages/event/[id].js",
-  "/checkout/[eventId]": "pages/checkout/[eventId].js",
-  "/api/tickets/reserve": "pages/api/tickets/reserve.js"
+  "/api/read/events": "pages/api/read/events.js"
 }

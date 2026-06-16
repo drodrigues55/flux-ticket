@@ -66,8 +66,6 @@ export default function OverviewPage() {
     saveLayoutConfig(widgetOrder, visibleWidgets);
   };
 
-
-
   // Novos estados para configurações dinâmicas de pânico & busca
   const [localThrottle, setLocalThrottle] = useState(500);
   const isDraggingRef = useRef(false);
@@ -94,8 +92,6 @@ export default function OverviewPage() {
     localStorage.setItem('flux_dashboard_widget_visibility', JSON.stringify(newVisibility));
   };
 
-
-
   const toggleWidgetVisibility = (widgetKey: string) => {
     const newVisibility = { ...visibleWidgets, [widgetKey]: !visibleWidgets[widgetKey] };
     saveLayoutConfig(widgetOrder, newVisibility);
@@ -110,7 +106,6 @@ export default function OverviewPage() {
       setData(telemetry);
       setError('');
 
-      // Atualiza o slider se não estiver arrastando
       if (telemetry.checkoutLimit !== undefined && !isDraggingRef.current) {
         setLocalThrottle(telemetry.checkoutLimit);
       }
@@ -127,12 +122,10 @@ export default function OverviewPage() {
 
   useEffect(() => {
     fetchData();
-    // Poll telemetry every 4 seconds for real-time responsiveness
     const pollInterval = setInterval(fetchData, 4000);
     return () => clearInterval(pollInterval);
   }, []);
 
-  // Handler para atualizar o throttle (conexões simultâneas)
   const handleUpdateThrottle = async (limit: number) => {
     try {
       setUpdatingSettings(true);
@@ -150,7 +143,6 @@ export default function OverviewPage() {
     }
   };
 
-  // Handler para alternar a pausa global de vendas
   const handleToggleGlobalPause = async () => {
     try {
       setUpdatingSettings(true);
@@ -170,7 +162,6 @@ export default function OverviewPage() {
     }
   };
 
-  // Update batch state (pause/resume sales)
   const handleToggleBatch = async (batchId: string, currentStatus: boolean) => {
     try {
       const response = await fetch(`/api/batches/${batchId}`, {
@@ -185,7 +176,6 @@ export default function OverviewPage() {
     }
   };
 
-  // Approve/Reject validation tickets
   const handleValidateTicket = async (ticketId: string, action: 'approve' | 'reject') => {
     try {
       const response = await fetch('/api/tickets/validation', {
@@ -200,7 +190,6 @@ export default function OverviewPage() {
     }
   };
 
-  // Convert seconds left into human-readable HH:MM:SS SLA counter
   const formatSLA = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
@@ -209,38 +198,35 @@ export default function OverviewPage() {
   };
 
   const getSLAColor = (seconds: number) => {
-    if (seconds < 24 * 60 * 60) return 'text-red-500 font-black'; // Less than 24 hours
-    if (seconds < 48 * 60 * 60) return 'text-amber-500 font-extrabold'; // Less than 48 hours
-    return 'text-emerald-400 font-bold';
+    if (seconds < 24 * 60 * 60) return 'text-[#FF3200] font-bold';
+    if (seconds < 48 * 60 * 60) return 'text-amber-500 font-bold';
+    return 'text-emerald-600 font-semibold';
   };
 
   const getSaleStatusBadge = (status: string) => {
     switch (status) {
       case 'VALID':
-        return <span className="px-2 py-0.5 rounded-[2px] bg-[#00C853]/10 border border-[#00C853]/20 text-[#00C853] text-[8px] font-bold uppercase tracking-wider">Aprovado</span>;
+        return <span className="px-2 py-0.5 rounded-[2px] bg-emerald-50 border border-emerald-100 text-emerald-600 text-[8px] font-bold uppercase tracking-wider">Aprovado</span>;
       case 'CONSUMED':
-        return <span className="px-2 py-0.5 rounded-[2px] bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[8px] font-bold uppercase tracking-wider">Portaria</span>;
+        return <span className="px-2 py-0.5 rounded-[2px] bg-blue-50 border border-blue-100 text-blue-600 text-[8px] font-bold uppercase tracking-wider">Portaria</span>;
       case 'PENDING_VALIDATION':
-        return <span className="px-2 py-0.5 rounded-[2px] bg-[#FFCA28]/10 border border-[#FFCA28]/20 text-[#FFCA28] text-[8px] font-bold uppercase tracking-wider">Pendente Doc</span>;
+        return <span className="px-2 py-0.5 rounded-[2px] bg-amber-50 border border-amber-100 text-amber-600 text-[8px] font-bold uppercase tracking-wider">Pendente Doc</span>;
       default:
-        return <span className="px-2 py-0.5 rounded-[2px] bg-[#ADADB8]/10 border border-[#ADADB8]/20 text-[#ADADB8] text-[8px] font-bold uppercase tracking-wider">{status}</span>;
+        return <span className="px-2 py-0.5 rounded-[2px] bg-neutral-100 border border-neutral-200 text-neutral-500 text-[8px] font-bold uppercase tracking-wider">{status}</span>;
     }
   };
 
-  // Estimativa inteligente de tempo para o lote esgotar
   const calculateSellOut = (batch: any) => {
     if (batch.availableQuantity === 0) return 'Lote Esgotado';
 
     const locks = data?.activeCheckoutLocks || 0;
     const conversion = data?.conversionRate || 0;
 
-    // Supondo lock TTL médio de 180s. Velocidade = locks * (conversão/100) / 180 (vendas por seg)
     const velocitySec = (locks * (conversion / 100)) / 180;
     const velocityMin = velocitySec * 60;
 
     if (velocityMin <= 0) return 'Demanda estável / Sem risco de esgotar';
 
-    // Divide tráfego proporcionalmente entre os lotes ativos
     const activeBatchesCount = data?.batches?.filter((b: any) => b.isActive && b.availableQuantity > 0).length || 1;
     const batchVelocityMin = velocityMin / activeBatchesCount;
 
@@ -254,70 +240,67 @@ export default function OverviewPage() {
     return `Crítico: Lote esgotará em ~${minutesLeft} minutos`;
   };
 
-  // Loading Screen
   if (loading && !data) {
     return (
       <Layout>
-        <div className="h-[80vh] flex flex-col items-center justify-center space-y-4">
-          <svg className="animate-spin h-10 w-10 text-cosmic-neon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <div className="h-[80vh] flex flex-col items-center justify-center space-y-4 bg-[#FAFAFA]">
+          <svg className="animate-spin h-10 w-10 text-[#FF3200]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
-          <span className="text-sm text-neutral-400 font-bold uppercase tracking-widest">Sincronizando Telemetria...</span>
+          <span className="text-xs text-neutral-500 font-bold uppercase tracking-widest">Sincronizando telemetria...</span>
         </div>
       </Layout>
     );
   }
 
-  // Calculate stress values based on activeCheckoutLocks
   const activeCheckoutLocks = data?.activeCheckoutLocks || 0;
   const currentRps = (activeCheckoutLocks * 1.3 + 1.2).toFixed(1);
   const stressPercent = Math.min(100, Math.floor((activeCheckoutLocks / 10) * 100));
-  const stressColor = activeCheckoutLocks >= 8 ? 'text-red-500' : activeCheckoutLocks >= 4 ? 'text-amber-400' : 'text-emerald-400';
+  const stressColor = activeCheckoutLocks >= 8 ? 'text-[#FF3200]' : activeCheckoutLocks >= 4 ? 'text-amber-500' : 'text-emerald-600';
   const stressStatus = activeCheckoutLocks >= 8 ? 'Sob Recarga / Pico' : activeCheckoutLocks >= 4 ? 'Moderado' : 'Estável';
 
   return (
     <Layout>
-      <div className="h-[calc(100vh-80px)] flex flex-col justify-between overflow-hidden relative">
-
+      <div className="h-[calc(100vh-80px)] flex flex-col justify-between overflow-hidden relative bg-[#FAFAFA]">
 
         {/* TOP COMMAND PANEL CONTROLS */}
-        <div className="flex justify-between items-center pb-4 border-b border-cosmic-border flex-shrink-0">
+        <div className="flex justify-between items-center pb-4 border-b border-[#EAEAEA] flex-shrink-0">
           <div>
-            <h1 className="text-2xl font-black text-[#EFEFF1] flex items-center gap-2 tracking-wide leading-none">
+            <h1 className="text-2xl font-black text-neutral-900 flex items-center gap-2 tracking-tight leading-none">
               Painel de Comando
-              <span className="inline-block px-2 py-0.5 rounded bg-cosmic-neon/10 border border-cosmic-neon/20 text-cosmic-neon text-[9px] font-black uppercase tracking-widest animate-pulse">
+              <span className="inline-block px-2 py-0.5 rounded bg-[#FF3200]/10 border border-[#FF3200]/20 text-[#FF3200] text-[9px] font-black uppercase tracking-widest animate-pulse">
                 Live
               </span>
             </h1>
-            <p className="text-xs text-[#ADADB8] mt-1 font-medium">Controle operacional e auditoria em tempo real.</p>
+            <p className="text-xs text-neutral-500 mt-1 font-medium">Controle operacional e auditoria em tempo real.</p>
           </div>
 
           <div className="flex items-center gap-3 relative">
             <button
               onClick={() => setShowConfigMenu(!showConfigMenu)}
-              className="bg-[#1F1F23] hover:bg-[#252528] text-[#EFEFF1] px-3.5 py-2.5 rounded-[4px] border border-cosmic-border text-xs font-bold transition-all duration-75 flex items-center gap-2 cursor-pointer shadow-sm active:scale-95"
+              className="bg-white hover:bg-neutral-50 text-neutral-800 px-3.5 py-2.5 rounded-[4px] border border-[#EAEAEA] text-xs font-bold transition-all duration-75 flex items-center gap-2 cursor-pointer shadow-sm active:scale-95"
             >
-              <FaGear className="w-3.5 h-3.5" />
-              Personalizar Painel
+              <FaGear className="w-3.5 h-3.5 text-neutral-500" />
+              Personalizar painel
             </button>
 
             {/* Customization Dropdown Panel */}
             {showConfigMenu && (
-              <div className="absolute right-0 top-12 w-72 bg-[#1F1F23] border border-cosmic-border rounded-[4px] p-4 shadow-2xl z-50 text-[#EFEFF1] animate-in fade-in slide-in-from-top-3 duration-75">
-                <div className="flex justify-between items-center pb-2 border-b border-cosmic-border mb-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#ADADB8]">Layout de Tiles</h3>
-                  <button onClick={() => setShowConfigMenu(false)} className="text-[#ADADB8] hover:text-[#EFEFF1] border-none bg-transparent cursor-pointer"><FaXmark className="w-4 h-4" /></button>
+              <div className="absolute right-0 top-12 w-72 bg-white border border-[#EAEAEA] rounded-[4px] p-4 shadow-lg z-50 text-neutral-850 animate-in fade-in slide-in-from-top-3 duration-75">
+                <div className="flex justify-between items-center pb-2 border-b border-[#EAEAEA] mb-3">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Layout de tiles</h3>
+                  <button onClick={() => setShowConfigMenu(false)} className="text-neutral-450 hover:text-neutral-800 border-none bg-transparent cursor-pointer"><FaXmark className="w-4 h-4" /></button>
                 </div>
-                <p className="text-[9px] text-[#ADADB8] mb-3 font-semibold">Arraste os itens para reordenar os cards.</p>
+                <p className="text-[9px] text-neutral-400 mb-3 font-semibold">Arraste os itens para reordenar os cards.</p>
                 <div className="space-y-2.5">
                   {widgetOrder.map((key, index) => {
                     const isVisible = visibleWidgets[key];
                     const label =
-                      key === 'health' ? 'Saúde & Stress' :
-                        key === 'batches' ? 'Controle de Lotes' :
-                          key === 'validation' ? 'Validação Meia-Entrada' :
-                            key === 'checkin' ? 'Portaria & Entradas' : 'Fluxo de Vendas';
+                      key === 'health' ? 'Saúde & stress' :
+                        key === 'batches' ? 'Controle de lotes' :
+                          key === 'validation' ? 'Validação meia-entrada' :
+                            key === 'checkin' ? 'Portaria & entradas' : 'Fluxo de vendas';
 
                     const isDragged = draggedIndex === index;
 
@@ -329,14 +312,13 @@ export default function OverviewPage() {
                         onDragOver={handleDragOver}
                         onDragEnter={() => handleDragEnter(index)}
                         onDragEnd={handleDragEnd}
-                        className={`flex items-center justify-between text-xs font-semibold bg-[#18181B] p-2.5 rounded-[4px] border transition-all duration-200 ease-out select-none cursor-move ${isDragged
-                            ? 'border-[#9146FF] opacity-[0.05] bg-[#1F1F23] scale-[0.97] shadow-[0_0_10px_rgba(145,70,255,0.2)]'
-                            : 'border-cosmic-border hover:border-neutral-700'
+                        className={`flex items-center justify-between text-xs font-semibold bg-[#FAFAFA] p-2.5 rounded-[4px] border transition-all duration-200 ease-out select-none cursor-move ${isDragged
+                            ? 'border-[#FF3200] opacity-[0.25] bg-neutral-50'
+                            : 'border-[#EAEAEA] hover:border-neutral-300'
                           }`}
                       >
                         <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                          {/* Drag handle dots icon */}
-                          <svg className="w-2.5 h-4 text-neutral-600 shrink-0 cursor-grab active:cursor-grabbing" fill="none" viewBox="0 0 24 24">
+                          <svg className="w-2.5 h-4 text-neutral-400 shrink-0 cursor-grab active:cursor-grabbing" fill="none" viewBox="0 0 24 24">
                             <circle cx="8" cy="5" r="2" fill="currentColor" />
                             <circle cx="16" cy="5" r="2" fill="currentColor" />
                             <circle cx="8" cy="12" r="2" fill="currentColor" />
@@ -344,13 +326,12 @@ export default function OverviewPage() {
                             <circle cx="8" cy="19" r="2" fill="currentColor" />
                             <circle cx="16" cy="19" r="2" fill="currentColor" />
                           </svg>
-                          <span className={`truncate ${isVisible ? 'text-white' : 'text-neutral-600 line-through'}`}>{label}</span>
+                          <span className={`truncate ${isVisible ? 'text-neutral-900' : 'text-neutral-400 line-through'}`}>{label}</span>
                         </div>
 
-                        {/* iOS-Style Toggle Switch */}
                         <button
                           onClick={() => toggleWidgetVisibility(key)}
-                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${isVisible ? 'bg-[#9146FF]' : 'bg-[#2D2D30]'
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${isVisible ? 'bg-[#FF3200]' : 'bg-neutral-200'
                             }`}
                         >
                           <span
@@ -367,23 +348,23 @@ export default function OverviewPage() {
           </div>
         </div>
 
-        {/* CAMADA DE AÇÃO IMEDIATA (PANIC SWITCH & THROTTLE SLIDER) */}
-        <div className="bg-[#18181B] border border-red-500/20 rounded-md p-4 mt-3 flex-shrink-0 flex flex-col md:flex-row items-center justify-between gap-4 relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-red-500 via-[#9146FF] to-red-500" />
+        {/* CONTROLES DE PANICO */}
+        <div className="bg-white border border-[#EAEAEA] rounded-md p-4 mt-3 flex-shrink-0 flex flex-col md:flex-row items-center justify-between gap-4 relative overflow-hidden shadow-sm">
+          <div className="absolute top-0 left-0 w-full h-[2px] bg-[#FF3200]" />
           <div className="flex items-center gap-3">
-            <span className="w-8 h-8 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-500 shrink-0">
-              <FaPowerOff className="w-4 h-4 animate-pulse" />
+            <span className="w-8 h-8 rounded-full bg-[#FF3200]/10 border border-[#FF3200]/25 flex items-center justify-center text-[#FF3200] shrink-0">
+              <FaPowerOff className="w-4 h-4" />
             </span>
             <div>
-              <h3 className="text-xs uppercase font-extrabold text-[#EFEFF1] tracking-wider leading-none">Camada de Ação Imediata (Controles de Pânico)</h3>
-              <p className="text-[10px] text-[#ADADB8] mt-1 font-medium">Controle de limite de checkout simultâneo e bloqueio total de vendas em emergência.</p>
+              <h3 className="text-xs font-bold text-neutral-800 tracking-wider leading-none">Camada de ação imediata (Controles de pânico)</h3>
+              <p className="text-[10px] text-neutral-500 mt-1 font-medium">Controle de limite de checkout simultâneo e bloqueio total de vendas em emergência.</p>
             </div>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-6 w-full md:w-auto">
             {/* Throttle Input Slider */}
             <div className="flex items-center gap-3 w-full sm:w-64">
-              <span className="text-[10px] uppercase font-bold text-[#ADADB8] shrink-0 font-mono">Throttle: {localThrottle} checkouts</span>
+              <span className="text-[10px] font-bold text-neutral-500 shrink-0 font-mono">Throttle: {localThrottle} checkouts</span>
               <input
                 type="range"
                 min="10"
@@ -401,32 +382,32 @@ export default function OverviewPage() {
                   isDraggingRef.current = false;
                   handleUpdateThrottle(localThrottle);
                 }}
-                className="w-full h-1 bg-[#1F1F23] rounded-lg appearance-none cursor-pointer accent-[#9146FF]"
+                className="w-full h-1 bg-neutral-200 rounded-lg appearance-none cursor-pointer accent-[#FF3200]"
               />
             </div>
 
-            {/* Global Pause Button (Panic Switch) */}
+            {/* Global Pause Button */}
             <button
               onClick={handleToggleGlobalPause}
               disabled={updatingSettings}
-              className={`w-full sm:w-auto px-5 py-2 rounded-[4px] text-xs font-bold uppercase tracking-wider transition-all duration-75 cursor-pointer active:scale-95 border flex items-center justify-center gap-2 ${globalPaused
-                  ? 'bg-[#EB0400] border-[#FF4D4D] text-white animate-pulse'
-                  : 'bg-[#EB0400]/10 border-[#EB0400]/30 text-[#EB0400] hover:bg-[#EB0400]/20'
+              className={`w-full sm:w-auto px-5 py-2 rounded-[4px] text-xs font-bold transition-all duration-75 cursor-pointer active:scale-95 border flex items-center justify-center gap-2 ${globalPaused
+                  ? 'bg-[#FF3200] border-[#FF3200] text-white animate-pulse'
+                  : 'bg-[#FF3200]/10 border-[#FF3200]/30 text-[#FF3200] hover:bg-[#FF3200]/20'
                 }`}
             >
               <FaPowerOff className="w-3.5 h-3.5" />
-              {globalPaused ? 'Vendas Suspensas' : 'Pausar Vendas'}
+              {globalPaused ? 'Vendas suspensas' : 'Pausar vendas'}
             </button>
           </div>
         </div>
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs p-4 rounded-xl flex-shrink-0 my-3">
+          <div className="bg-red-50 border border-red-200 text-red-500 text-xs p-4 rounded-xl flex-shrink-0 my-3">
             {error}
           </div>
         )}
 
-        {/* 100VH VIEWPORT TILES CONTAINER (DESKTOP ONLY NO-SCROLL) */}
+        {/* TILES CONTAINER */}
         <div className="flex-grow grid grid-cols-12 gap-6 py-4 overflow-hidden h-full select-none">
           {widgetOrder
             .filter(key => visibleWidgets[key])
@@ -437,62 +418,60 @@ export default function OverviewPage() {
                 const totalCache = hits + misses;
                 const cacheHitRatio = totalCache > 0 ? ((hits / totalCache) * 100).toFixed(1) : '100.0';
 
-                // Desenhar gráfico SVG dinâmico
                 const latencyList = data?.latencyHistory || [5, 5, 5];
                 const points = latencyList
                   .slice()
                   .reverse()
                   .map((val: number, i: number, arr: number[]) => {
                     const x = (i / Math.max(1, arr.length - 1)) * 100;
-                    const maxVal = Math.max(...arr, 50); // Mínimo de escala a 50ms
+                    const maxVal = Math.max(...arr, 50);
                     const y = 35 - (val / maxVal) * 30;
                     return `${x},${y}`;
                   })
                   .join(' ');
 
                 return (
-                  <div key={key} className="col-span-12 xl:col-span-4 h-[34vh] bg-cosmic-slate border border-cosmic-border rounded-md p-5 flex flex-col justify-between relative overflow-hidden transition-all duration-75 hover:shadow-[0_0_0_2px_#9146FF] hover:border-transparent">
-                    <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-cosmic-neon/5 blur-[50px] pointer-events-none" />
+                  <div key={key} className="col-span-12 xl:col-span-4 h-[34vh] bg-white border border-[#EAEAEA] rounded-md p-5 flex flex-col justify-between relative overflow-hidden transition-all duration-75 hover:shadow-sm">
                     <div>
-                      <h3 className="text-xs uppercase font-bold text-[#ADADB8] tracking-wider flex items-center gap-1.5 leading-none">
-                        <FaChartSimple className="text-cosmic-neon w-3.5 h-3.5" />
-                        Saúde Operacional
+                      <h3 className="text-xs uppercase font-bold text-neutral-500 tracking-wider flex items-center gap-1.5 leading-none">
+                        <FaChartSimple className="text-[#FF3200] w-3.5 h-3.5" />
+                        Saúde operacional
                       </h3>
 
                       <div className="grid grid-cols-3 gap-2 mt-3.5">
                         <div>
-                          <span className="text-[9px] uppercase font-bold text-[#ADADB8] block leading-none">Faturamento</span>
-                          <span className="text-base font-mono font-black text-[#EFEFF1] mt-1 block truncate">
+                          <span className="text-[9px] font-bold text-neutral-450 block leading-none">Faturamento</span>
+                          <span className="text-base font-mono font-black text-neutral-900 mt-1 block truncate">
                             R$ {data?.grossRevenue.toFixed(2).replace('.', ',')}
                           </span>
                         </div>
                         <div>
-                          <span className="text-[9px] uppercase font-bold text-[#ADADB8] block leading-none">Conversão</span>
-                          <span className="text-base font-mono font-black text-[#EFEFF1] mt-1 block truncate">
+                          <span className="text-[9px] font-bold text-neutral-450 block leading-none">Conversão</span>
+                          <span className="text-base font-mono font-black text-neutral-900 mt-1 block truncate">
                             {data?.conversionRate.toFixed(1)}%
                           </span>
                         </div>
                         <div>
-                          <span className="text-[9px] uppercase font-bold text-[#ADADB8] block leading-none">Redis Cache</span>
-                          <span className="text-base font-mono font-black text-[#00C853] mt-1 block truncate">
+                          <span className="text-[9px] font-bold text-neutral-450 block leading-none">Redis cache</span>
+                          <span className="text-base font-mono font-black text-emerald-600 mt-1 block truncate">
                             {cacheHitRatio}%
                           </span>
                         </div>
                       </div>
 
-                      {/* Gráfico SVG de Latência de API */}
-                      <div className="mt-4 border-t border-cosmic-border/60 pt-3">
+                      {/* API Latency Graphic */}
+                      <div className="mt-4 border-t border-[#EAEAEA] pt-3">
                         <div className="flex justify-between items-center text-[10px] mb-1.5">
-                          <span className="text-[#ADADB8] font-bold">Latência de API (últimos 20 polls)</span>
-                          <span className="text-white font-mono font-bold">Média: {(latencyList.reduce((a: number, b: number) => a + b, 0) / Math.max(1, latencyList.length)).toFixed(0)}ms</span>
+                          <span className="text-neutral-500 font-bold">Latência de API (últimos 20 polls)</span>
+                          <span className="text-neutral-800 font-mono font-bold">Média: {(latencyList.reduce((a: number, b: number) => a + b, 0) / Math.max(1, latencyList.length)).toFixed(0)}ms</span>
                         </div>
-                        <div className="w-full bg-[#0E0E10] rounded border border-cosmic-border/30 h-14 overflow-hidden relative p-1">
+                        <div className="w-full bg-[#FAFAFA] rounded border border-[#EAEAEA] h-14 overflow-hidden relative p-1">
                           {latencyList.length > 1 ? (
                             <svg className="w-full h-full overflow-visible" viewBox="0 0 100 35" preserveAspectRatio="none">
                               <defs>
                                 <linearGradient id="latencyGrad" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="0%" stopColor="#9146FF" stopOpacity="0.4" />
-                                  <stop offset="100%" stopColor="#9146FF" stopOpacity="0.0" />
+                                  <stop offset="0%" stopColor="#FF3200" stopOpacity="0.1" />
+                                  <stop offset="100%" stopColor="#FF3200" stopOpacity="0.0" />
                                 </linearGradient>
                               </defs>
                               <polygon
@@ -501,29 +480,29 @@ export default function OverviewPage() {
                               />
                               <polyline
                                 fill="none"
-                                stroke="#9146FF"
+                                stroke="#FF3200"
                                 strokeWidth="1.5"
                                 points={points}
                               />
                             </svg>
                           ) : (
-                            <div className="h-full flex items-center justify-center text-[9px] text-neutral-600 font-mono">Gerando gráfico...</div>
+                            <div className="h-full flex items-center justify-center text-[9px] text-neutral-450 font-mono">Gerando gráfico...</div>
                           )}
                         </div>
                       </div>
 
-                      {/* Stress de Lotação (RPS) */}
-                      <div className="mt-3.5 border-t border-cosmic-border/60 pt-3 space-y-1">
+                      {/* Stress de Lotação */}
+                      <div className="mt-3.5 border-t border-[#EAEAEA] pt-3 space-y-1">
                         <div className="flex justify-between items-center text-[10px]">
-                          <span className="text-[#ADADB8] font-bold flex items-center gap-1">
+                          <span className="text-neutral-500 font-bold flex items-center gap-1">
                             <FaGauge className="w-3.5 h-3.5" />
-                            Stress de Lotação (RPS)
+                            Stress de lotação (RPS)
                           </span>
                           <span className={`font-black uppercase tracking-wider ${stressColor}`}>{stressStatus}</span>
                         </div>
-                        <div className="w-full bg-[#0E0E10] rounded-full h-1.5 overflow-hidden">
+                        <div className="w-full bg-neutral-100 rounded-full h-1.5 overflow-hidden">
                           <div
-                            className={`h-full transition-all duration-1000 ${activeCheckoutLocks >= 8 ? 'bg-[#EB0400]' : activeCheckoutLocks >= 4 ? 'bg-[#FFCA28]' : 'bg-[#00C853]'
+                            className={`h-full transition-all duration-1000 ${activeCheckoutLocks >= 8 ? 'bg-[#FF3200]' : activeCheckoutLocks >= 4 ? 'bg-amber-500' : 'bg-emerald-600'
                               }`}
                             style={{ width: `${stressPercent}%` }}
                           />
@@ -536,10 +515,10 @@ export default function OverviewPage() {
 
               if (key === 'batches') {
                 return (
-                  <div key={key} className="col-span-12 xl:col-span-4 h-[34vh] bg-cosmic-slate border border-cosmic-border rounded-md p-5 flex flex-col relative overflow-hidden transition-all duration-75 hover:shadow-[0_0_0_2px_#9146FF] hover:border-transparent">
-                    <h3 className="text-xs uppercase font-bold text-[#ADADB8] tracking-wider flex items-center gap-1.5 leading-none flex-shrink-0">
-                      <FaPowerOff className="text-cosmic-neon w-3.5 h-3.5" />
-                      Controle Lotes Ativos
+                  <div key={key} className="col-span-12 xl:col-span-4 h-[34vh] bg-white border border-[#EAEAEA] rounded-md p-5 flex flex-col relative overflow-hidden transition-all duration-75 hover:shadow-sm">
+                    <h3 className="text-xs uppercase font-bold text-neutral-500 tracking-wider flex items-center gap-1.5 leading-none flex-shrink-0">
+                      <FaPowerOff className="text-[#FF3200] w-3.5 h-3.5" />
+                      Controle lotes ativos
                     </h3>
 
                     <div className="flex-grow overflow-y-auto mt-4 pr-1 space-y-2.5">
@@ -548,17 +527,16 @@ export default function OverviewPage() {
                         const percent = Math.floor((sold / batch.totalQuantity) * 100);
                         const selloutInfo = calculateSellOut(batch);
                         return (
-                          <div key={batch.id} className="p-3 bg-[#1F1F23]/60 rounded-md border border-cosmic-border flex justify-between items-center transition-all duration-75 hover:bg-[#1F1F23]">
+                          <div key={batch.id} className="p-3 bg-[#FAFAFA] rounded-md border border-[#EAEAEA] flex justify-between items-center transition-all duration-75 hover:bg-neutral-50">
                             <div className="space-y-1 pr-2 min-w-0 flex-1">
                               <div className="flex items-center gap-2">
-                                <h4 className="text-xs font-extrabold text-[#EFEFF1] truncate leading-none">{batch.name}</h4>
-                                <span className="text-[9px] font-bold text-[#ADADB8] truncate leading-none uppercase max-w-[80px]" title={batch.eventTitle}>{batch.eventTitle}</span>
+                                <h4 className="text-xs font-extrabold text-neutral-900 truncate leading-none">{batch.name}</h4>
+                                <span className="text-[9px] font-bold text-neutral-500 truncate leading-none uppercase max-w-[80px]" title={batch.eventTitle}>{batch.eventTitle}</span>
                               </div>
-                              <span className="text-[10px] text-[#ADADB8] font-mono font-bold block">
+                              <span className="text-[10px] text-neutral-500 font-mono font-bold block">
                                 R$ {batch.price.toFixed(2).replace('.', ',')} &bull; {sold}/{batch.totalQuantity} vendidos ({percent}%)
                               </span>
-                              {/* Indicador de Previsão de Esgotamento */}
-                              <span className="text-[9px] font-bold text-cosmic-neon block mt-0.5 animate-pulse">
+                              <span className="text-[9px] font-bold text-[#FF3200] block mt-0.5 animate-pulse">
                                 {selloutInfo}
                               </span>
                             </div>
@@ -566,8 +544,8 @@ export default function OverviewPage() {
                             <button
                               onClick={() => handleToggleBatch(batch.id, batch.isActive)}
                               className={`px-3 py-1.5 rounded-[4px] text-[10px] font-bold uppercase tracking-wider transition-all duration-75 cursor-pointer select-none active:scale-95 border shrink-0 ${batch.isActive
-                                  ? 'bg-[#00C853]/10 border-[#00C853]/30 text-[#00C853] hover:bg-[#00C853]/20'
-                                  : 'bg-[#EB0400]/10 border-[#EB0400]/30 text-[#EB0400] hover:bg-[#EB0400]/20'
+                                  ? 'bg-emerald-50 border-emerald-250 text-emerald-600 hover:bg-emerald-100'
+                                  : 'bg-red-50 border-red-250 text-[#FF3200] hover:bg-red-100'
                                 }`}
                             >
                               {batch.isActive ? 'Ativo' : 'Pausado'}
@@ -587,13 +565,12 @@ export default function OverviewPage() {
                   .reverse()
                   .map((val: number, i: number, arr: number[]) => {
                     const x = (i / Math.max(1, arr.length - 1)) * 100;
-                    const maxVal = Math.max(...arr, 5); // Fila mínima escala de 5
+                    const maxVal = Math.max(...arr, 5);
                     const y = 30 - (val / maxVal) * 26;
                     return `${x},${y}`;
                   })
                   .join(' ');
 
-                // Busca rápida baseada em CPF / Nome
                 const filteredQueue = data?.validationQueue.filter((ticket: any) => {
                   const query = searchQuery.toLowerCase();
                   return (
@@ -605,17 +582,17 @@ export default function OverviewPage() {
                 }) || [];
 
                 return (
-                  <div key={key} className="col-span-12 xl:col-span-4 h-[71vh] xl:row-span-2 bg-cosmic-slate border border-cosmic-border rounded-md p-5 flex flex-col relative overflow-hidden transition-all duration-75 hover:shadow-[0_0_0_2px_#9146FF] hover:border-transparent">
-                    <h3 className="text-xs uppercase font-bold text-[#ADADB8] tracking-wider flex items-center gap-1.5 leading-none flex-shrink-0">
-                      <FaAddressCard className="text-cosmic-neon w-3.5 h-3.5" />
-                      Validação de Meia-Entrada
+                  <div key={key} className="col-span-12 xl:col-span-4 h-[71vh] xl:row-span-2 bg-white border border-[#EAEAEA] rounded-md p-5 flex flex-col relative overflow-hidden transition-all duration-75 hover:shadow-sm">
+                    <h3 className="text-xs uppercase font-bold text-neutral-500 tracking-wider flex items-center gap-1.5 leading-none flex-shrink-0">
+                      <FaAddressCard className="text-[#FF3200] w-3.5 h-3.5" />
+                      Validação de meia-entrada
                     </h3>
 
-                    {/* Minigráfico de Crescimento de Fila */}
-                    <div className="mt-3 bg-[#0E0E10] border border-cosmic-border/30 rounded p-3 flex-shrink-0 flex items-center justify-between gap-4">
+                    {/* Minigráfico */}
+                    <div className="mt-3 bg-[#FAFAFA] border border-[#EAEAEA] rounded p-3 flex-shrink-0 flex items-center justify-between gap-4">
                       <div>
-                        <span className="text-[9px] uppercase font-bold text-[#ADADB8] block leading-none">Fila Pendente</span>
-                        <span className="text-base font-mono font-black text-[#EFEFF1] block mt-1.5">
+                        <span className="text-[9px] font-bold text-neutral-500 block leading-none">Fila pendente</span>
+                        <span className="text-base font-mono font-black text-neutral-900 block mt-1.5">
                           {data?.validationQueue?.length || 0} pendentes
                         </span>
                       </div>
@@ -624,8 +601,8 @@ export default function OverviewPage() {
                           <svg className="w-full h-full overflow-visible" viewBox="0 0 100 30" preserveAspectRatio="none">
                             <defs>
                               <linearGradient id="queueGrad" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="#00C853" stopOpacity="0.4" />
-                                <stop offset="100%" stopColor="#00C853" stopOpacity="0" />
+                                <stop offset="0%" stopColor="#10B981" stopOpacity="0.2" />
+                                <stop offset="100%" stopColor="#10B981" stopOpacity="0" />
                               </linearGradient>
                             </defs>
                             <polygon
@@ -634,61 +611,60 @@ export default function OverviewPage() {
                             />
                             <polyline
                               fill="none"
-                              stroke="#00C853"
+                              stroke="#10B981"
                               strokeWidth="1.5"
                               points={queuePoints}
                             />
                           </svg>
                         ) : (
-                          <span className="text-[8px] text-neutral-600 font-mono">Gerando...</span>
+                          <span className="text-[8px] text-neutral-400 font-mono">Gerando...</span>
                         )}
                       </div>
                     </div>
 
-                    {/* Filtros de Busca Rápida */}
                     <div className="mt-3 flex-shrink-0">
                       <input
                         type="text"
                         placeholder="Buscar CPF ou nome..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full bg-[#18181B] border border-cosmic-border rounded-[4px] px-3 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-[#9146FF] transition-all"
+                        className="w-full bg-[#FAFAFA] border border-[#DCDCDC] rounded-[4px] px-3 py-2 text-xs text-neutral-800 placeholder-neutral-400 focus:outline-none focus:border-[#FF3200] transition-all"
                       />
                     </div>
 
                     <div className="flex-grow overflow-y-auto mt-3 pr-1 space-y-3.5">
                       {filteredQueue.length === 0 ? (
-                        <div className="h-[30vh] flex flex-col items-center justify-center text-center p-6 space-y-3 text-[#ADADB8]">
-                          <FaUserCheck className="w-10 h-10 text-neutral-600" />
+                        <div className="h-[30vh] flex flex-col items-center justify-center text-center p-6 space-y-3 text-neutral-400">
+                          <FaUserCheck className="w-10 h-10 text-neutral-300" />
                           <p className="text-xs font-bold uppercase tracking-wider leading-none">Nenhuma pendência</p>
-                          <p className="text-[10px] font-medium leading-relaxed max-w-[180px] mx-auto text-neutral-600">Não há registros na fila ou filtros ativos não encontraram correspondências.</p>
+                          <p className="text-[10px] font-medium leading-relaxed max-w-[180px] mx-auto text-neutral-400">Não há registros na fila ou filtros ativos não encontraram correspondências.</p>
                         </div>
                       ) : (
                         filteredQueue.map((ticket: any) => (
-                          <div key={ticket.id} className="p-3 bg-[#1F1F23]/60 rounded-md border border-cosmic-border flex flex-col justify-between space-y-3 transition-all duration-75 hover:bg-[#1F1F23]">
+                          <div key={ticket.id} className="p-3 bg-[#FAFAFA] rounded-md border border-[#EAEAEA] flex flex-col justify-between space-y-3 transition-all duration-75 hover:bg-neutral-50">
                             <div className="space-y-1 text-xs">
                               <div className="flex justify-between items-start">
-                                <span className="font-extrabold text-[#EFEFF1] truncate max-w-[150px]">{ticket.holderName || ticket.buyerName}</span>
+                                <span className="font-extrabold text-neutral-900 truncate max-w-[150px]">{ticket.holderName || ticket.buyerName}</span>
                                 <span className={`text-[10px] flex items-center gap-1 ${getSLAColor(ticket.secondsLeft)}`}>
                                   <FaClock className="w-3 h-3" />
                                   SLA: {formatSLA(ticket.secondsLeft)}
                                 </span>
                               </div>
-                              <span className="text-[9px] uppercase font-bold text-[#ADADB8] block leading-none">{ticket.batchName} &bull; {ticket.eventTitle}</span>
-                              <span className="text-[10px] text-[#ADADB8] block font-mono font-medium leading-none">CPF: {ticket.holderCpf || ticket.buyerCpf}</span>
+                              <span className="text-[9px] text-neutral-500 block leading-none">{ticket.batchName} &bull; {ticket.eventTitle}</span>
+                              <span className="text-[10px] text-neutral-500 block font-mono font-medium leading-none">CPF: {ticket.holderCpf || ticket.buyerCpf}</span>
                             </div>
 
                             <div className="flex gap-2">
                               <button
                                 onClick={() => handleValidateTicket(ticket.id, 'approve')}
-                                className="flex-1 py-1.5 bg-[#00C853] hover:bg-[#00b04a] text-white rounded-[4px] text-[10px] font-bold uppercase tracking-wider transition-all duration-75 flex items-center justify-center gap-1 cursor-pointer active:scale-95 border-none"
+                                className="flex-1 py-1.5 bg-[#FF3200] hover:bg-[#E62D00] text-white rounded-[4px] text-[10px] font-bold uppercase tracking-wider transition-all duration-75 flex items-center justify-center gap-1 cursor-pointer active:scale-95 border-none"
                               >
                                 <FaCheck className="w-3 h-3" />
                                 Aprovar
                               </button>
                               <button
                                 onClick={() => handleValidateTicket(ticket.id, 'reject')}
-                                className="flex-1 py-1.5 bg-[#EB0400] hover:bg-[#d00300] text-white rounded-[4px] text-[10px] font-bold uppercase tracking-wider transition-all duration-75 flex items-center justify-center gap-1 cursor-pointer active:scale-95 border-none"
+                                className="flex-1 py-1.5 bg-neutral-200 hover:bg-neutral-350 text-neutral-700 rounded-[4px] text-[10px] font-bold uppercase tracking-wider transition-all duration-75 flex items-center justify-center gap-1 cursor-pointer active:scale-95 border-none"
                               >
                                 <FaXmark className="w-3 h-3" />
                                 Reprovar
@@ -704,39 +680,36 @@ export default function OverviewPage() {
 
               if (key === 'checkin') {
                 return (
-                  <div key={key} className="col-span-12 xl:col-span-4 h-[34vh] bg-cosmic-slate border border-cosmic-border rounded-md p-5 flex flex-col justify-between relative overflow-hidden transition-all duration-75 hover:shadow-[0_0_0_2px_#9146FF] hover:border-transparent">
-                    <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-cosmic-neon/5 blur-[50px] pointer-events-none" />
+                  <div key={key} className="col-span-12 xl:col-span-4 h-[34vh] bg-white border border-[#EAEAEA] rounded-md p-5 flex flex-col justify-between relative overflow-hidden transition-all duration-75 hover:shadow-sm">
                     <div className="flex flex-col h-full justify-between">
                       <div className="flex justify-between items-start flex-shrink-0">
-                        <h3 className="text-xs uppercase font-bold text-[#ADADB8] tracking-wider flex items-center gap-1.5 leading-none">
-                          <FaUserCheck className="text-cosmic-neon w-3.5 h-3.5" />
-                          Fluxo de Portaria
+                        <h3 className="text-xs uppercase font-bold text-neutral-500 tracking-wider flex items-center gap-1.5 leading-none">
+                          <FaUserCheck className="text-[#FF3200] w-3.5 h-3.5" />
+                          Fluxo de portaria
                         </h3>
 
-                        {/* Indicador de Fraudes na Portaria */}
                         {data?.deniedAttempts > 0 ? (
-                          <span className="px-2 py-0.5 rounded-[2px] bg-[#EB0400]/10 border border-[#EB0400]/30 text-[#EB0400] text-[8px] font-black uppercase tracking-wider animate-pulse flex items-center gap-1">
-                            <span className="w-1 h-1 rounded-full bg-[#EB0400]" />
-                            {data.deniedAttempts} Fraudes Bloqueadas
+                          <span className="px-2 py-0.5 rounded-[2px] bg-red-50 border border-red-100 text-[#FF3200] text-[8px] font-black uppercase tracking-wider animate-pulse flex items-center gap-1">
+                            <span className="w-1 h-1 rounded-full bg-[#FF3200]" />
+                            {data.deniedAttempts} fraudes bloqueadas
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded-[2px] bg-[#00C853]/10 border border-[#00C853]/20 text-[#00C853] text-[8px] font-bold uppercase tracking-wider flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-[#00C853] animate-pulse" />
-                            Ambiente Seguro
+                          <span className="px-2 py-0.5 rounded-[2px] bg-emerald-50 border border-emerald-100 text-emerald-600 text-[8px] font-bold uppercase tracking-wider flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            Ambiente seguro
                           </span>
                         )}
                       </div>
 
                       <div className="flex gap-4 items-center mt-3">
-                        {/* Entry circular percentage indicator */}
                         <div className="relative w-14 h-14 flex items-center justify-center shrink-0">
                           <svg className="absolute inset-0 w-full h-full transform -rotate-90">
-                            <circle cx="28" cy="28" r="24" className="stroke-neutral-800" strokeWidth="3" fill="transparent" />
+                            <circle cx="28" cy="28" r="24" className="stroke-neutral-100" strokeWidth="3" fill="transparent" />
                             <circle
                               cx="28"
                               cy="28"
                               r="24"
-                              className="stroke-cosmic-neon transition-all duration-75 ease-linear"
+                              className="stroke-[#FF3200] transition-all duration-75 ease-linear"
                               strokeWidth="3"
                               strokeLinecap="round"
                               fill="transparent"
@@ -746,34 +719,33 @@ export default function OverviewPage() {
                               }
                             />
                           </svg>
-                          <span className="text-[10px] font-mono font-black text-[#EFEFF1] leading-none">
+                          <span className="text-[10px] font-mono font-black text-neutral-900 leading-none">
                             {data?.ticketsSold > 0 ? Math.floor((data.checkInsCount / data.ticketsSold) * 100) : 0}%
                           </span>
                         </div>
 
                         <div className="space-y-0.5">
-                          <span className="text-[9px] uppercase font-bold text-[#ADADB8] block leading-none">Pessoas no Evento</span>
-                          <span className="text-sm font-mono font-black text-[#EFEFF1] block">
-                            {data?.checkInsCount} <span className="text-[10px] font-bold text-[#ADADB8]">/ {data?.ticketsSold}</span>
+                          <span className="text-[9px] font-bold text-neutral-500 block leading-none">Pessoas no evento</span>
+                          <span className="text-sm font-mono font-black text-neutral-900 block">
+                            {data?.checkInsCount} <span className="text-[10px] font-bold text-neutral-450">/ {data?.ticketsSold}</span>
                           </span>
-                          <span className="text-[9px] text-[#ADADB8] block font-semibold leading-none">Check-ins via PWA Staff.</span>
+                          <span className="text-[9px] text-neutral-400 block font-semibold leading-none">Check-ins via PWA Staff.</span>
                         </div>
                       </div>
 
-                      {/* Status de Sincronismo dos Scanners */}
-                      <div className="mt-3 border-t border-cosmic-border/60 pt-2 flex-grow overflow-y-auto space-y-1">
-                        <span className="text-[8px] uppercase font-black text-[#ADADB8] block tracking-wide">Scanners de Staff Ativos</span>
+                      <div className="mt-3 border-t border-[#EAEAEA] pt-2 flex-grow overflow-y-auto space-y-1">
+                        <span className="text-[8px] uppercase font-black text-neutral-500 block tracking-wide">Scanners de staff ativos</span>
                         {(!data?.staffDevices || data.staffDevices.length === 0) ? (
-                          <div className="text-[9px] text-neutral-600 italic mt-1">Nenhum scanner conectado nas últimas horas.</div>
+                          <div className="text-[9px] text-neutral-400 italic mt-1 font-light">Nenhum scanner conectado nas últimas horas.</div>
                         ) : (
                           <div className="grid grid-cols-2 gap-1.5 mt-1">
                             {data.staffDevices.map((device: any) => (
-                              <div key={device.deviceId} className="flex justify-between items-center text-[9px] bg-[#18181B]/80 p-1 rounded border border-cosmic-border">
+                              <div key={device.deviceId} className="flex justify-between items-center text-[9px] bg-[#FAFAFA] p-1 rounded border border-[#EAEAEA]">
                                 <div className="truncate pr-1">
-                                  <span className="text-[#EFEFF1] font-bold block truncate">{device.deviceName}</span>
-                                  <span className="text-[7.5px] text-neutral-500 font-mono">Sync: {new Date(device.lastSyncTime).toLocaleTimeString('pt-BR')}</span>
+                                  <span className="text-neutral-850 font-bold block truncate">{device.deviceName}</span>
+                                  <span className="text-[7.5px] text-neutral-400 font-mono">Sync: {new Date(device.lastSyncTime).toLocaleTimeString('pt-BR')}</span>
                                 </div>
-                                <span className={`px-1 rounded-[2px] font-mono text-[8px] font-bold shrink-0 ${device.pendingSyncCount > 0 ? 'bg-amber-500/10 border border-amber-500/20 text-amber-500 animate-pulse' : 'bg-[#00C853]/10 border border-[#00C853]/20 text-[#00C853]'
+                                <span className={`px-1 rounded-[2px] font-mono text-[8px] font-bold shrink-0 ${device.pendingSyncCount > 0 ? 'bg-amber-50 border border-amber-100 text-amber-600 animate-pulse' : 'bg-emerald-50 border border-emerald-100 text-emerald-600'
                                   }`}>
                                   {device.pendingSyncCount} pend
                                 </span>
@@ -789,33 +761,33 @@ export default function OverviewPage() {
 
               if (key === 'audit') {
                 return (
-                  <div key={key} className="col-span-12 xl:col-span-4 h-[34vh] bg-cosmic-slate border border-cosmic-border rounded-md p-5 flex flex-col relative overflow-hidden transition-all duration-75 hover:shadow-[0_0_0_2px_#9146FF] hover:border-transparent">
-                    <h3 className="text-xs uppercase font-bold text-[#ADADB8] tracking-wider flex items-center gap-1.5 leading-none flex-shrink-0">
-                      <FaWallet className="text-cosmic-neon w-3.5 h-3.5" />
-                      Fluxo de Vendas Recentes
+                  <div key={key} className="col-span-12 xl:col-span-4 h-[34vh] bg-white border border-[#EAEAEA] rounded-md p-5 flex flex-col relative overflow-hidden transition-all duration-75 hover:shadow-sm">
+                    <h3 className="text-xs uppercase font-bold text-neutral-500 tracking-wider flex items-center gap-1.5 leading-none flex-shrink-0">
+                      <FaWallet className="text-[#FF3200] w-3.5 h-3.5" />
+                      Fluxo de vendas recentes
                     </h3>
 
                     <div className="flex-grow overflow-y-auto mt-4 pr-1 space-y-2.5">
                       {!data?.recentSales || data.recentSales.length === 0 ? (
                         <div className="h-[20vh] flex flex-col items-center justify-center text-center p-4 space-y-2 text-[#ADADB8]">
                           <p className="text-[10px] font-bold uppercase tracking-wider">Nenhuma venda registrada</p>
-                          <p className="text-[9px] font-medium leading-relaxed max-w-[150px] mx-auto text-neutral-600">Aguardando novos pedidos de clientes.</p>
+                          <p className="text-[9px] font-medium leading-relaxed max-w-[150px] mx-auto text-neutral-400">Aguardando novos pedidos de clientes.</p>
                         </div>
                       ) : (
                         data.recentSales.map((sale: any) => (
-                          <div key={sale.id} className="p-2.5 bg-[#1F1F23]/60 rounded-md border border-cosmic-border flex justify-between items-center transition-all duration-75 hover:bg-[#1F1F23]">
+                          <div key={sale.id} className="p-2.5 bg-[#FAFAFA] rounded-md border border-[#EAEAEA] flex justify-between items-center transition-all duration-75 hover:bg-neutral-50">
                             <div className="space-y-1 pr-2 min-w-0 flex-1 flex flex-col">
                               <div className="flex items-center gap-2">
-                                <h4 className="text-[11px] font-extrabold text-[#EFEFF1] truncate leading-none">{sale.buyerName}</h4>
-                                <span className="text-[9px] font-mono text-[#ADADB8] shrink-0 leading-none">{sale.timestamp}</span>
+                                <h4 className="text-[11px] font-extrabold text-neutral-900 truncate leading-none">{sale.buyerName}</h4>
+                                <span className="text-[9px] font-mono text-neutral-400 shrink-0 leading-none">{sale.timestamp}</span>
                               </div>
-                              <span className="text-[9px] text-[#ADADB8] font-bold block truncate leading-none">
+                              <span className="text-[9px] text-neutral-500 font-bold block truncate leading-none">
                                 {sale.batchName} &bull; {sale.eventTitle}
                               </span>
                             </div>
 
                             <div className="flex flex-col items-end gap-1.5 shrink-0 pl-1">
-                              <span className="text-xs font-mono font-black text-[#EFEFF1] leading-none">
+                              <span className="text-xs font-mono font-black text-neutral-900 leading-none">
                                 R$ {sale.price.toFixed(2).replace('.', ',')}
                               </span>
                               {getSaleStatusBadge(sale.status)}
@@ -832,13 +804,12 @@ export default function OverviewPage() {
         </div>
 
         {/* BOTTOM FOOTER */}
-        <div className="flex justify-between items-center text-[10px] text-neutral-600 border-t border-neutral-900/60 pt-3 flex-shrink-0">
+        <div className="flex justify-between items-center text-[10px] text-neutral-400 border-t border-[#EAEAEA] pt-3 flex-shrink-0">
           <span>&copy; {new Date().getFullYear()} Flux Tickets. Todos os direitos reservados.</span>
-          <span>Versão Operacional v1.3.0 (Build Produtor)</span>
+          <span>Versão operacional v1.3.0 (Build Produtor)</span>
         </div>
 
       </div>
     </Layout>
   );
 }
-
