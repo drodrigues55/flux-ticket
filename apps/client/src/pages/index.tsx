@@ -2,16 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { Header } from '../components/header';
 import { EventCard } from '../components/EventCard';
-import { EventPopup } from '../components/EventPopup';
 import {
   FaMusic,
   FaMasksTheater,
   FaFutbol,
-  FaFaceSmile,
-  FaShieldHalved,
-  FaTicket,
-  FaCalendarDays,
-  FaHeart
+  FaFaceSmile
 } from 'react-icons/fa6';
 
 const EVENT_DECORATIONS: Record<string, { imageUrl: string; badge?: string; isTrending?: boolean }> = {
@@ -83,14 +78,12 @@ export default function EventsCatalog() {
   const router = useRouter();
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeSearch, setActiveSearch] = useState('');
   const eventsRef = useRef<HTMLElement>(null);
 
   const handleSearchSubmit = () => {
-    // Sanitise query to remove tag characters and quotes
     const sanitized = searchTerm.replace(/[<>'"&/]/g, '').trim();
     setActiveSearch(sanitized);
   };
@@ -124,63 +117,38 @@ export default function EventsCatalog() {
     );
   }) : [];
 
-  // Abre o popup do evento correspondente se o eventId vier na query string
+  // Redireciona para a página dedicada do evento se o eventId vier na query string
   useEffect(() => {
     if (!router.isReady) return;
     const { eventId } = router.query;
     if (eventId) {
-      // Tenta encontrar o evento localmente na lista já carregada para abrir instantaneamente
-      const localEvent = Array.isArray(events) ? events.find(e => e.id === eventId) : null;
-      if (localEvent) {
-        setSelectedEvent(localEvent);
-      } else if (!loading) {
-        // Se não achou na lista e já terminou o loading, busca via API como fallback
-        async function loadSpecificEvent() {
-          try {
-            const res = await fetch(`/api/events/${eventId}`);
-            if (res.ok) {
-              const data = await res.json();
-              setSelectedEvent(data);
-            }
-          } catch (err) {
-            console.error('[LOAD SPECIFIC EVENT ERROR]', err);
-          }
-        }
-        loadSpecificEvent();
-      }
+      router.replace(`/event/${eventId}`);
     }
-  }, [router.isReady, router.query, events, loading]);
-
+  }, [router.isReady, router.query]);
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#03060B] font-sans antialiased text-white relative overflow-hidden">
-      {/* Background Glows */}
-      <div className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] rounded-full bg-purple-600/5 blur-[180px] pointer-events-none" />
-      <div className="absolute bottom-[-20%] right-[-20%] w-[60%] h-[60%] rounded-full bg-blue-600/5 blur-[180px] pointer-events-none" />
+    <div className="min-h-screen flex flex-col bg-[#FAFAFA] font-sans antialiased text-[#111111] relative overflow-hidden">
       <Header />
 
-      {/* HERO SECTION WITH SLANTED/CLIPPED BOTTOM */}
-      <section className="bg-gradient-to-br from-[#12072B] via-[#080314] to-[#03060B] text-white pt-20 pb-8 px-6 relative overflow-hidden border-b border-white/5">
-        {/* Subtle decorative lights to simulate stage overlay */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-purple-50/10 via-purple-50/5 to-transparent pointer-events-none" />
-
-        <div className="max-w-4xl mx-auto relative z-10 text-center flex flex-col items-center justify-center space-y-6">
+      {/* HERO SECTION - Minimalist Light Mode */}
+      <section className="bg-white text-neutral-900 pt-24 pb-12 px-6 relative border-b border-[#EAEAEA]">
+        <div className="max-w-4xl mx-auto text-center flex flex-col items-center justify-center space-y-6">
           <div className="space-y-4">
-            <span className="text-xs font-normal tracking-widest text-[#B388FF] uppercase block">
-              VIVA EXPERIÊNCIAS INESQUECÍVEIS
+            <span className="text-xs font-semibold tracking-widest text-[#FF3200] uppercase block">
+              Descubra & Viva
             </span>
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.25]">
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-black tracking-tight leading-[1.2] text-[#111111]">
               Sua próxima experiência <br />inesquecível começa aqui
             </h1>
-            <p className="mx-auto text-slate-200 text-base md:text-lg max-w-xl font-light">
+            <p className="mx-auto text-neutral-600 text-base md:text-lg max-w-xl font-light">
               Encontre shows, teatros, esportes e muito mais. Compre com segurança e aproveite cada momento.
             </p>
           </div>
 
-          {/* SEARCH BAR MD3 COMPLIANT */}
-          <div className="flex items-center bg-[#18181B]/80 p-2 rounded-2xl shadow-xl w-full max-w-2xl border border-white/10 mx-auto backdrop-blur-md">
-            <svg className="w-5 h-5 text-slate-400 ml-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          {/* SEARCH BAR - Light theme standard input */}
+          <div className="flex items-center bg-[#FAFAFA] p-1.5 rounded-full shadow-sm w-full max-w-2xl border border-[#DCDCDC] mx-auto transition-all focus-within:border-[#FF3200] focus-within:ring-2 focus-within:ring-[#FF3200]/10">
+            <svg className="w-5 h-5 text-neutral-400 ml-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
               type="text"
@@ -192,17 +160,17 @@ export default function EventsCatalog() {
                   handleSearchSubmit();
                 }
               }}
-              className="flex-grow bg-transparent outline-none text-white px-2 py-3 text-sm placeholder-neutral-500"
+              className="flex-grow bg-transparent outline-none text-[#111111] px-2 py-3 text-sm placeholder-neutral-400"
             />
             <button
               onClick={handleSearchSubmit}
-              className="bg-[#9146FF] hover:bg-[#A970FF] text-white px-8 py-3 rounded-xl font-bold transition-all shadow-md active:scale-95 cursor-pointer"
+              className="bg-[#FF3200] hover:bg-[#E62D00] text-white px-8 py-3 rounded-full font-bold transition-all shadow-sm active:scale-95 cursor-pointer text-sm"
             >
               Buscar
             </button>
           </div>
 
-          {/* CATEGORIES BADGES */}
+          {/* CATEGORIES BADGES - Minimalist Light styling */}
           <div id="filtros-categoria" className="flex flex-wrap justify-center gap-2.5 pt-2">
             {[
               { id: 1, label: 'Shows', icon: <FaMusic className="text-[13px]" /> },
@@ -222,18 +190,15 @@ export default function EventsCatalog() {
                     const filtrosEl = document.getElementById('filtros-categoria');
                     if (filtrosEl) {
                       const rect = filtrosEl.getBoundingClientRect();
-                      // O header fixo tem aproximadamente 72px de altura.
-                      // Se os filtros não estiverem alinhados logo abaixo do header (tolerância de 10px),
-                      // rola a página para posicioná-los perfeitamente.
                       if (Math.abs(rect.top - 72) > 10) {
                         const targetY = window.pageYOffset + rect.top - 72;
                         window.scrollTo({ top: targetY, behavior: 'smooth' });
                       }
                     }
                   }}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold backdrop-blur-sm transition-all border cursor-pointer ${isActive
-                    ? 'bg-[#9146FF] text-white border-[#B388FF] shadow-[0_0_15px_rgba(145,70,255,0.4)] scale-105'
-                    : 'bg-[#18181B] hover:bg-[#252528] text-slate-400 border-white/10 hover:text-white'
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold transition-all border cursor-pointer ${isActive
+                    ? 'bg-[#FF3200] text-white border-[#FF3200] shadow-sm scale-105'
+                    : 'bg-white hover:bg-neutral-50 text-neutral-600 border-[#EAEAEA] hover:text-neutral-900'
                     }`}
                 >
                   {cat.icon}
@@ -245,20 +210,19 @@ export default function EventsCatalog() {
         </div>
       </section>
 
-
       {/* GRID DE EVENTOS */}
-      <main id="eventos" ref={eventsRef} className="max-w-7xl mx-auto px-6 pt-8 pb-16 flex-grow w-full min-h-[800px] space-y-12">
+      <main id="eventos" ref={eventsRef} className="max-w-7xl mx-auto px-6 pt-8 pb-16 flex-grow w-full min-h-[600px] space-y-12">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 space-y-3">
-            <div className="w-8 h-8 border-4 border-white/5 border-t-[#9146FF] rounded-full animate-spin" />
-            <p className="text-sm font-semibold text-slate-400">Carregando catálogo...</p>
+            <div className="w-8 h-8 border-4 border-neutral-200 border-t-[#FF3200] rounded-full animate-spin" />
+            <p className="text-sm font-semibold text-neutral-500">Carregando catálogo...</p>
           </div>
         ) : (
           <>
-            {/* Seção Trending Now (Apenas na página inicial sem filtros/busca) */}
+            {/* Seção Trending Now */}
             {!selectedCategory && !activeSearch && (
               <div>
-                <h2 className="text-2xl font-extrabold text-white mb-6 flex items-center gap-2">
+                <h2 className="text-2xl font-black text-neutral-950 mb-6 tracking-tight">
                   Trending Now
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
@@ -279,7 +243,7 @@ export default function EventsCatalog() {
                           }
                           imageUrl={dec.imageUrl}
                           badge={dec.badge}
-                          onBuy={() => setSelectedEvent({ ...event, image: dec.imageUrl })}
+                          onBuy={() => router.push(`/event/${event.id}`)}
                         />
                       );
                     })}
@@ -289,7 +253,7 @@ export default function EventsCatalog() {
 
             {/* Seção Listagem Geral */}
             <div>
-              <h2 className="text-2xl font-extrabold text-white mb-6">
+              <h2 className="text-2xl font-black text-neutral-950 mb-6 tracking-tight">
                 {activeSearch
                   ? `Resultados para: "${activeSearch}"`
                   : (selectedCategory ? 'Eventos Encontrados' : 'Todos os Eventos')}
@@ -310,13 +274,13 @@ export default function EventsCatalog() {
                       }
                       imageUrl={dec.imageUrl}
                       badge={dec.badge}
-                      onBuy={() => setSelectedEvent({ ...event, image: dec.imageUrl })}
+                      onBuy={() => router.push(`/event/${event.id}`)}
                     />
                   );
                 })}
               </div>
               {filteredEvents.length === 0 && (
-                <div className="text-center py-12 text-slate-400">
+                <div className="text-center py-12 text-neutral-500 font-light">
                   Nenhum evento encontrado para a busca realizada.
                 </div>
               )}
@@ -325,19 +289,10 @@ export default function EventsCatalog() {
         )}
       </main>
 
-      {/* Footer Simples */}
-      <footer className="py-8 text-center text-slate-500 text-sm border-t border-white/5 max-w-7xl mx-auto w-full">
+      {/* Footer */}
+      <footer className="py-8 text-center text-neutral-400 text-sm border-t border-[#EAEAEA] max-w-7xl mx-auto w-full">
         &copy; {new Date().getFullYear()} Flux Tickets. Todos os direitos reservados.
       </footer>
-
-      <EventPopup
-        isOpen={!!selectedEvent}
-        onClose={() => setSelectedEvent(null)}
-        event={selectedEvent}
-        onBuy={(eventId, batchId, qty) => {
-          router.push(`/checkout/${eventId}${batchId ? `?batchId=${batchId}&quantity=${qty || 1}` : ''}`);
-        }}
-      />
     </div>
   );
 }

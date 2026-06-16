@@ -82,23 +82,39 @@ export class CheckoutController {
 
 
   /**
-   * Endpoint de Renovação de Lock: Chamado pelo hook React useTicketLock para evitar a expiração da reserva.
-   */
-  @Post('tickets/renew-lock')
+   * Endpoint de Renovação de Lock: Chamado pelo hook React useTicketLock para evitar a expiração da reser  @Post('tickets/renew-lock')
   async renewLock(
-    @Body() body: { userId: string; ticketId: string; batchId: string }
+    @Body() body: { userId: string; ticketId: string; batchId?: string }
   ) {
     const { userId, ticketId, batchId } = body;
     
-    if (!userId || !ticketId || !batchId) {
-      throw new BadRequestException('userId, ticketId e batchId são obrigatórios.');
+    if (!userId || !ticketId) {
+      throw new BadRequestException('userId e ticketId são obrigatórios.');
     }
     
     try {
       const ticketIds = ticketId.split(',');
       let allSuccess = true;
       for (const tId of ticketIds) {
-        const success = await this.checkoutService.renewTicketLock(userId, tId, batchId);
+        let activeBatchId = batchId;
+        
+        // Se batchId não foi fornecido ou temos múltiplos tickets, consultamos no banco
+        if (!activeBatchId || ticketIds.length > 1) {
+          const ticket = await prisma.ticket.findUnique({
+            where: { id: tId },
+            select: { batchId: true },
+          });
+          if (ticket) {
+            activeBatchId = ticket.batchId;
+          }
+        }
+        
+        if (!activeBatchId) {
+          allSuccess = false;
+          continue;
+        }
+
+        const success = await this.checkoutService.renewTicketLock(userId, tId, activeBatchId);
         if (!success) allSuccess = false;
       }
       return {
@@ -114,12 +130,41 @@ export class CheckoutController {
    */
   @Post('tickets/reserve')
   async reserve(
-    @Body() body: { eventId: string; batchId: string; price: number; isHalfPrice?: boolean; quantity?: number }
+    @Body() body: { 
+      eventId: string; 
+      batchId?: string; 
+      price?: number; 
+      isHalfPrice?: boolean; 
+      quantity?: number;
+      items?: Array<{ batchId: string; price: number; isHalfPrice?: boolean; quantity: number }>
+    }
   ) {
-    const { eventId, batchId, price, isHalfPrice = false, quantity = 1 } = body;
+    const { eventId } = body;
     
-    if (!eventId || !batchId || price === undefined) {
-      throw new BadRequestException('eventId, batchId e price são obrigatórios.');
+    if (!eventId) {
+      throw new BadRequestException('eventId é obrigatório.');
+    }
+    
+    // Normaliza para uma lista uniforme de itens a serem reservados
+    let reservationItems: Array<{ batchId: string; price: number; isHalfPrice: boolean; quantity: number }> = [];
+    
+    if (body.items && Array.isArray(body.items)) {
+      reservationItems = body.items.map(item => ({
+        batchId: item.batchId,
+        price: Number(item.price),
+        isHalfPrice: !!item.isHalfPrice,
+        quantity: Number(item.quantity) || 1
+      }));
+    } else {
+      if (!body.batchId || body.price === undefined) {
+        throw new BadRequestException('batchId e price são obrigatórios se items não for fornecido.');
+      }
+      reservationItems = [{
+        batchId: body.batchId,
+        price: Number(body.price),
+        isHalfPrice: !!body.isHalfPrice,
+        quantity: Number(body.quantity) || 1
+      }];
     }
     
     // 1. Garantir que exista um usuário guest no banco de dados para a reserva
@@ -138,30 +183,34 @@ export class CheckoutController {
       });
     }
     
-    // 2. Chamar o checkout do CheckoutService em loop para criar a quantidade de reservas solicitadas
     const ticketIds: string[] = [];
+    const reservedBatchTickets: Array<{ batchId: string; ticketId: string }> = [];
+    
     try {
-      for (let i = 0; i < quantity; i++) {
-        const ticket = await this.checkoutService.checkout({
-          userId: user.id,
-          eventId,
-          batchId,
-          buyerCpf: '000.000.000-00', // Placeholder temporário a ser atualizado no pagamento
-          price,
-          isHalfPrice,
-        });
-        ticketIds.push(ticket.id);
+      for (const item of reservationItems) {
+        for (let i = 0; i < item.quantity; i++) {
+          const ticket = await this.checkoutService.checkout({
+            userId: user.id,
+            eventId,
+            batchId: item.batchId,
+            buyerCpf: '000.000.000-00', // Placeholder temporário a ser atualizado no pagamento
+            price: item.price,
+            isHalfPrice: item.isHalfPrice,
+          });
+          ticketIds.push(ticket.id);
+          reservedBatchTickets.push({ batchId: item.batchId, ticketId: ticket.id });
+        }
       }
     } catch (error) {
       // Compensação imediata em caso de falha de estoque ou outra falha no loop
-      for (const tId of ticketIds) {
+      for (const item of reservedBatchTickets) {
         try {
-          await this.checkoutService.fluxEngine.releaseTicketLock(batchId, user.id, tId);
+          await this.checkoutService.fluxEngine.releaseTicketLock(item.batchId, user.id, item.ticketId);
           await prisma.ticketBatch.update({
-            where: { id: batchId },
+            where: { id: item.batchId },
             data: { availableQuantity: { increment: 1 } },
           });
-          await prisma.ticket.delete({ where: { id: tId } });
+          await prisma.ticket.delete({ where: { id: item.ticketId } });
         } catch (cleanupErr) {
           console.error('[CLEANUP ERROR]', cleanupErr);
         }

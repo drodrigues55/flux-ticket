@@ -996,6 +996,16 @@ eval("module.exports = __webpack_require__(/*! ./dist/client/router */ \"../../n
 
 /***/ }),
 
+/***/ "../../node_modules/next/script.js":
+/*!*****************************************!*\
+  !*** ../../node_modules/next/script.js ***!
+  \*****************************************/
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+eval("module.exports = __webpack_require__(/*! ./dist/client/script */ \"../../node_modules/next/dist/client/script.js\")\n//# sourceURL=[module]\n//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiLi4vLi4vbm9kZV9tb2R1bGVzL25leHQvc2NyaXB0LmpzIiwibWFwcGluZ3MiOiJBQUFBLGlIQUFnRCIsInNvdXJjZXMiOlsid2VicGFjazovL0BmbHV4L2NsaWVudC8uLi8uLi9ub2RlX21vZHVsZXMvbmV4dC9zY3JpcHQuanM/N2FkMyJdLCJzb3VyY2VzQ29udGVudCI6WyJtb2R1bGUuZXhwb3J0cyA9IHJlcXVpcmUoJy4vZGlzdC9jbGllbnQvc2NyaXB0JylcbiJdLCJuYW1lcyI6W10sInNvdXJjZVJvb3QiOiIifQ==\n//# sourceURL=webpack-internal:///../../node_modules/next/script.js\n");
+
+/***/ }),
+
 /***/ "(api)/../../node_modules/next/dist/build/templates/helpers.js":
 /*!***************************************************************!*\
   !*** ../../node_modules/next/dist/build/templates/helpers.js ***!
