@@ -9,12 +9,15 @@
     "test": "jest"
   },
   "dependencies": {
+    "@flux/database": "*",
+    "@flux/types": "*",
+    "@flux/ui": "*",
+    "dayjs": "^1.11.21",
+    "framer-motion": "^12.40.0",
     "next": "^14.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "@flux/ui": "*",
-    "@flux/types": "*",
-    "@flux/database": "*"
+    "recharts": "^3.8.1"
   },
   "devDependencies": {
     "@types/node": "^20.11.16",

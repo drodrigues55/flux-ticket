@@ -1,77 +1,119 @@
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import {
+  LayoutDashboard,
+  CalendarDays,
+  Ticket,
+  ScanLine,
+  Users,
+  Megaphone,
+  Wallet,
+  BarChart3,
+  Settings,
+  Search,
+  Bell,
+  ChevronDown,
+} from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
 }
 
+const navItems = [
+  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Eventos', href: '/events', icon: CalendarDays },
+  { name: 'Ingressos', href: '/tickets', icon: Ticket },
+  { name: 'Check-in', href: '/checkin', icon: ScanLine },
+  { name: 'Participantes', href: '/participants', icon: Users },
+  { name: 'Marketing', href: '/marketing', icon: Megaphone },
+  { name: 'Financeiro', href: '/financial', icon: Wallet },
+  { name: 'Relatórios', href: '/reports', icon: BarChart3 },
+  { name: 'Configurações', href: '/settings', icon: Settings },
+];
+
 export default function Layout({ children }: LayoutProps) {
   const router = useRouter();
 
-  const navigation = [
-    { 
-      name: 'Visão Geral', 
-      href: '/',
-      icon: (
-        <svg className="w-4 h-4 mr-2.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z" />
-        </svg>
-      )
-    },
-    { 
-      name: 'Meus Eventos', 
-      href: '/events',
-      icon: (
-        <svg className="w-4 h-4 mr-2.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
-        </svg>
-      )
-    },
-  ];
+  const isActive = (href: string) => {
+    if (href === '/') return router.pathname === '/';
+    return router.pathname.startsWith(href);
+  };
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] text-neutral-900 flex flex-col md:flex-row relative">
-      {/* Sidebar navigation */}
-      <aside className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-[#EAEAEA] flex flex-col justify-between p-6 relative z-10 shrink-0">
-        <div className="space-y-8">
-          <div>
-            <h2 className="text-xl font-black tracking-tight text-neutral-950">
-              Flux Dashboard
-            </h2>
-            <p className="text-[10px] uppercase font-bold text-neutral-450 tracking-wider mt-1">
-              Organizer Panel
-            </p>
+    <div className="min-h-screen bg-[#FAFAFA] text-[#111111] flex flex-col">
+
+      {/* ── Header Superior (fixo) ── */}
+      <header className="sticky top-0 z-50 bg-white border-b border-[#EAEAEA] h-14 flex items-center justify-between px-6 shrink-0">
+        {/* Logo / Brand */}
+        <Link href="/" className="flex items-center gap-2.5 no-underline">
+          <div className="w-7 h-7 rounded-md bg-[#FF3200] flex items-center justify-center">
+            <Ticket className="w-4 h-4 text-white" />
           </div>
+          <span className="text-base font-extrabold text-[#111111] tracking-tight">
+            Flux Tickets
+          </span>
+        </Link>
 
-          <nav className="space-y-1">
-            {navigation.map((item) => {
-              const isActive = router.pathname === item.href || (item.href !== '/' && router.pathname.startsWith(item.href));
-              
-              return (
-                <Link key={item.name} href={item.href} legacyBehavior>
-                  <a className={`flex items-center px-4 py-2.5 rounded-[4px] text-sm font-semibold transition-all duration-75 cursor-pointer active:scale-[0.98] ${
-                    isActive 
-                      ? 'bg-neutral-50 border-l-2 border-[#FF3200] text-[#FF3200]' 
-                      : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-50 border-l-2 border-transparent'
-                  }`}>
-                    {item.icon}
-                    {item.name}
-                  </a>
-                </Link>
-              );
-            })}
-          </nav>
+        {/* Search Global */}
+        <div className="hidden md:flex items-center flex-1 max-w-md mx-8">
+          <div className="relative w-full">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#B5B5B5]" />
+            <input
+              type="text"
+              placeholder="Buscar eventos, participantes..."
+              className="w-full bg-[#F5F5F5] border border-[#EAEAEA] rounded-lg pl-9 pr-4 py-2 text-sm text-[#2D2D2D] placeholder-[#B5B5B5] focus:outline-none focus:border-[#FF3200] focus:ring-1 focus:ring-[#FF3200]/20 transition-all"
+            />
+          </div>
         </div>
 
-        <div className="mt-8 md:mt-0 pt-6 border-t border-[#EAEAEA] flex items-center space-x-3 text-xs text-neutral-400">
-          <div className="w-2.5 h-2.5 rounded-full bg-[#FF3200]" />
-          <span>Serviço Conectado</span>
-        </div>
-      </aside>
+        {/* Right side: Notifications + Profile */}
+        <div className="flex items-center gap-3">
+          <button className="relative p-2 rounded-lg hover:bg-[#F5F5F5] transition-colors border-none bg-transparent cursor-pointer">
+            <Bell className="w-[18px] h-[18px] text-[#666666]" />
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#FF3200]" />
+          </button>
 
-      {/* Main Content Area */}
-      <main className="flex-1 p-6 md:p-10 relative z-10 overflow-y-auto">
+          <div className="flex items-center gap-2 pl-3 border-l border-[#EAEAEA]">
+            <div className="w-8 h-8 rounded-full bg-[#FF3200]/10 flex items-center justify-center text-[#FF3200] text-xs font-bold">
+              DR
+            </div>
+            <div className="hidden sm:block">
+              <span className="text-xs font-semibold text-[#2D2D2D] block leading-none">Organizador</span>
+              <span className="text-[10px] text-[#8A8A8A] block mt-0.5">Produtor</span>
+            </div>
+            <ChevronDown className="w-3.5 h-3.5 text-[#B5B5B5]" />
+          </div>
+        </div>
+      </header>
+
+      {/* ── Navegação Horizontal ── */}
+      <nav className="sticky top-14 z-40 bg-white border-b border-[#EAEAEA] shrink-0">
+        <div className="flex items-center gap-0.5 px-6 overflow-x-auto hide-scrollbar">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const active = isActive(item.href);
+
+            return (
+              <Link key={item.name} href={item.href} legacyBehavior>
+                <a
+                  className={`flex items-center gap-1.5 px-3.5 py-3 text-[13px] font-medium transition-all duration-150 border-b-2 whitespace-nowrap no-underline ${
+                    active
+                      ? 'border-[#FF3200] text-[#FF3200] font-semibold'
+                      : 'border-transparent text-[#666666] hover:text-[#2D2D2D] hover:border-[#DCDCDC]'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {item.name}
+                </a>
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
+
+      {/* ── Main Content ── */}
+      <main className="flex-1 px-6 py-6 overflow-y-auto">
         {children}
       </main>
     </div>
