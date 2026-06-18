@@ -103,6 +103,24 @@ let CheckoutService = (() => {
             if (!batch) {
                 throw new common_1.BadRequestException('Lote não encontrado.');
             }
+            // Guarantee the eventId is always consistent with the batch
+            const resolvedEventId = batch.eventId || data.eventId;
+            // Verifica se as vendas estão suspensas globalmente
+            const isPaused = await this.fluxEngine.isSalesPaused();
+            if (isPaused) {
+                throw new common_1.BadRequestException('As vendas estão suspensas globalmente de forma temporária pelo organizador.');
+            }
+            // Verifica se o limite de conexões de checkout (throttle) foi atingido
+            const activeLocks = await database_1.prisma.ticket.count({
+                where: {
+                    buyerCpf: '000.000.000-00',
+                    expiresAt: { gt: new Date() },
+                },
+            });
+            const limit = await this.fluxEngine.getCheckoutLimit();
+            if (activeLocks >= limit) {
+                throw new common_1.BadRequestException('Fila de checkout cheia. Limite de acessos simultâneos atingido. Tente novamente em alguns segundos.');
+            }
             if (!batch.isActive) {
                 throw new common_1.BadRequestException('As vendas para este lote estão pausadas temporariamente.');
             }
@@ -128,15 +146,18 @@ let CheckoutService = (() => {
                             },
                         },
                     });
-                    // Criação do Ticket com status PENDING_VALIDATION
+                    // Criação do Ticket com status PENDING_VALIDATION.
+                    // eventId é armazenado diretamente para evitar joins no dashboard.
                     const ticket = await tx.ticket.create({
                         data: {
                             id: ticketId,
+                            eventId: resolvedEventId,
                             buyerId: data.userId,
                             batchId: data.batchId,
                             buyerCpf: data.buyerCpf,
                             price: data.price,
                             status: 'PENDING_VALIDATION',
+                            channel: 'ONLINE',
                             meiaEntrada: data.isHalfPrice,
                             expiresAt: new Date(Date.now() + 180 * 1000), // Válido por 3 minutos
                         },

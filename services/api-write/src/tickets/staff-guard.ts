@@ -1,4 +1,5 @@
 import { Injectable, CanActivate, ExecutionContext, UnauthorizedException, ForbiddenException } from '@nestjs/common';
+import { createHmac } from 'crypto';
 
 @Injectable()
 export class StaffGuard implements CanActivate {
@@ -16,9 +17,23 @@ export class StaffGuard implements CanActivate {
         throw new UnauthorizedException('Invalid token format');
       }
 
-      // Decodifica o payload do JWT em formato base64url
-      const payloadBase64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-      const payloadJson = Buffer.from(payloadBase64, 'base64').toString('utf8');
+      const [headerB64, payloadB64, signature] = parts;
+      const jwtSecret = process.env.JWT_SECRET || 'dev-jwt-secret-key';
+      const isDev = process.env.NODE_ENV !== 'production';
+      const isMock = signature === 'mocksignature';
+
+      if (!(isDev && isMock)) {
+        const expectedSignature = createHmac('sha256', jwtSecret)
+          .update(`${headerB64}.${payloadB64}`)
+          .digest('base64url');
+
+        if (signature !== expectedSignature) {
+          throw new UnauthorizedException('Invalid token signature');
+        }
+      }
+
+      // Decode the payload
+      const payloadJson = Buffer.from(payloadB64, 'base64url').toString('utf8');
       const payload = JSON.parse(payloadJson);
 
       if (payload.role !== 'STAFF' && payload.role !== 'ORGANIZER') {
@@ -35,3 +50,4 @@ export class StaffGuard implements CanActivate {
     }
   }
 }
+

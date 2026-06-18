@@ -203,6 +203,72 @@ let FluxEngineService = (() => {
             const result = await this.redisClient.expire(lockKey, ttlSeconds);
             return result === 1;
         }
+        async getCheckoutLimit() {
+            const limit = await this.redisClient.get('settings:checkout_limit');
+            return limit ? parseInt(limit, 10) : 1000;
+        }
+        async setCheckoutLimit(limit) {
+            await this.redisClient.set('settings:checkout_limit', limit.toString());
+        }
+        async isSalesPaused() {
+            const paused = await this.redisClient.get('settings:sales_paused:global');
+            return paused === 'true';
+        }
+        async setSalesPaused(paused) {
+            await this.redisClient.set('settings:sales_paused:global', paused ? 'true' : 'false');
+        }
+        async incrementDeniedAttempts(eventId) {
+            return this.redisClient.incr(`event:${eventId}:denied_attempts`);
+        }
+        async getDeniedAttempts(eventId) {
+            const count = await this.redisClient.get(`event:${eventId}:denied_attempts`);
+            return count ? parseInt(count, 10) : 0;
+        }
+        async registerStaffDevice(eventId, deviceId, deviceName, pendingCount) {
+            const deviceData = JSON.stringify({
+                deviceId,
+                deviceName,
+                lastSyncTime: new Date().toISOString(),
+                pendingSyncCount: pendingCount
+            });
+            await this.redisClient.hset(`event:${eventId}:staff_devices`, deviceId, deviceData);
+        }
+        async getStaffDevices(eventId) {
+            const devicesMap = await this.redisClient.hgetall(`event:${eventId}:staff_devices`);
+            return Object.values(devicesMap).map((data) => JSON.parse(data));
+        }
+        async addLatencyMetric(latencyMs) {
+            const key = 'telemetry:latency_history';
+            await this.redisClient.lpush(key, latencyMs.toString());
+            await this.redisClient.ltrim(key, 0, 19);
+        }
+        async getLatencyHistory() {
+            const list = await this.redisClient.lrange('telemetry:latency_history', 0, 19);
+            return list.map((val) => parseFloat(val));
+        }
+        async addQueueSizeMetric(size) {
+            const key = 'telemetry:validation_queue_history';
+            await this.redisClient.lpush(key, size.toString());
+            await this.redisClient.ltrim(key, 0, 19);
+        }
+        async getQueueSizeHistory() {
+            const list = await this.redisClient.lrange('telemetry:validation_queue_history', 0, 19);
+            return list.map((val) => parseInt(val, 10));
+        }
+        async getRedisInfoStats() {
+            try {
+                const stats = await this.redisClient.info('stats');
+                const hitsMatch = stats.match(/keyspace_hits:(\d+)/);
+                const missesMatch = stats.match(/keyspace_misses:(\d+)/);
+                return {
+                    hits: hitsMatch ? parseInt(hitsMatch[1], 10) : 0,
+                    misses: missesMatch ? parseInt(missesMatch[1], 10) : 0,
+                };
+            }
+            catch {
+                return { hits: 0, misses: 0 };
+            }
+        }
     };
     return FluxEngineService = _classThis;
 })();

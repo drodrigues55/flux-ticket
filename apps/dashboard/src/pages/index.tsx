@@ -128,7 +128,7 @@ function HeroEventCard({ hero }: { hero: DashboardHeroEvent }) {
   return (
     <div className="relative bg-white border border-[#EAEAEA] rounded-2xl overflow-hidden shadow-sm">
       {/* Top accent strip */}
-      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#FF3200] to-[#FF6B00]" />
+      <div className="absolute top-0 left-0 w-full h-1 bg-[#FF3200]" />
 
       <div className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 pt-7">
         {/* Left: event image */}

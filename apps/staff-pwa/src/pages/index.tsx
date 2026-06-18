@@ -5,8 +5,10 @@ import { validateTicket } from '../lib/crypto';
 import { syncOfflineMutations, setupNetworkSync } from '../lib/sync';
 import { SyncGate } from '../components/SyncGate';
 import { ScanButton } from '../components/ScanButton';
+import { useTheme } from '../hooks/useTheme';
 
 export default function StaffPortal() {
+  const { isDark, toggleTheme } = useTheme();
   const [eventId, setEventId] = useState('event-id-123');
   const [isOnline, setIsOnline] = useState(true);
   const [scannedInput, setScannedInput] = useState('');
@@ -195,30 +197,44 @@ export default function StaffPortal() {
   };
 
   return (
-    <div className="min-h-screen bg-cosmic-dark text-white p-6 md:p-12 relative flex flex-col justify-between">
-      {/* Visual background element */}
-      <div className="absolute inset-0 bg-[radial-gradient(#0891b2_1px,transparent_1px)] [background-size:24px_24px] opacity-10 pointer-events-none" />
-
+    <div className="min-h-screen flux-page p-6 md:p-12 relative flex flex-col justify-between">
       <div className="max-w-5xl mx-auto w-full relative z-10 space-y-8 my-auto">
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-neutral-800 pb-6 gap-4">
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-[var(--border)] pb-6 gap-4">
           <div>
-            <h1 className="text-3xl font-black bg-gradient-to-r from-white via-neutral-100 to-cosmic-neon bg-clip-text text-transparent">
+            <h1 className="text-3xl font-black text-[var(--text)]">
               Flux Portaria PWA
             </h1>
-            <p className="text-xs text-neutral-400 mt-1 uppercase tracking-widest font-bold">
+            <p className="text-xs text-[var(--text-subtle)] mt-1 tracking-wide font-bold">
               Edge Validation Client - Offline Gate Control
             </p>
           </div>
 
           <div className="flex items-center space-x-3">
-            <span className="text-sm font-semibold">Conectividade:</span>
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="flux-theme-toggle"
+              title={isDark ? 'Usar tema claro' : 'Usar tema escuro'}
+              aria-label={isDark ? 'Usar tema claro' : 'Usar tema escuro'}
+            >
+              {isDark ? (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v2m0 14v2m9-9h-2M5 12H3m15.36 6.36-1.42-1.42M7.05 7.05 5.64 5.64m12.72 0-1.42 1.41M7.05 16.95l-1.41 1.41M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0z" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                </svg>
+              )}
+            </button>
+            <span className="text-sm font-semibold text-[var(--text)]">Conectividade:</span>
             {isOnline ? (
-              <span className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs px-3 py-1.5 rounded-full font-bold uppercase tracking-wider flex items-center space-x-1">
+              <span className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 text-xs px-3 py-1.5 rounded-full font-bold tracking-wide flex items-center space-x-1">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block mr-1.5 animate-pulse" />
                 Online
               </span>
             ) : (
-              <span className="bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs px-3 py-1.5 rounded-full font-bold uppercase tracking-wider flex items-center space-x-1">
+              <span className="bg-amber-500/10 border border-amber-500/30 text-amber-600 text-xs px-3 py-1.5 rounded-full font-bold tracking-wide flex items-center space-x-1">
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block mr-1.5 animate-pulse" />
                 Offline (Borda local)
               </span>
@@ -229,19 +245,19 @@ export default function StaffPortal() {
         <main className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Coluna Esquerda: Sincronização e Configurações */}
           <div className="lg:col-span-5 space-y-6">
-            <Card className="border-cosmic-grey bg-cosmic-slate rounded-xl">
+            <Card className="flux-card">
               <CardHeader>
                 <CardTitle className="text-lg">Configuração do Evento</CardTitle>
                 <CardDescription>Defina o evento e baixe a carga offline antes do início.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-wider text-neutral-400">ID do Evento</label>
+                  <label className="text-xs font-bold tracking-wide text-[var(--text-subtle)]">ID do Evento</label>
                   <Input
                     value={eventId}
                     onChange={(e) => setEventId(e.target.value)}
                     placeholder="Ex: event-id-123"
-                    className="focus:ring-[#00E5FF] focus:border-[#00E5FF] focus:ring-1 border-cosmic-grey bg-cosmic-dark"
+                    className="flux-input"
                   />
                 </div>
 
@@ -249,7 +265,7 @@ export default function StaffPortal() {
                   <Button
                     onClick={handleDownloadTickets}
                     variant="outline"
-                    className="w-full border-cosmic-neon/30 text-cosmic-neon hover:border-cosmic-neon hover:bg-cosmic-neon/10 hover:shadow-[0_0_12px_rgba(0,229,255,0.2)] transition-all"
+                    className="w-full"
                     disabled={syncLoading || !isOnline}
                   >
                     Baixar Carga Offline (Sync)
@@ -258,24 +274,24 @@ export default function StaffPortal() {
               </CardContent>
             </Card>
 
-            <Card className="border-cosmic-grey bg-cosmic-slate rounded-xl">
+            <Card className="flux-card">
               <CardHeader>
                 <CardTitle className="text-lg">Status do Banco Local (IndexedDB)</CardTitle>
               </CardHeader>
               <CardContent className="grid grid-cols-2 gap-4">
-                <div className="bg-cosmic-dark p-4 rounded-lg border border-cosmic-grey text-center">
-                  <span className="block text-2xl font-mono font-black text-cosmic-neon">
+                <div className="flux-muted-surface p-4 rounded-lg border text-center">
+                  <span className="block text-2xl font-mono font-black text-[#FF3200]">
                     {validTicketsCount}
                   </span>
-                  <span className="text-[10px] uppercase font-bold text-neutral-400 tracking-wider">
+                  <span className="text-[10px] font-bold text-[var(--text-subtle)] tracking-wide">
                     Assinaturas Offline
                   </span>
                 </div>
-                <div className="bg-cosmic-dark p-4 rounded-lg border border-cosmic-grey text-center">
+                <div className="flux-muted-surface p-4 rounded-lg border text-center">
                   <span className="block text-2xl font-mono font-black text-amber-400">
                     {pendingSyncCount}
                   </span>
-                  <span className="text-[10px] uppercase font-bold text-neutral-400 tracking-wider">
+                  <span className="text-[10px] font-bold text-[var(--text-subtle)] tracking-wide">
                     Check-ins Pendentes
                   </span>
                 </div>
@@ -284,7 +300,7 @@ export default function StaffPortal() {
                 <Button
                   onClick={handleManualSync}
                   variant="primary"
-                  className="w-full bg-cosmic-neon text-[#121212] hover:bg-[#00d8f0] hover:shadow-[0_0_15px_rgba(0,229,255,0.4)] transition-all"
+                  className="w-full"
                   disabled={syncLoading || pendingSyncCount === 0 || !isOnline}
                 >
                   Sincronizar Filas Agora
@@ -293,7 +309,7 @@ export default function StaffPortal() {
             </Card>
 
             {syncMessage && (
-              <div className="bg-cosmic-slate border border-cosmic-grey text-xs p-4 rounded-lg text-neutral-300 font-mono break-all shadow-md">
+              <div className="flux-card text-xs p-4 rounded-lg text-[var(--text-muted)] font-mono break-all shadow-md">
                 {syncMessage}
               </div>
             )}
@@ -301,9 +317,7 @@ export default function StaffPortal() {
 
           {/* Coluna Direita: Validador QR Code & Câmera */}
           <div className="lg:col-span-7 space-y-6">
-            <Card className="border-cosmic-grey bg-cosmic-slate rounded-xl relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-cosmic-neon to-transparent" />
-
+            <Card className="flux-card relative overflow-hidden">
               <CardHeader>
                 <CardTitle className="text-xl">Validador de Portaria</CardTitle>
                 <CardDescription>Toque no botão de câmera flutuante abaixo para iniciar a validação.</CardDescription>
@@ -311,9 +325,9 @@ export default function StaffPortal() {
 
               <CardContent className="flex flex-col items-center justify-center py-6 space-y-4">
                 {scanResult ? (
-                  <div className={`w-full p-6 border rounded-xl flex items-start space-x-4 animate-neon-glow ${scanResult.success
-                      ? 'bg-emerald-950/20 border-emerald-500/80 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.3)]'
-                      : 'bg-red-950/20 border-red-500/80 text-red-300 shadow-[0_0_15px_rgba(239,68,68,0.3)]'
+                  <div className={`w-full p-6 border rounded-xl flex items-start space-x-4 ${scanResult.success
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                      : 'bg-red-50 border-red-200 text-red-700'
                     }`}>
                     <div className={`p-2 rounded-lg ${scanResult.success ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
                       }`}>
@@ -335,7 +349,7 @@ export default function StaffPortal() {
                     </div>
                   </div>
                 ) : (
-                  <div className="text-center py-10 text-neutral-500 border-2 border-dashed border-cosmic-grey rounded-xl w-full flex flex-col items-center justify-center">
+                  <div className="text-center py-10 text-[var(--text-subtle)] border-2 border-dashed border-[var(--border-strong)] rounded-xl w-full flex flex-col items-center justify-center">
                     <svg className="w-12 h-12 text-neutral-600 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
                     </svg>
@@ -346,21 +360,21 @@ export default function StaffPortal() {
             </Card>
 
             {/* Debug Panel colapsável */}
-            <details className="bg-cosmic-slate border border-cosmic-grey rounded-xl overflow-hidden group">
-              <summary className="p-4 cursor-pointer text-xs font-bold uppercase tracking-wider text-neutral-400 hover:text-white select-none flex justify-between items-center bg-cosmic-dark/30">
+            <details className="flux-card overflow-hidden group">
+              <summary className="p-4 cursor-pointer text-xs font-bold tracking-wide text-[var(--text-subtle)] hover:text-[var(--text)] select-none flex justify-between items-center flux-muted-surface">
                 <span>Painel de Debug (Simulador de QR)</span>
                 <span className="text-[10px] text-neutral-500 group-open:rotate-180 transition-transform">▼</span>
               </summary>
-              <div className="p-4 border-t border-cosmic-grey space-y-4">
+              <div className="p-4 border-t border-[var(--border)] space-y-4">
                 <form onSubmit={handleValidateScan} className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Dados do QR Code (JSON)</label>
+                    <label className="text-[10px] font-bold tracking-wide text-[var(--text-subtle)]">Dados do QR Code (JSON)</label>
                     <textarea
                       value={scannedInput}
                       onChange={(e) => setScannedInput(e.target.value)}
                       placeholder='{ "ticket_id": "...", "buyer_cpf": "...", "batch_id": "...", "signature": "..." }'
                       rows={5}
-                      className="w-full bg-cosmic-dark border border-cosmic-grey rounded-lg p-4 text-xs font-mono text-white placeholder-neutral-500 focus:outline-none focus:border-cosmic-neon focus:ring-1 focus:ring-cosmic-neon/30 hover:border-cosmic-neon/50 transition-all duration-200"
+                      className="flux-input w-full rounded-lg p-4 text-xs font-mono placeholder-[var(--text-subtle)]"
                     />
                   </div>
 
@@ -370,7 +384,7 @@ export default function StaffPortal() {
                       onClick={() => handleFillMockQR('valid')}
                       variant="outline"
                       size="sm"
-                      className="border-emerald-500/30 text-emerald-400 hover:border-emerald-500 hover:bg-emerald-500/10 hover:shadow-[0_0_12px_rgba(16,185,129,0.3)] transition-all font-semibold"
+                      className="border-emerald-500/30 text-emerald-600 hover:border-emerald-500 hover:bg-emerald-500/10 transition-all font-semibold"
                     >
                       Preencher QR Válido
                     </Button>
@@ -379,7 +393,7 @@ export default function StaffPortal() {
                       onClick={() => handleFillMockQR('invalid')}
                       variant="outline"
                       size="sm"
-                      className="border-red-500/30 text-red-400 hover:border-red-500 hover:bg-red-500/10 hover:shadow-[0_0_12px_rgba(239,68,68,0.3)] transition-all font-semibold"
+                      className="border-red-500/30 text-red-500 hover:border-red-500 hover:bg-red-500/10 transition-all font-semibold"
                     >
                       Preencher QR Não Cadastrado
                     </Button>
@@ -388,12 +402,12 @@ export default function StaffPortal() {
                       onClick={() => handleFillMockQR('tampered')}
                       variant="outline"
                       size="sm"
-                      className="border-amber-500/30 text-amber-400 hover:border-amber-500 hover:bg-amber-500/10 hover:shadow-[0_0_12px_rgba(245,158,11,0.3)] transition-all font-semibold"
+                      className="border-amber-500/30 text-amber-600 hover:border-amber-500 hover:bg-amber-500/10 transition-all font-semibold"
                     >
                       Preencher QR Adulterado
                     </Button>
                   </div>
-                  <Button type="submit" variant="primary" className="w-full py-3 bg-cosmic-neon text-[#121212] hover:bg-[#00d8f0] hover:shadow-[0_0_15px_rgba(0,229,255,0.4)] transition-all">
+                  <Button type="submit" variant="primary" className="w-full py-3">
                     Validar Ingresso (Check-in)
                   </Button>
                 </form>
@@ -403,7 +417,7 @@ export default function StaffPortal() {
         </main>
       </div>
 
-      <footer className="text-center text-xs text-neutral-500 py-6 relative z-10">
+      <footer className="text-center text-xs text-[var(--text-subtle)] py-6 relative z-10">
         <p>&copy; {new Date().getFullYear()} Flux Ticketss - Portaria Offline. Todos os direitos reservados.</p>
       </footer>
 

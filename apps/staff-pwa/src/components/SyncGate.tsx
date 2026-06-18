@@ -104,18 +104,17 @@ export function SyncGate({ eventId, onSyncComplete }: SyncGateProps) {
   if (!showModal) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1E1E1E]/95 backdrop-blur-md p-6">
-      <div className="max-w-md w-full bg-[#121212] border border-[#2C2C2C] rounded-2xl p-8 text-center space-y-6 shadow-2xl relative">
-        <div className="absolute inset-0 bg-[radial-gradient(#00E5FF_1px,transparent_1px)] [background-size:24px_24px] opacity-5 pointer-events-none rounded-2xl" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-md p-6">
+      <div className="max-w-md w-full flux-card rounded-[20px] p-8 text-center space-y-6 shadow-2xl relative">
         
         <div className="space-y-2 relative z-10">
-          <div className="w-16 h-16 bg-[#00E5FF]/10 text-[#00E5FF] rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
+          <div className="w-16 h-16 bg-[#FF3200]/10 text-[#FF3200] rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
             <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.5" />
             </svg>
           </div>
-          <h2 className="text-2xl font-black text-white tracking-tight">Sincronização Obrigatória</h2>
-          <p className="text-sm text-neutral-400">
+          <h2 className="text-2xl font-black text-[var(--text)] tracking-tight">Sincronização Obrigatória</h2>
+          <p className="text-sm text-[var(--text-subtle)]">
             O banco de dados de validação offline local está vazio ou expirado (último sync há mais de 1 hora). Sincronize com o servidor para continuar operando na portaria.
           </p>
         </div>
@@ -123,13 +122,13 @@ export function SyncGate({ eventId, onSyncComplete }: SyncGateProps) {
         {/* Barra de Progresso */}
         {isSyncing && (
           <div className="space-y-2">
-            <div className="h-2 w-full bg-[#1E1E1E] rounded-full overflow-hidden border border-[#2C2C2C]">
+            <div className="h-2 w-full bg-[var(--surface-muted)] rounded-full overflow-hidden border border-[var(--border)]">
               <div 
-                className="h-full bg-gradient-to-r from-[#00E5FF]/60 to-[#00E5FF] transition-all duration-300 rounded-full"
+                className="h-full bg-[#FF3200] transition-all duration-300 rounded-full"
                 style={{ width: `${syncProgress}%` }}
               />
             </div>
-            <p className="text-xs text-neutral-400 font-mono">{syncProgress}% - {statusMessage}</p>
+            <p className="text-xs text-[var(--text-subtle)] font-mono">{syncProgress}% - {statusMessage}</p>
           </div>
         )}
 
@@ -145,7 +144,7 @@ export function SyncGate({ eventId, onSyncComplete }: SyncGateProps) {
             onClick={handleSync}
             disabled={isSyncing}
             variant="primary"
-            className="w-full py-3 bg-[#00E5FF] text-[#121212] hover:bg-[#00d8f0] font-black uppercase tracking-wider animate-neon-glow rounded-xl transition-all disabled:opacity-50 disabled:pointer-events-none"
+            className="w-full py-3 bg-[#FF3200] text-white hover:bg-[#E62D00] font-black tracking-wide rounded-xl transition-all disabled:opacity-50 disabled:pointer-events-none"
           >
             {isSyncing ? 'Sincronizando...' : 'Sincronizar Agora'}
           </Button>

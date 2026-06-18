@@ -1,5 +1,16 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '@flux/database';
+import { verifyToken } from '../../../lib/jwt';
+
+function parseCookies(cookieHeader?: string) {
+  if (!cookieHeader) return {};
+  const list: Record<string, string> = {};
+  cookieHeader.split(';').forEach((cookie) => {
+    const parts = cookie.split('=');
+    list[parts.shift()!.trim()] = decodeURI(parts.join('='));
+  });
+  return list;
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -7,11 +18,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { userId } = req.query;
+  // Verify user session from secure cookie to prevent IDOR
+  const cookies = parseCookies(req.headers.cookie);
+  const token = cookies['flux_token'];
+  const decoded = token ? verifyToken(token) : null;
 
-  if (!userId || typeof userId !== 'string') {
-    return res.status(400).json({ error: 'userId is required' });
+  if (!decoded || !decoded.id) {
+    return res.status(401).json({ error: 'Unauthorized: Session missing or expired' });
   }
+
+  // Force the query to use the authenticated user's ID
+  const userId = decoded.id;
 
   try {
     const tickets = await prisma.ticket.findMany({

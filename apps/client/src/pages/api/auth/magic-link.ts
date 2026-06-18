@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '@flux/database';
+import { signToken } from '../../../lib/jwt';
 
 // Global store for OTP codes during development
 const otps = (global as any).otps || {};
@@ -80,9 +81,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
+    const sessionToken = signToken({ id: user.id, email: user.email, role: user.role });
+
+    // Set cookie securely
+    res.setHeader('Set-Cookie', `flux_token=${sessionToken}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`);
+
     return res.status(200).json({
       success: true,
-      token: 'mock-session-token-' + Math.random().toString(36).substring(2),
+      token: sessionToken,
       user: {
         id: user.id,
         email: user.email,
@@ -93,3 +99,4 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return res.status(400).json({ error: 'Invalid action. Must be "send" or "verify".' });
 }
+

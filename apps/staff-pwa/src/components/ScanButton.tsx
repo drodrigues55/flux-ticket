@@ -76,7 +76,7 @@ export function ScanButton({ onScan }: ScanButtonProps) {
       {/* Floating Action Button (FAB) */}
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-8 left-1/2 -translate-x-1/2 z-40 bg-[#00E5FF] text-[#121212] hover:bg-[#00d8f0] p-5 rounded-full shadow-[0_0_25px_rgba(0,229,255,0.5)] hover:shadow-[0_0_35px_rgba(0,229,255,0.7)] transition-all duration-300 transform hover:scale-105 active:scale-95 flex items-center justify-center w-16 h-16 border-none cursor-pointer"
+        className="fixed bottom-8 left-1/2 -translate-x-1/2 z-40 bg-[#FF3200] text-white hover:bg-[#E62D00] p-5 rounded-full shadow-lg transition-all duration-300 transform hover:scale-105 active:scale-95 flex items-center justify-center w-16 h-16 border-none cursor-pointer"
         title="Escanear QR Code"
       >
         <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -86,11 +86,11 @@ export function ScanButton({ onScan }: ScanButtonProps) {
 
       {/* Viewfinder Overlay Modal */}
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#1E1E1E]/95 backdrop-blur-md p-6">
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/60 backdrop-blur-md p-6">
           <div className="max-w-md w-full flex flex-col items-center space-y-6">
             <div className="text-center space-y-2">
-              <h3 className="text-xl font-black text-white uppercase tracking-wider">Scanner de Portaria</h3>
-              <p className="text-xs text-neutral-400">Posicione o QR Code impresso ou no celular do cliente frente à câmera traseira</p>
+              <h3 className="text-xl font-black text-white tracking-wide">Scanner de Portaria</h3>
+              <p className="text-xs text-neutral-200">Posicione o QR Code impresso ou no celular do cliente frente à câmera traseira</p>
             </div>
 
             {/* Viewfinder Container */}
@@ -98,14 +98,14 @@ export function ScanButton({ onScan }: ScanButtonProps) {
               <div id="flux-qr-reader" className="w-full h-full" />
               {/* Moldura Guia de Foco */}
               <div className="absolute inset-0 border-[40px] border-black/40 pointer-events-none flex items-center justify-center">
-                <div className="w-48 h-48 border-2 border-dashed border-[#00E5FF]/80 rounded-lg animate-pulse" />
+                <div className="w-48 h-48 border-2 border-dashed border-[#FF3200]/80 rounded-lg animate-pulse" />
               </div>
             </div>
 
             <Button
               onClick={handleClose}
               variant="outline"
-              className="px-8 border-red-500/30 text-red-400 hover:border-red-500 hover:bg-red-500/10 font-bold uppercase tracking-wider rounded-xl transition-all"
+              className="px-8 border-red-500/30 text-red-400 hover:border-red-500 hover:bg-red-500/10 font-bold tracking-wide rounded-xl transition-all"
             >
               Cancelar
             </Button>

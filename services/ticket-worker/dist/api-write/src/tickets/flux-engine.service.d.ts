@@ -37,5 +37,21 @@ export declare class FluxEngineService implements OnModuleInit, OnModuleDestroy 
      * Estende a expiração de um lock temporário no Redis.
      */
     extendTicketLock(userId: string, ticketId: string, batchId: string, ttlSeconds: number): Promise<boolean>;
+    getCheckoutLimit(): Promise<number>;
+    setCheckoutLimit(limit: number): Promise<void>;
+    isSalesPaused(): Promise<boolean>;
+    setSalesPaused(paused: boolean): Promise<void>;
+    incrementDeniedAttempts(eventId: string): Promise<number>;
+    getDeniedAttempts(eventId: string): Promise<number>;
+    registerStaffDevice(eventId: string, deviceId: string, deviceName: string, pendingCount: number): Promise<void>;
+    getStaffDevices(eventId: string): Promise<any[]>;
+    addLatencyMetric(latencyMs: number): Promise<void>;
+    getLatencyHistory(): Promise<number[]>;
+    addQueueSizeMetric(size: number): Promise<void>;
+    getQueueSizeHistory(): Promise<number[]>;
+    getRedisInfoStats(): Promise<{
+        hits: number;
+        misses: number;
+    }>;
 }
 //# sourceMappingURL=flux-engine.service.d.ts.map

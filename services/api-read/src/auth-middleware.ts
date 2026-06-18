@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { createHmac } from 'crypto';
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -20,9 +21,23 @@ export function authMiddleware(req: AuthenticatedRequest, res: Response, next: N
       return res.status(401).json({ error: 'Unauthorized: Invalid token format' });
     }
 
-    // Decodifica a carga útil do JWT base64url
-    const payloadBase64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const payloadJson = Buffer.from(payloadBase64, 'base64').toString('utf8');
+    const [headerB64, payloadB64, signature] = parts;
+    const jwtSecret = process.env.JWT_SECRET || 'dev-jwt-secret-key';
+    const isDev = process.env.NODE_ENV !== 'production';
+    const isMock = signature === 'mocksignature';
+
+    if (!(isDev && isMock)) {
+      const expectedSignature = createHmac('sha256', jwtSecret)
+        .update(`${headerB64}.${payloadB64}`)
+        .digest('base64url');
+
+      if (signature !== expectedSignature) {
+        return res.status(401).json({ error: 'Unauthorized: Invalid token signature' });
+      }
+    }
+
+    // Decode the payload
+    const payloadJson = Buffer.from(payloadB64, 'base64url').toString('utf8');
     const payload = JSON.parse(payloadJson);
 
     if (payload.role !== 'STAFF' && payload.role !== 'ORGANIZER') {
@@ -35,3 +50,4 @@ export function authMiddleware(req: AuthenticatedRequest, res: Response, next: N
     return res.status(401).json({ error: 'Unauthorized: Invalid token' });
   }
 }
+

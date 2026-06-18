@@ -8,18 +8,19 @@
    Creating an optimized production build ...
  ✓ Compiled successfully
    Collecting page data ...
-   Generating static pages (0/5) ...
-   Generating static pages (1/5) 
-   Generating static pages (2/5) 
-   Generating static pages (3/5) 
- ✓ Generating static pages (5/5)
+   Generating static pages (0/6) ...
+   Generating static pages (1/6) 
+   Generating static pages (2/6) 
+   Generating static pages (4/6) 
+ ✓ Generating static pages (6/6)
    Finalizing page optimization ...
    Collecting build traces ...
 
 Route (pages)                             Size     First Load JS
-┌ ○ /                                     7.94 kB        97.7 kB
+┌ ○ /                                     3.84 kB        93.6 kB
 ├   /_app                                 0 B              80 kB
 ├ ○ /404                                  180 B          80.2 kB
+├ ƒ /api/auth/logout                      0 B              80 kB
 ├ ƒ /api/auth/magic-link                  0 B              80 kB
 ├ ƒ /api/events/[id]                      0 B              80 kB
 ├ ƒ /api/payments/checkout                0 B              80 kB
@@ -31,15 +32,16 @@ Route (pages)                             Size     First Load JS
 ├ ƒ /api/tickets/transfer                 0 B              80 kB
 ├ ƒ /api/tickets/user                     0 B              80 kB
 ├ ƒ /api/tickets/validate                 0 B              80 kB
-├ ○ /checkout/[eventId]                   9.09 kB        95.8 kB
-├ ƒ /checkout/success                     2.21 kB          92 kB
-├ ○ /profile                              6.05 kB        95.8 kB
-├ ƒ /profile/validate/[ticketId]          2.61 kB        92.4 kB
-└ ƒ /ticket/[ticketId]                    3.62 kB        90.3 kB
-+ First Load JS shared by all             89.4 kB
+├ ○ /checkout/[eventId]                   9.56 kB        96.2 kB
+├ ƒ /checkout/success                     2.24 kB          92 kB
+├ ○ /event/[id]                           4.58 kB        94.4 kB
+├ ○ /profile                              6.16 kB        95.9 kB
+├ ƒ /profile/validate/[ticketId]          2.66 kB        92.4 kB
+└ ƒ /ticket/[ticketId]                    3.62 kB        90.2 kB
++ First Load JS shared by all             89 kB
   ├ chunks/framework-e82a91356956e6c8.js  44.8 kB
   ├ chunks/main-ebe18a874d1c2ea2.js       34 kB
-  └ other shared chunks (total)           10.6 kB
+  └ other shared chunks (total)           10.2 kB
 
 ○  (Static)   prerendered as static content
 ƒ  (Dynamic)  server-rendered on demand
