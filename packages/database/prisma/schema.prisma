@@ -133,6 +133,7 @@ model Event {
   payments  Payment[]
   reservations Reservation[]
   orders    Order[]
+  checkins Checkin[]
   saleLogs  SaleLog[]
   alerts    EventAlert[]
   snapshots DailySalesSnapshot[]
@@ -198,6 +199,7 @@ model Ticket {
 
   payments Payment[]
   statusHistory TicketStatusHistory[]
+  checkins Checkin[]
 
   // Performance indexes for dashboard aggregation queries
   @@index([eventId])
@@ -322,6 +324,33 @@ model TicketStatusHistory {
 
   @@index([ticketId, createdAt])
   @@index([toStatus])
+  @@index([requestId])
+}
+
+model Checkin {
+  id             String   @id @default(uuid())
+  eventId        String
+  event          Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  ticketId       String?
+  ticket         Ticket?  @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  offlineId      String?
+  deviceId       String?
+  deviceName     String?
+  operatorId     String?
+  sectorId       Int?
+  status         String   @default("ACCEPTED") // ACCEPTED, DUPLICATE, CONFLICT, REJECTED
+  conflictReason String?
+  scannedAt      DateTime @default(now())
+  syncedAt       DateTime @default(now())
+  requestId      String?
+  rawPayload     Json?
+  createdAt      DateTime @default(now())
+
+  @@unique([eventId, offlineId])
+  @@index([eventId, ticketId])
+  @@index([ticketId, status])
+  @@index([eventId, status, syncedAt])
+  @@index([deviceId, syncedAt])
   @@index([requestId])
 }
 

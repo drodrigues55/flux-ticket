@@ -41,14 +41,13 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/pt-br';
 import Link from 'next/link';
 import type {
-  DashboardOverviewResponse,
   DashboardHeroEvent,
   DashboardAttentionEvent,
   DashboardHealthyEvent,
-  BatchInfo,
-  TicketSaleRecord,
-  EventSummary,
+  DashboardAlert,
 } from '@flux/types';
+import { getDashboardBundle } from '../services/dashboardService';
+import type { DashboardOverview, DashboardServiceError } from '../types/dashboard';
 
 dayjs.locale('pt-br');
 
@@ -61,6 +60,12 @@ const PERIOD_OPTIONS = [
   { label: '7 dias', value: '7d' },
   { label: '30 dias', value: '30d' },
 ];
+
+type EventOption = {
+  id: string;
+  title: string;
+  label: string;
+};
 
 // ─────────────────────────────────────────────
 // HELPERS
@@ -333,9 +338,12 @@ export default function DashboardPage() {
   const [selectedPeriod, setSelectedPeriod] = useState('30d');
 
   // Data state
-  const [data, setData] = useState<DashboardOverviewResponse | null>(null);
-  const [events, setEvents] = useState<(EventSummary & { label: string })[]>([]);
+  const [data, setData] = useState<DashboardOverview | null>(null);
+  const [events, setEvents] = useState<EventOption[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dashboardError, setDashboardError] = useState<DashboardServiceError | null>(null);
+  const [dashboardAlerts, setDashboardAlerts] = useState<DashboardAlert[]>([]);
+  const [requestIds, setRequestIds] = useState<Record<string, string>>({});
 
   // Operational controls
   const [localThrottle, setLocalThrottle] = useState(500);
@@ -349,25 +357,34 @@ export default function DashboardPage() {
     setIsMounted(true);
   }, []);
 
-  // ── Fetch real events for dropdown ──────────────────────────────
-  useEffect(() => {
-    fetch('/api/dashboard/events')
-      .then(r => r.ok ? r.json() : [])
-      .then(setEvents)
-      .catch(() => {});
-  }, []);
-
   // ── Fetch dashboard data (polling every 10s) ─────────────────────
   const fetchDashboard = useCallback(async () => {
     try {
-      const res = await fetch('/api/overview');
-      if (res.ok) {
-        const json: DashboardOverviewResponse = await res.json();
-        setData(json);
-        if (json.checkoutLimit !== undefined) setLocalThrottle(json.checkoutLimit);
-        if (json.salesPaused !== undefined)   setGlobalPaused(json.salesPaused);
-      }
-    } catch { /* non-fatal */ } finally {
+      setDashboardError(null);
+      const bundle = await getDashboardBundle();
+      const nextData: DashboardOverview = {
+        ...bundle.overview,
+        heroEvent: bundle.priorityEvent ?? bundle.overview.heroEvent,
+        batchPerformance: bundle.lotsPerformance.length > 0
+          ? bundle.lotsPerformance
+          : bundle.overview.batchPerformance,
+      };
+      setData(nextData);
+      setDashboardAlerts(bundle.alerts);
+      setRequestIds(bundle.requestIds);
+      setEvents([
+        { id: 'all', title: 'Todos os eventos', label: 'Todos os eventos' },
+        ...bundle.eventsPriority.map((event) => ({
+          id: event.eventId,
+          title: event.title,
+          label: event.title,
+        })),
+      ]);
+      if (nextData.checkoutLimit !== undefined) setLocalThrottle(nextData.checkoutLimit);
+      if (nextData.salesPaused !== undefined)   setGlobalPaused(nextData.salesPaused);
+    } catch (error) {
+      setDashboardError(error as DashboardServiceError);
+    } finally {
       setLoading(false);
     }
   }, []);
@@ -388,39 +405,6 @@ export default function DashboardPage() {
       return last ? [last] : [];
     }
     return history; // 30d
-  }, [data?.salesHistory, selectedPeriod]);
-
-  // ── KPI comparison (current vs previous period) ──────────────────
-  const kpis = useMemo(() => {
-    if (!data?.salesHistory) {
-      return { totalRevenue: 0, totalTickets: 0, revenueChange: 0, ticketsChange: 0 };
-    }
-    const history = data.salesHistory;
-    let current = history;
-    let previous: typeof history = [];
-
-    if (selectedPeriod === '7d') {
-      current  = history.slice(-7);
-      previous = history.slice(-14, -7);
-    } else if (selectedPeriod === '30d') {
-      current  = history;
-      previous = [];
-    }
-
-    const totalRevenue  = current.reduce((s, d) => s + d.revenue, 0);
-    const totalTickets  = current.reduce((s, d) => s + d.tickets, 0);
-    const prevRevenue   = previous.reduce((s, d) => s + d.revenue, 0);
-    const prevTickets   = previous.reduce((s, d) => s + d.tickets, 0);
-
-    const calc = (c: number, p: number) =>
-      p > 0 ? ((c - p) / p) * 100 : (c > 0 ? 100 : 0);
-
-    return {
-      totalRevenue,
-      totalTickets,
-      revenueChange: calc(totalRevenue, prevRevenue),
-      ticketsChange: calc(totalTickets, prevTickets),
-    };
   }, [data?.salesHistory, selectedPeriod]);
 
   // ── Operational handlers ─────────────────────────────────────────
@@ -467,6 +451,7 @@ export default function DashboardPage() {
   };
 
   const gkpi = data?.globalKpis;
+  const totals = data?.totals;
   const activeCheckouts = data?.activeCheckoutLocks || 0;
   const isEmpty = !loading && !data?.heroEvent && !data?.attentionEvents?.length && !data?.healthyEvents?.length;
 
@@ -530,18 +515,38 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── Empty state (all healthy, no events) ── */}
-        {!loading && isEmpty && (
-          <div className="bg-white border border-[#EAEAEA] rounded-2xl p-12 text-center">
-            <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto mb-4" />
-            <h3 className="text-lg font-bold text-[#111111] mb-2">Todos os eventos estão operando normalmente.</h3>
-            <p className="text-sm text-[#8A8A8A] max-w-md mx-auto">
-              Nenhum evento requer atenção imediata. Aproveite para revisar seus relatórios de desempenho.
-            </p>
+        {!loading && dashboardError && (
+          <div className="bg-white border border-red-200 rounded-2xl p-6">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-[#111111]">Falha ao carregar dados do painel</h3>
+                <p className="text-sm text-[#666666] mt-1">{dashboardError.message}</p>
+                {dashboardError.requestId && (
+                  <p className="text-[11px] text-[#8A8A8A] mt-2 font-mono">requestId: {dashboardError.requestId}</p>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
-        {!loading && data && (
+        {/* ── Empty state (all healthy, no events) ── */}
+        {!loading && !dashboardError && isEmpty && (
+          <div className="bg-white border border-[#EAEAEA] rounded-2xl p-12 text-center">
+            <Calendar className="w-12 h-12 text-[#B5B5B5] mx-auto mb-4" />
+            <h3 className="text-lg font-bold text-[#111111] mb-2">Nenhum evento disponível no painel.</h3>
+            <p className="text-sm text-[#8A8A8A] max-w-md mx-auto">
+              Assim que houver eventos e vendas registrados no backend, os indicadores aparecerão aqui.
+            </p>
+            {requestIds.overview && (
+              <p className="text-[11px] text-[#B5B5B5] mt-4 font-mono">requestId: {requestIds.overview}</p>
+            )}
+          </div>
+        )}
+
+        {!loading && !dashboardError && data && (
           <>
             {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                 SECTION 1 — HERO EVENT
@@ -592,6 +597,39 @@ export default function DashboardPage() {
               </section>
             )}
 
+            <section className="bg-white border border-[#EAEAEA] rounded-xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-[#EAEAEA] flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-[#111111]">Alertas operacionais</h3>
+                  <p className="text-[11px] text-[#8A8A8A] mt-0.5">Sinais calculados pelo backend de leitura</p>
+                </div>
+                <Bell className="w-4 h-4 text-[#B5B5B5]" />
+              </div>
+              <div className="p-5 space-y-3">
+                {dashboardAlerts.length === 0 ? (
+                  <div className="flex items-center gap-2 text-[12px] text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg p-3">
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    Nenhum alerta operacional ativo.
+                  </div>
+                ) : dashboardAlerts.map((alert) => (
+                  <div key={alert.id} className={`border rounded-lg p-3 text-[12px] ${alertSeverityColor(alert.severity)}`}>
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="font-semibold leading-tight">{alert.message}</p>
+                        {alert.suggestedAction && (
+                          <p className="opacity-75 mt-1 leading-tight">{alert.suggestedAction}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {requestIds.alerts && (
+                  <p className="text-[10px] text-[#B5B5B5] font-mono">requestId: {requestIds.alerts}</p>
+                )}
+              </div>
+            </section>
+
             {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                 SECTION 4 — GLOBAL KPIs
             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
@@ -600,14 +638,14 @@ export default function DashboardPage() {
                 {[
                   {
                     label: 'Faturamento bruto',
-                    value: formatBRLCompact(kpis.totalRevenue),
-                    change: kpis.revenueChange,
+                    value: formatBRLCompact(totals?.grossRevenue ?? gkpi.grossRevenue),
+                    change: null,
                     icon: DollarSign,
                   },
                   {
                     label: 'Ingressos vendidos',
-                    value: kpis.totalTickets.toLocaleString('pt-BR'),
-                    change: kpis.ticketsChange,
+                    value: (totals?.ticketsSold ?? gkpi.ticketsSold).toLocaleString('pt-BR'),
+                    change: null,
                     icon: Ticket,
                   },
                   {
@@ -715,7 +753,7 @@ export default function DashboardPage() {
             {/* Recent Sales + Batch Performance */}
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
 
-              {/* Recent Sales (3/5 width) — from SaleLog table */}
+              {/* Recent Sales (3/5 width) — from api-read dashboard overview */}
               <div className="lg:col-span-3 bg-white border border-[#EAEAEA] rounded-xl overflow-hidden">
                 <div className="px-5 py-4 border-b border-[#EAEAEA] flex items-center justify-between">
                   <div>

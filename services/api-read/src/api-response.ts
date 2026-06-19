@@ -18,7 +18,7 @@ export function fail(params: {
       message: params.message,
       statusCode: params.statusCode,
       requestId: params.requestId,
-      ...(params.details !== undefined ? { details: params.details } : {}),
+      details: params.details ?? null,
     },
     // Temporary compatibility mirrors for existing clients/proxies.
     errorMessage: typeof params.message === 'string' ? params.message : undefined,
@@ -26,6 +26,6 @@ export function fail(params: {
     code: params.code,
     message: params.message,
     requestId: params.requestId,
-    ...(params.details !== undefined ? { details: params.details } : {}),
+    details: params.details ?? null,
   };
 }

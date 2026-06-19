@@ -7,7 +7,9 @@ import { TicketCryptoService } from '../services/api-write/src/tickets/ticket-cr
 import { AuditService } from '../services/api-write/src/audit/audit.service';
 import { PaymentsService } from '../services/api-write/src/payments/payments.service';
 import { moveJobToDeadLetter } from '../services/ticket-worker/src/dead-letter';
+import { processOutbox } from '../services/ticket-worker/src/outbox-publisher';
 import { closeQueues, deadLetterQueues, QUEUE_NAMES } from '../services/ticket-worker/src/queue-registry';
+import { closeWorkers } from '../services/ticket-worker/src/workers';
 
 type Check = {
   name: string;
@@ -38,6 +40,15 @@ function assertOrThrow(condition: unknown, message: string): asserts condition {
   if (!condition) {
     throw new Error(message);
   }
+}
+
+async function waitFor(condition: () => Promise<boolean>, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await condition()) return true;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  return false;
 }
 
 async function countHistory(ticketId: string, reason: string) {
@@ -80,6 +91,8 @@ async function createFixture() {
       price: 100,
       totalQuantity: 50,
       availableQuantity: 50,
+      sectorId: 1,
+      sectorName: 'Sector 1',
       meiaEntrada: false,
     },
   });
@@ -139,6 +152,7 @@ async function cleanup() {
 
 async function main() {
   process.env.MERCADO_PAGO_ACCESS_TOKEN = 'mock';
+  process.env.VALIDATION_DELAY_MS = '0';
   delete process.env.MERCADO_PAGO_WEBHOOK_SECRET;
 
   const fluxEngine = new FluxEngineService();
@@ -229,21 +243,13 @@ async function main() {
       isHalfPrice: true,
       requestId: `${runId}-revoke-reserve`,
     });
-    const beforeRevoke = await prisma.ticket.findUniqueOrThrow({ where: { id: halfTicket.id } });
-    await prisma.ticket.update({
-      where: { id: halfTicket.id },
-      data: { status: 'REVOKED' },
+    await processOutbox();
+    const revokedByWorker = await waitFor(async () => {
+      const ticket = await prisma.ticket.findUnique({ where: { id: halfTicket.id } });
+      return ticket?.status === 'REVOKED' &&
+        (await countHistory(halfTicket.id, 'HALF_PRICE_VALIDATION_DEADLINE_EXPIRED')) === 1;
     });
-    await prisma.ticketStatusHistory.create({
-      data: {
-        ticketId: halfTicket.id,
-        fromStatus: beforeRevoke.status,
-        toStatus: 'REVOKED',
-        reason: 'HALF_PRICE_VALIDATION_DEADLINE_EXPIRED',
-        requestId: `${runId}-manual-revoke`,
-      },
-    });
-    assertCheck(await countHistory(halfTicket.id, 'HALF_PRICE_VALIDATION_DEADLINE_EXPIRED') === 1, 'historico: cancelamento/revogacao', halfTicket.id);
+    assertCheck(revokedByWorker, 'historico: cancelamento/revogacao via worker', halfTicket.id);
 
     await checkoutController.staffMutation(
       fixture.event.id,
@@ -391,6 +397,7 @@ async function main() {
     }
   } finally {
     await fluxEngine.onModuleDestroy();
+    await closeWorkers();
     await closeQueues();
     await cleanup().catch((error) => {
       console.warn('cleanup failed', error);

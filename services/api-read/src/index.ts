@@ -7,6 +7,7 @@ import { ok, fail } from './api-response';
 import { validateRuntimeEnv } from './env.validation';
 import { logger } from './logger';
 import { requestIdMiddleware, RequestWithId } from './request-id-middleware';
+import { dashboardRouter } from './dashboard/dashboard.controller';
 
 validateRuntimeEnv();
 const app = express();
@@ -37,6 +38,7 @@ const limiter = rateLimit({
 app.use(requestIdMiddleware);
 app.use(limiter);
 app.use(express.json());
+app.use('/dashboard', dashboardRouter);
 
 // ─────────────────────────────────────────────
 // HELPERS
@@ -227,6 +229,90 @@ app.get('/events/:id', async (req, res) => {
 
 import { authMiddleware } from './auth-middleware';
 
+function parseSectorFilter(value: unknown): number[] {
+  if (!value || typeof value !== 'string') return [];
+  return value
+    .split(',')
+    .map((item) => Number(item.trim()))
+    .filter((item) => Number.isInteger(item));
+}
+
+async function buildOfflineBundle(eventId: string, allowedSectorIds: number[] = []) {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: {
+      id: true,
+      title: true,
+      date: true,
+      location: true,
+      batches: {
+        select: {
+          sectorId: true,
+          sectorName: true,
+        },
+      },
+    },
+  });
+
+  if (!event) return null;
+
+  const sectorRestricted = allowedSectorIds.length > 0;
+  const tickets = await prisma.ticket.findMany({
+    where: {
+      eventId,
+      status: 'VALID',
+      hmacSignature: { not: null },
+      batch: sectorRestricted ? { sectorId: { in: allowedSectorIds } } : undefined,
+    },
+    select: {
+      id: true,
+      hmacSignature: true,
+      holderName: true,
+      batch: {
+        select: {
+          id: true,
+          sectorId: true,
+          sectorName: true,
+        },
+      },
+    },
+    orderBy: { id: 'asc' },
+  });
+
+  const sectorMap = new Map<string, { sectorId: number | null; sectorName: string | null }>();
+  for (const batch of event.batches) {
+    const key = `${batch.sectorId ?? 'none'}:${batch.sectorName ?? ''}`;
+    sectorMap.set(key, {
+      sectorId: batch.sectorId ?? null,
+      sectorName: batch.sectorName ?? null,
+    });
+  }
+
+  return {
+    event: {
+      id: event.id,
+      title: event.title,
+      date: event.date.toISOString(),
+      location: event.location,
+    },
+    generatedAt: new Date().toISOString(),
+    policy: {
+      allowedSectorIds,
+      sectorRestricted,
+    },
+    sectors: Array.from(sectorMap.values()),
+    tickets: tickets.map((ticket) => ({
+      ticket_id: ticket.id,
+      ticketId: ticket.id,
+      hmacSignature: ticket.hmacSignature,
+      holderName: ticket.holderName ?? null,
+      batchId: ticket.batch.id,
+      sectorId: ticket.batch.sectorId ?? null,
+      sectorName: ticket.batch.sectorName ?? null,
+    })),
+  };
+}
+
 /**
  * GET /events/:id/staff-sync
  * Ultra-lightweight endpoint for offline PWA check-in sync.
@@ -235,19 +321,21 @@ import { authMiddleware } from './auth-middleware';
 app.get('/events/:id/staff-sync', authMiddleware, async (req, res) => {
   const eventId = req.params.id;
   try {
-    const tickets = await prisma.ticket.findMany({
-      where: { eventId, status: 'VALID' },
-      select: {
-        id: true,
-        hmacSignature: true,
-        batch: { select: { sectorId: true } },
-      },
-    });
+    const bundle = await buildOfflineBundle(eventId);
 
-    const payload = tickets.map((t) => ({
-      ticket_id: t.id,
+    if (!bundle) {
+      return res.status(404).json(fail({
+        code: 'EVENT_NOT_FOUND',
+        message: 'Event not found',
+        statusCode: 404,
+        requestId: (req as RequestWithId).requestId || 'req_unknown',
+      }));
+    }
+
+    const payload = bundle.tickets.map((t) => ({
+      ticket_id: t.ticket_id,
       hmacSignature: t.hmacSignature,
-      sectorId: t.batch?.sectorId ?? null,
+      sectorId: t.sectorId ?? null,
     }));
 
     res.json(payload);
@@ -256,6 +344,34 @@ app.get('/events/:id/staff-sync', authMiddleware, async (req, res) => {
     res.status(500).json(fail({
       code: 'STAFF_SYNC_ERROR',
       message: 'Failed to synchronize event tickets',
+      statusCode: 500,
+      requestId: (req as RequestWithId).requestId || 'req_unknown',
+    }));
+  }
+});
+
+app.get('/staff/events/:eventId/offline-bundle', authMiddleware, async (req, res) => {
+  const eventId = req.params.eventId;
+  const allowedSectorIds = parseSectorFilter(req.query.sectorIds);
+
+  try {
+    const bundle = await buildOfflineBundle(eventId, allowedSectorIds);
+
+    if (!bundle) {
+      return res.status(404).json(fail({
+        code: 'EVENT_NOT_FOUND',
+        message: 'Event not found',
+        statusCode: 404,
+        requestId: (req as RequestWithId).requestId || 'req_unknown',
+      }));
+    }
+
+    res.json(ok(bundle, (req as RequestWithId).requestId || 'req_unknown'));
+  } catch (error) {
+    logger.error({ requestId: (req as RequestWithId).requestId, err: error, eventId }, 'GET /staff/events/:eventId/offline-bundle failed');
+    res.status(500).json(fail({
+      code: 'STAFF_OFFLINE_BUNDLE_ERROR',
+      message: 'Failed to build staff offline bundle',
       statusCode: 500,
       requestId: (req as RequestWithId).requestId || 'req_unknown',
     }));

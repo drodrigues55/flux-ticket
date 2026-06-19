@@ -4,16 +4,17 @@ import { prisma } from '@flux/database';
 import { CheckoutService } from './checkout.service';
 import { StaffGuard } from './staff-guard';
 import { AuditService } from '../audit/audit.service';
-import { SectorAccessDeniedException, StockUnavailableException } from '../domain-exceptions';
+import { StockUnavailableException } from '../domain-exceptions';
 import { logger } from '../logger';
-import { recordTicketStatusHistory } from './ticket-status-history';
+import { StaffPlatformService } from './staff-platform.service';
 
 
 @Controller()
 export class CheckoutController {
   constructor(
     private readonly checkoutService: CheckoutService,
-    private readonly auditService: AuditService
+    private readonly auditService: AuditService,
+    private readonly staffPlatformService: StaffPlatformService
   ) {}
   
   /**
@@ -26,90 +27,16 @@ export class CheckoutController {
     @Body() body: { ticketIds: string[]; checkInTimestamp?: string; deviceId?: string; deviceName?: string; pendingCount?: number; allowedSectorIds?: number[] },
     @Req() req: any
   ) {
-    const { ticketIds, deviceId, deviceName, pendingCount, allowedSectorIds } = body;
-    
-    if (deviceId && deviceName) {
-      await this.checkoutService.fluxEngine.registerStaffDevice(eventId, deviceId, deviceName, pendingCount || 0, allowedSectorIds || []);
-    }
-    
-    if (!Array.isArray(ticketIds) || ticketIds.length === 0) {
-      return {
-        success: true,
-        count: 0,
-      };
-    }
-
-    const sectorRestricted = Array.isArray(allowedSectorIds) && allowedSectorIds.length > 0;
-    if (sectorRestricted) {
-      const disallowed = await prisma.ticket.count({
-        where: {
-          id: { in: ticketIds },
-          batch: {
-            eventId,
-            sectorId: { notIn: allowedSectorIds },
-          },
-        },
-      });
-      if (disallowed > 0) {
-        throw new SectorAccessDeniedException({ eventId, deviceId, disallowedTickets: disallowed });
-      }
-    }
-    
-    // Executa a mutação em massa no Postgres
-    const beforeTickets = await prisma.ticket.findMany({
-      where: { id: { in: ticketIds }, batch: { eventId } },
-      select: { id: true, status: true, checkedInAt: true },
-    });
-    const checkInDate = body.checkInTimestamp ? new Date(body.checkInTimestamp) : new Date();
-    const result = await prisma.ticket.updateMany({
-      where: {
-        id: { in: ticketIds },
-        batch: { eventId: eventId },
-      },
-      data: {
-        status: 'CONSUMED',
-        checkedInAt: checkInDate,
-      },
-    });
-
-    await this.auditService.record({
-      actorId: req.user?.userId,
-      actorRole: req.user?.role,
-      action: 'TICKET_STAFF_MUTATION',
-      entityType: 'Ticket',
-      entityId: eventId,
-      before: beforeTickets,
-      after: { status: 'CONSUMED', count: result.count, checkedInAt: checkInDate.toISOString() },
-      metadata: { ticketIds, deviceId, deviceName, allowedSectorIds },
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-    });
-
-    for (const ticket of beforeTickets) {
-      await recordTicketStatusHistory({
-        ticketId: ticket.id,
-        fromStatus: ticket.status,
-        toStatus: 'CONSUMED',
-        reason: 'STAFF_CHECK_IN',
-        actorId: req.user?.userId,
-        requestId: req.requestId,
-        metadata: { eventId, deviceId, deviceName },
-      }).catch((err) => {
-        logger.error({ err, requestId: req.requestId, ticketId: ticket.id }, 'ticket status history write failed');
-      });
-    }
-    
-    logger.info({
-      requestId: req.requestId,
+    return this.staffPlatformService.syncCheckins({
       eventId,
-      count: result.count,
-      deviceId,
-    }, 'offline staff mutation consumed tickets');
-    
-    return {
-      success: true,
-      count: result.count,
-    };
+      ticketIds: body.ticketIds,
+      checkInTimestamp: body.checkInTimestamp,
+      deviceId: body.deviceId,
+      deviceName: body.deviceName,
+      pendingCount: body.pendingCount,
+      allowedSectorIds: body.allowedSectorIds,
+      request: req,
+    });
   }
 
   @Post('settings/throttle')
