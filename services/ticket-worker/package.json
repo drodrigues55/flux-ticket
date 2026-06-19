@@ -8,13 +8,15 @@
     "test": "jest"
   },
   "dependencies": {
-    "ioredis": "^5.3.2",
+    "@flux/database": "*",
+    "@sentry/node": "^10.59.0",
     "bullmq": "^5.1.1",
-    "@flux/database": "*"
+    "ioredis": "^5.3.2",
+    "pino": "^10.3.1"
   },
   "devDependencies": {
     "@types/node": "^20.11.16",
-    "typescript": "^5.3.3",
-    "tsx": "^4.7.1"
+    "tsx": "^4.7.1",
+    "typescript": "^5.3.3"
   }
 }

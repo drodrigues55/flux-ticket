@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { NextFunction, Request, Response } from 'express';
 import { logger } from './logger';
+import { recordHttpMetric } from './observability';
 
 declare module 'express-serve-static-core' {
   interface Request {
@@ -21,13 +22,19 @@ export function requestIdMiddleware(req: Request, res: Response, next: NextFunct
   res.setHeader('x-request-id', requestId);
 
   res.on('finish', () => {
+    const route = req.route?.path || req.originalUrl?.split('?')[0] || req.url.split('?')[0];
+    const latency = Date.now() - (req.startTime || Date.now());
+    recordHttpMetric({ method: req.method, route, statusCode: res.statusCode, latency });
     logger.info({
       requestId,
       method: req.method,
+      route,
       path: req.originalUrl || req.url,
       statusCode: res.statusCode,
-      latencyMs: Date.now() - (req.startTime || Date.now()),
+      latency,
+      latencyMs: latency,
       userId: (req as any).user?.userId,
+      organizerId: (req as any).user?.role === 'ORGANIZER' ? (req as any).user?.userId : undefined,
       role: (req as any).user?.role,
     }, 'request completed');
   });

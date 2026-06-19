@@ -7,6 +7,8 @@ import {
   resolveQueueForOutbox,
 } from './queue-registry';
 import { sanitizePayload } from './dead-letter';
+import { logger } from './logger';
+import { captureException } from './sentry';
 
 const OUTBOX_BATCH_SIZE = Number(process.env.OUTBOX_BATCH_SIZE || 100);
 const MAX_OUTBOX_ATTEMPTS = Number(DEFAULT_JOB_OPTIONS.attempts || 5);
@@ -68,7 +70,7 @@ export async function processOutbox() {
   });
 
   if (events.length > 0) {
-    console.log(`[PUBLISHER] Found ${events.length} due outbox events.`);
+    logger.info({ queueName: 'outbox.publisher', count: events.length }, 'found due outbox events');
   }
 
   for (const event of events) {
@@ -78,7 +80,7 @@ export async function processOutbox() {
 
     try {
       if (!queueName) {
-        console.log(`[PUBLISHER] Outbox ${event.id} (${type}) has no queue target. Marking processed for compatibility.`);
+        logger.info({ queueName: 'outbox.publisher', outboxEventId: event.id, type, requestId: event.requestId }, 'outbox event has no queue target');
         await prisma.outboxEvent.update({
           where: { id: event.id },
           data: {
@@ -116,11 +118,13 @@ export async function processOutbox() {
       });
     } catch (error) {
       const attempts = event.attempts + 1;
-      console.error(`[PUBLISHER] Failed to publish outbox ${event.id} (${type}).`, error);
+      logger.error({ err: error, queueName, outboxEventId: event.id, type, requestId: event.requestId, attempts }, 'failed to publish outbox event');
+      captureException(error, { service: 'ticket-worker', queueName: queueName || 'outbox.publisher', outboxEventId: event.id, requestId: event.requestId });
 
       if (attempts >= MAX_OUTBOX_ATTEMPTS) {
         await moveOutboxToDeadLetter(event, queueName, error, attempts).catch((deadLetterError) => {
-          console.error(`[PUBLISHER] Failed to write dead-letter for outbox ${event.id}.`, deadLetterError);
+          logger.error({ err: deadLetterError, queueName, outboxEventId: event.id }, 'failed to write outbox dead-letter');
+          captureException(deadLetterError, { service: 'ticket-worker', queueName: queueName || 'outbox.publisher', outboxEventId: event.id, phase: 'deadLetter' });
         });
 
         await prisma.outboxEvent.update({

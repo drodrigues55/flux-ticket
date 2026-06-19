@@ -8,8 +8,11 @@ import { validateRuntimeEnv } from './env.validation';
 import { logger } from './logger';
 import { requestIdMiddleware, RequestWithId } from './request-id-middleware';
 import { dashboardRouter } from './dashboard/dashboard.controller';
+import { getQueueStats, getServiceVersion, renderMetrics } from './observability';
+import { captureException, initSentry } from './sentry';
 
 validateRuntimeEnv();
+initSentry('api-read');
 const app = express();
 const port = process.env.PORT || 3002;
 const redis = process.env.REDIS_URL
@@ -19,6 +22,9 @@ const redis = process.env.REDIS_URL
       port: Number(process.env.REDIS_PORT) || 6379,
       maxRetriesPerRequest: 1,
     });
+redis.on('error', (err) => {
+  logger.error({ err, service: 'api-read' }, 'redis client error');
+});
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -89,7 +95,9 @@ app.get('/health/live', (req: RequestWithId, res) => {
   res.json(ok({
     status: 'ok',
     service: 'api-read',
+    version: getServiceVersion(),
     uptimeSeconds: Math.floor(process.uptime()),
+    environment: process.env.APP_ENV || process.env.NODE_ENV || 'development',
     timestamp: new Date().toISOString(),
   }, req.requestId || 'req_unknown'));
 });
@@ -98,6 +106,7 @@ app.get('/health/ready', async (req: RequestWithId, res) => {
   const checks = {
     database: 'unknown',
     redis: 'unknown',
+    queue: 'unknown',
   };
 
   try {
@@ -114,14 +123,36 @@ app.get('/health/ready', async (req: RequestWithId, res) => {
     checks.redis = 'error';
   }
 
+  try {
+    const queues = await getQueueStats();
+    checks.queue = queues.some((queue) => queue.failed > 0 || queue.deadLetter > 0) ? 'degraded' : 'ok';
+  } catch {
+    checks.queue = 'error';
+  }
+
   const status = Object.values(checks).every((value) => value === 'ok') ? 'ok' : 'degraded';
   const statusCode = status === 'ok' ? 200 : 503;
   res.status(statusCode).json(ok({
     status,
     service: 'api-read',
     checks,
+    version: getServiceVersion(),
+    uptimeSeconds: Math.floor(process.uptime()),
+    environment: process.env.APP_ENV || process.env.NODE_ENV || 'development',
     timestamp: new Date().toISOString(),
   }, req.requestId || 'req_unknown'));
+});
+
+app.get('/version', (req: RequestWithId, res) => {
+  res.json(ok(getServiceVersion(), req.requestId || 'req_unknown'));
+});
+
+app.get('/metrics', async (_req, res) => {
+  if (process.env.PROMETHEUS_ENABLED !== 'true') {
+    res.status(404).send('metrics disabled');
+    return;
+  }
+  res.type('text/plain').send(await renderMetrics());
 });
 
 /**
@@ -384,4 +415,13 @@ app.listen(port, () => {
 
 process.on('SIGTERM', () => {
   redis.disconnect();
+});
+
+process.on('unhandledRejection', (reason) => {
+  logger.error({ err: reason }, 'unhandled rejection');
+  captureException(reason, { service: 'api-read', type: 'unhandledRejection' });
+});
+process.on('uncaughtException', (error) => {
+  logger.error({ err: error }, 'uncaught exception');
+  captureException(error, { service: 'api-read', type: 'uncaughtException' });
 });

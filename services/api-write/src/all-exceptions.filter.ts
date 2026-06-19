@@ -2,6 +2,7 @@ import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from
 import { HttpAdapterHost } from '@nestjs/core';
 import { fail } from './api-response';
 import { logger } from './logger';
+import { captureException } from './sentry';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -27,6 +28,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
       path: httpAdapter.getRequestUrl(request),
       statusCode: httpStatus,
     }, 'request failed');
+    captureException(exception, {
+      requestId,
+      route: httpAdapter.getRequestUrl(request),
+      service: 'api-write',
+      APP_ENV: process.env.APP_ENV || process.env.NODE_ENV || 'development',
+    });
 
     let message: string | object = 'An unexpected error occurred. Please contact support.';
     let code = httpStatus === HttpStatus.INTERNAL_SERVER_ERROR ? 'INTERNAL_SERVER_ERROR' : 'HTTP_ERROR';

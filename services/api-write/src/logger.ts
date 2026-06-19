@@ -12,6 +12,12 @@ const REDACT_PATHS = [
   '*.cvv',
   '*.cvc',
   '*.cardNumber',
+  '*.cpf',
+  '*.buyerCpf',
+  '*.holderCpf',
+  '*.paymentToken',
+  '*.jwt',
+  '*.HMAC_SECRET',
   '*.hmacSignature',
 ];
 

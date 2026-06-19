@@ -35,4 +35,12 @@ export function validateRuntimeEnv() {
     if (unsafe.length > 0) parts.push(`unsafe defaults: ${unsafe.join(', ')}`);
     throw new Error(`Invalid production environment (${parts.join('; ')})`);
   }
+
+  if (process.env.PROMETHEUS_ENABLED && !['true', 'false'].includes(process.env.PROMETHEUS_ENABLED)) {
+    throw new Error('Invalid production environment (PROMETHEUS_ENABLED must be true or false)');
+  }
+
+  if (process.env.LOG_LEVEL && !['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'].includes(process.env.LOG_LEVEL)) {
+    throw new Error('Invalid production environment (LOG_LEVEL is invalid)');
+  }
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import Layout from '../components/Layout';
 import {
   AreaChart,
@@ -46,7 +46,7 @@ import type {
   DashboardHealthyEvent,
   DashboardAlert,
 } from '@flux/types';
-import { getDashboardBundle } from '../services/dashboardService';
+import { getDashboardBundle, getLotPerformance } from '../services/dashboardService';
 import type { DashboardOverview, DashboardServiceError } from '../types/dashboard';
 
 dayjs.locale('pt-br');
@@ -342,13 +342,18 @@ export default function DashboardPage() {
   const [events, setEvents] = useState<EventOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [dashboardError, setDashboardError] = useState<DashboardServiceError | null>(null);
+  const [sectionErrors, setSectionErrors] = useState<Record<string, DashboardServiceError>>({});
   const [dashboardAlerts, setDashboardAlerts] = useState<DashboardAlert[]>([]);
   const [requestIds, setRequestIds] = useState<Record<string, string>>({});
+  const [lotsLoading, setLotsLoading] = useState(false);
+  const [lotsError, setLotsError] = useState<DashboardServiceError | null>(null);
 
   // Operational controls
   const [localThrottle, setLocalThrottle] = useState(500);
   const [globalPaused, setGlobalPaused] = useState(false);
+  const [operationalControlsAvailable, setOperationalControlsAvailable] = useState(false);
   const [updatingSettings, setUpdatingSettings] = useState(false);
+  const selectedEventRef = useRef(selectedEvent);
 
   // SSR safety
   const [isMounted, setIsMounted] = useState(false);
@@ -357,20 +362,32 @@ export default function DashboardPage() {
     setIsMounted(true);
   }, []);
 
+  useEffect(() => {
+    selectedEventRef.current = selectedEvent;
+  }, [selectedEvent]);
+
   // ── Fetch dashboard data (polling every 10s) ─────────────────────
   const fetchDashboard = useCallback(async () => {
     try {
       setDashboardError(null);
       const bundle = await getDashboardBundle();
+      const selectedEventId = selectedEventRef.current;
+      const currentLotEventId = selectedEventId !== 'all'
+        ? selectedEventId
+        : bundle.priorityEvent?.eventId ?? bundle.overview.heroEvent?.eventId;
+      const lotsPerformance = currentLotEventId && currentLotEventId !== (bundle.priorityEvent?.eventId ?? bundle.overview.heroEvent?.eventId)
+        ? (await getLotPerformance(currentLotEventId)).data
+        : bundle.lotsPerformance;
       const nextData: DashboardOverview = {
         ...bundle.overview,
         heroEvent: bundle.priorityEvent ?? bundle.overview.heroEvent,
-        batchPerformance: bundle.lotsPerformance.length > 0
-          ? bundle.lotsPerformance
+        batchPerformance: lotsPerformance.length > 0
+          ? lotsPerformance
           : bundle.overview.batchPerformance,
       };
       setData(nextData);
       setDashboardAlerts(bundle.alerts);
+      setSectionErrors(bundle.sectionErrors ?? {});
       setRequestIds(bundle.requestIds);
       setEvents([
         { id: 'all', title: 'Todos os eventos', label: 'Todos os eventos' },
@@ -380,8 +397,11 @@ export default function DashboardPage() {
           label: event.title,
         })),
       ]);
-      if (nextData.checkoutLimit !== undefined) setLocalThrottle(nextData.checkoutLimit);
-      if (nextData.salesPaused !== undefined)   setGlobalPaused(nextData.salesPaused);
+      const checkoutLimit = nextData.checkoutLimit;
+      const salesPaused = nextData.salesPaused;
+      setOperationalControlsAvailable(typeof checkoutLimit === 'number' && typeof salesPaused === 'boolean');
+      if (typeof checkoutLimit === 'number') setLocalThrottle(checkoutLimit);
+      if (typeof salesPaused === 'boolean') setGlobalPaused(salesPaused);
     } catch (error) {
       setDashboardError(error as DashboardServiceError);
     } finally {
@@ -394,6 +414,37 @@ export default function DashboardPage() {
     const interval = setInterval(fetchDashboard, 10_000);
     return () => clearInterval(interval);
   }, [fetchDashboard]);
+
+  useEffect(() => {
+    if (!data || selectedEvent === 'all') return;
+
+    let cancelled = false;
+    const loadLots = async () => {
+      try {
+        setLotsLoading(true);
+        setLotsError(null);
+        const envelope = await getLotPerformance(selectedEvent);
+        if (cancelled) return;
+        setData((current) => current
+          ? { ...current, batchPerformance: envelope.data }
+          : current
+        );
+        setRequestIds((current) => ({
+          ...current,
+          lotsPerformance: envelope.meta.requestId,
+        }));
+      } catch (error) {
+        if (!cancelled) setLotsError(error as DashboardServiceError);
+      } finally {
+        if (!cancelled) setLotsLoading(false);
+      }
+    };
+
+    loadLots();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedEvent, data?.heroEvent?.eventId]);
 
   // ── Filtered sales history based on period ───────────────────────
   const filteredHistory = useMemo(() => {
@@ -606,7 +657,20 @@ export default function DashboardPage() {
                 <Bell className="w-4 h-4 text-[#B5B5B5]" />
               </div>
               <div className="p-5 space-y-3">
-                {dashboardAlerts.length === 0 ? (
+                {sectionErrors.alerts ? (
+                  <div className="border border-red-200 bg-red-50 rounded-lg p-3 text-[12px] text-red-700">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="font-semibold leading-tight">Falha ao carregar alertas operacionais.</p>
+                        <p className="opacity-80 mt-1 leading-tight">{sectionErrors.alerts.message}</p>
+                        {sectionErrors.alerts.requestId && (
+                          <p className="text-[10px] mt-2 font-mono">requestId: {sectionErrors.alerts.requestId}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : dashboardAlerts.length === 0 ? (
                   <div className="flex items-center gap-2 text-[12px] text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg p-3">
                     <CheckCircle2 className="w-4 h-4 shrink-0" />
                     Nenhum alerta operacional ativo.
@@ -624,7 +688,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 ))}
-                {requestIds.alerts && (
+                {!sectionErrors.alerts && requestIds.alerts && (
                   <p className="text-[10px] text-[#B5B5B5] font-mono">requestId: {requestIds.alerts}</p>
                 )}
               </div>
@@ -804,7 +868,17 @@ export default function DashboardPage() {
                   <Layers className="w-4 h-4 text-[#B5B5B5]" />
                 </div>
                 <div className="p-5 space-y-4">
-                  {data.batchPerformance.length === 0 ? (
+                  {lotsError ? (
+                    <div className="border border-red-200 bg-red-50 rounded-lg p-3 text-[12px] text-red-700">
+                      <p className="font-semibold">Falha ao carregar lotes do evento.</p>
+                      <p className="opacity-80 mt-1">{lotsError.message}</p>
+                      {lotsError.requestId && (
+                        <p className="text-[10px] mt-2 font-mono">requestId: {lotsError.requestId}</p>
+                      )}
+                    </div>
+                  ) : lotsLoading ? (
+                    <p className="text-[12px] text-[#8A8A8A] text-center py-4">Carregando lotes...</p>
+                  ) : data.batchPerformance.length === 0 ? (
                     <p className="text-[12px] text-[#8A8A8A] text-center py-4">Nenhum lote disponível.</p>
                   ) : data.batchPerformance.map((batch) => (
                     <div key={batch.id}>
@@ -842,8 +916,8 @@ export default function DashboardPage() {
                   label: 'Pausar vendas',
                   icon: Power,
                   href: '#',
-                  onClick: handleTogglePause,
-                  danger: globalPaused,
+                  onClick: operationalControlsAvailable ? handleTogglePause : undefined,
+                  danger: operationalControlsAvailable && globalPaused,
                 },
               ].map((action, idx) => {
                 const Icon = action.icon;
@@ -865,7 +939,9 @@ export default function DashboardPage() {
                       <Icon className="w-[18px] h-[18px]" />
                     </div>
                     <span className={`text-[13px] font-semibold ${action.danger ? 'text-[#FF3200]' : 'text-[#2D2D2D]'}`}>
-                      {action.danger ? 'Vendas suspensas — retomar' : action.label}
+                      {!operationalControlsAvailable && action.label === 'Pausar vendas'
+                        ? 'Vendas não configuradas'
+                        : action.danger ? 'Vendas suspensas — retomar' : action.label}
                     </span>
                   </div>
                 );
@@ -895,20 +971,21 @@ export default function DashboardPage() {
                   <div className="flex items-center gap-3 bg-[#F5F5F5] rounded-lg px-4 py-2.5 border border-[#EAEAEA]">
                     <SlidersHorizontal className="w-4 h-4 text-[#8A8A8A] shrink-0" />
                     <span className="text-[11px] font-semibold text-[#666666] whitespace-nowrap font-mono">
-                      {localThrottle} checkouts
+                      {operationalControlsAvailable ? `${localThrottle} checkouts` : 'Não configurado'}
                     </span>
                     <input
                       type="range" min="10" max="1000" step="10"
-                      value={localThrottle}
+                      value={operationalControlsAvailable ? localThrottle : ''}
+                      disabled={!operationalControlsAvailable || updatingSettings}
                       onChange={(e) => setLocalThrottle(parseInt(e.target.value, 10))}
                       onMouseUp={() => handleUpdateThrottle(localThrottle)}
                       onTouchEnd={() => handleUpdateThrottle(localThrottle)}
-                      className="w-24 h-1 bg-[#DCDCDC] rounded-lg appearance-none cursor-pointer accent-[#FF3200]"
+                      className="w-24 h-1 bg-[#DCDCDC] rounded-lg appearance-none cursor-pointer accent-[#FF3200] disabled:cursor-not-allowed disabled:opacity-50"
                     />
                   </div>
                   <button
                     onClick={handleTogglePause}
-                    disabled={updatingSettings}
+                    disabled={updatingSettings || !operationalControlsAvailable}
                     className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer border ${
                       globalPaused
                         ? 'bg-[#FF3200] border-[#FF3200] text-white animate-pulse'
@@ -916,7 +993,7 @@ export default function DashboardPage() {
                     }`}
                   >
                     <Power className="w-3.5 h-3.5" />
-                    {globalPaused ? 'Vendas suspensas' : 'Pausar vendas'}
+                    {!operationalControlsAvailable ? 'Não configurado' : globalPaused ? 'Vendas suspensas' : 'Pausar vendas'}
                   </button>
                 </div>
               </div>

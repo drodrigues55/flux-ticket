@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import Redis from 'ioredis';
 import { prisma } from '@flux/database';
+import { getQueueStats } from '../observability';
+import { logger } from '../logger';
 
 @Injectable()
 export class MonitoringService {
@@ -9,35 +11,30 @@ export class MonitoringService {
     port: Number(process.env.REDIS_PORT) || 6379,
   });
 
+  constructor() {
+    this.redis.on('error', (err) => {
+      logger.error({ err, service: 'api-write', component: 'monitoring' }, 'redis client error');
+    });
+  }
+
   async getQueueHealth() {
-    const queueName = 'TicketValidationQueue';
-    const prefix = `bull:${queueName}`;
-    const [waiting, active, delayed, failed, completed, pendingOutbox] = await Promise.all([
-      this.redis.llen(`${prefix}:wait`).catch(() => 0),
-      this.redis.llen(`${prefix}:active`).catch(() => 0),
-      this.redis.zcard(`${prefix}:delayed`).catch(() => 0),
-      this.redis.zcard(`${prefix}:failed`).catch(() => 0),
-      this.redis.zcard(`${prefix}:completed`).catch(() => 0),
+    const [queues, pendingOutbox, deadOutbox] = await Promise.all([
+      getQueueStats(),
       prisma.outboxEvent.count({ where: { status: 'PENDING' } }).catch(() => 0),
+      prisma.outboxEvent.count({ where: { status: 'DEAD' } }).catch(() => 0),
     ]);
 
-    const status = failed > 0 || pendingOutbox > 100 ? 'degraded' : 'ok';
+    const status = queues.some((queue) => queue.status !== 'ok') || pendingOutbox > 100 || deadOutbox > 0
+      ? 'degraded'
+      : 'ok';
 
     return {
       status,
       timestamp: new Date().toISOString(),
-      queues: [
-        {
-          name: queueName,
-          waiting,
-          active,
-          delayed,
-          failed,
-          completed,
-        },
-      ],
+      queues,
       outbox: {
         pending: pendingOutbox,
+        dead: deadOutbox,
       },
     };
   }

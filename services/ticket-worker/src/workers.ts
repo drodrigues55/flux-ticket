@@ -3,6 +3,8 @@ import { Job, Worker } from 'bullmq';
 import { moveJobToDeadLetter } from './dead-letter';
 import { createRedisConnection } from './redis';
 import { ACTIVE_QUEUE_NAMES, DEFAULT_JOB_OPTIONS, QUEUE_NAMES, QueueName } from './queue-registry';
+import { logger } from './logger';
+import { captureException } from './sentry';
 
 const connection = createRedisConnection();
 
@@ -11,11 +13,11 @@ async function handleHalfPriceDeadline(job: Job) {
   const { ticketId, batchId } = payload;
 
   if (!ticketId || !batchId) {
-    console.log('[WORKER] halfPrice.validateDeadline job missing ticketId or batchId. Ignoring.');
+    logger.warn({ queueName: QUEUE_NAMES.halfPriceValidateDeadline, jobId: job.id, requestId: job.data?.requestId }, 'half-price deadline job missing ticketId or batchId');
     return;
   }
 
-  console.log(`[WORKER] Checking half-price validation deadline for ticket ${ticketId}.`);
+  logger.info({ queueName: QUEUE_NAMES.halfPriceValidateDeadline, jobId: job.id, requestId: job.data?.requestId, eventId: payload.eventId, ticketId }, 'checking half-price validation deadline');
 
   await prisma.$transaction(async (tx) => {
     const ticket = await tx.ticket.findUnique({
@@ -23,7 +25,7 @@ async function handleHalfPriceDeadline(job: Job) {
     });
 
     if (!ticket) {
-      console.log(`[WORKER] Ticket ${ticketId} was not found.`);
+      logger.warn({ queueName: QUEUE_NAMES.halfPriceValidateDeadline, jobId: job.id, ticketId }, 'ticket not found');
       return;
     }
 
@@ -36,17 +38,17 @@ async function handleHalfPriceDeadline(job: Job) {
     const isHalfPrice = (outbox?.payload as any)?.isHalfPrice === true || payload?.isHalfPrice === true;
 
     if (!isHalfPrice) {
-      console.log(`[WORKER] Ticket ${ticketId} is not half-price. Ignoring validation deadline.`);
+      logger.info({ queueName: QUEUE_NAMES.halfPriceValidateDeadline, jobId: job.id, ticketId }, 'ticket is not half-price');
       return;
     }
 
     if (ticket.status !== 'PENDING_VALIDATION') {
-      console.log(`[WORKER] Ticket ${ticketId} is already ${ticket.status}. No deadline action needed.`);
+      logger.info({ queueName: QUEUE_NAMES.halfPriceValidateDeadline, jobId: job.id, ticketId, status: ticket.status }, 'ticket already handled');
       return;
     }
 
     if (ticket.hmacSignature) {
-      console.log(`[WORKER] Half-price ticket ${ticketId} already has a signature. No deadline action needed.`);
+      logger.info({ queueName: QUEUE_NAMES.halfPriceValidateDeadline, jobId: job.id, ticketId }, 'half-price ticket already has signature');
       return;
     }
 
@@ -104,7 +106,7 @@ async function handlePaymentsWebhook(job: Job) {
   const paymentId = payload.paymentId?.toString();
 
   if (!paymentId) {
-    console.log('[WORKER] payments.webhook job has no paymentId. Persisted intake only.');
+    logger.info({ queueName: QUEUE_NAMES.paymentsWebhook, jobId: job.id, requestId: job.data?.requestId }, 'payments webhook job has no paymentId');
     return;
   }
 
@@ -113,7 +115,7 @@ async function handlePaymentsWebhook(job: Job) {
   });
 
   if (!payment) {
-    console.log(`[WORKER] Payment ${paymentId} not found locally. No provider call will be made in Phase 3.`);
+    logger.warn({ queueName: QUEUE_NAMES.paymentsWebhook, jobId: job.id, requestId: job.data?.requestId, paymentId }, 'payment not found locally');
     return;
   }
 
@@ -129,15 +131,15 @@ async function handlePaymentsWebhook(job: Job) {
 }
 
 async function handleTicketsIssue(job: Job) {
-  console.log(`[WORKER] tickets.issue accepted job ${job.id}. External delivery remains out of scope for Phase 3.`);
+  logger.info({ queueName: QUEUE_NAMES.ticketsIssue, jobId: job.id, requestId: job.data?.requestId }, 'tickets.issue job accepted');
 }
 
 async function handleCheckinsSync(job: Job) {
-  console.log(`[WORKER] checkins.sync accepted job ${job.id}. Staff sync contracts start in Phase 4.`);
+  logger.info({ queueName: QUEUE_NAMES.checkinsSync, jobId: job.id, requestId: job.data?.requestId }, 'checkins.sync job accepted');
 }
 
 async function handleAnalyticsAggregate(job: Job) {
-  console.log(`[WORKER] analytics.aggregate accepted job ${job.id}. Aggregation contracts start in Phase 4.`);
+  logger.info({ queueName: QUEUE_NAMES.analyticsAggregate, jobId: job.id, requestId: job.data?.requestId }, 'analytics.aggregate job accepted');
 }
 
 async function processJob(queueName: QueueName, job: Job) {
@@ -172,11 +174,13 @@ export const workers = ACTIVE_QUEUE_NAMES.map((queueName) => {
   );
 
   worker.on('failed', async (job, err) => {
-    console.error(`[WORKER] Job ${job?.id} failed on ${queueName}.`, err);
+    logger.error({ err, queueName, jobId: job?.id, requestId: job?.data?.requestId }, 'worker job failed');
+    captureException(err, { service: 'ticket-worker', queueName, jobId: job?.id, requestId: job?.data?.requestId });
     const configuredAttempts = job?.opts?.attempts ?? DEFAULT_JOB_OPTIONS.attempts ?? 5;
     if (job && job.attemptsMade >= configuredAttempts) {
       await moveJobToDeadLetter(queueName, job, err).catch((deadLetterError) => {
-        console.error(`[WORKER] Failed to move job ${job.id} to ${queueName}.dead.`, deadLetterError);
+        logger.error({ err: deadLetterError, queueName, jobId: job.id }, 'failed to move job to dead-letter queue');
+        captureException(deadLetterError, { service: 'ticket-worker', queueName, jobId: job.id, phase: 'deadLetter' });
       });
     }
   });

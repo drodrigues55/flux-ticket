@@ -41,7 +41,21 @@ export type LotPerformance = BatchInfo & {
   checkIns: number;
 };
 
-export type DashboardOverview = DashboardOverviewResponse & {
+export type DashboardOverview = Omit<DashboardOverviewResponse, 'checkoutLimit' | 'salesPaused'> & {
+  checkoutLimit: number | null;
+  salesPaused: boolean | null;
+  operationalControls?: {
+    checkoutLimit?: {
+      value: number | null;
+      source: string;
+      status: string;
+    };
+    salesPaused?: {
+      value: boolean | null;
+      source: string;
+      status: string;
+    };
+  };
   totals?: {
     grossRevenue: number;
     ticketsSold: number;
@@ -63,6 +77,7 @@ export type DashboardBundle = {
   lotsPerformance: LotPerformance[];
   alerts: DashboardAlert[];
   requestIds: Record<string, string>;
+  sectionErrors?: Record<string, DashboardServiceError>;
 };
 
 export type DashboardServiceError = Error & {
