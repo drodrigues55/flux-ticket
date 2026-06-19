@@ -1,4 +1,6 @@
+import 'reflect-metadata';
 import { NestFactory, HttpAdapterHost } from '@nestjs/core';
+import { ExpressAdapter } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './all-exceptions.filter';
 import { validateRuntimeEnv } from './env.validation';
@@ -9,7 +11,7 @@ import { captureException, initSentry } from './sentry';
 async function bootstrap() {
   validateRuntimeEnv();
   initSentry('api-write');
-  const app = await NestFactory.create(AppModule, { rawBody: true, logger: false });
+  const app = await NestFactory.create(AppModule, new ExpressAdapter(), { rawBody: true, logger: false });
   app.enableCors();
   app.use(requestIdMiddleware);
 
