@@ -3,6 +3,7 @@ import Dexie, { Table } from 'dexie';
 export interface ValidTicket {
   ticket_id: string;
   hmacSignature: string;
+  sectorId?: number | null;
 }
 
 export interface MutationRecord {
@@ -19,6 +20,10 @@ export class StaffDatabase extends Dexie {
     super('StaffDB');
     this.version(1).stores({
       validTickets: 'ticket_id, hmacSignature',
+      mutationQueue: 'ticket_id, timestamp, status',
+    });
+    this.version(2).stores({
+      validTickets: 'ticket_id, hmacSignature, sectorId',
       mutationQueue: 'ticket_id, timestamp, status',
     });
   }

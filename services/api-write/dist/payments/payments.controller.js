@@ -16,6 +16,7 @@ exports.PaymentsController = void 0;
 const common_1 = require("@nestjs/common");
 const payments_service_1 = require("./payments.service");
 const payments_dto_1 = require("./payments.dto");
+const domain_exceptions_1 = require("../domain-exceptions");
 let PaymentsController = class PaymentsController {
     paymentsService;
     constructor(paymentsService) {
@@ -25,6 +26,10 @@ let PaymentsController = class PaymentsController {
         const parseResult = payments_dto_1.CheckoutPaymentSchema.safeParse(body);
         if (!parseResult.success) {
             const errorMsg = parseResult.error.errors.map(e => e.message).join(', ');
+            const hasCpfError = parseResult.error.errors.some((e) => e.path.includes('buyerCpf') || e.path.includes('cpf'));
+            if (hasCpfError) {
+                throw new domain_exceptions_1.InvalidCpfException({ errors: parseResult.error.errors });
+            }
             throw new common_1.BadRequestException(`Erro de validação: ${errorMsg}`);
         }
         return this.paymentsService.processCheckout(parseResult.data);

@@ -27,7 +27,7 @@ export declare const PaymentMethodCardSchema: z.ZodObject<{
 }>;
 export declare const CheckoutPaymentSchema: z.ZodObject<{
     ticketId: z.ZodString;
-    buyerCpf: z.ZodString;
+    buyerCpf: z.ZodEffects<z.ZodString, string, string>;
     email: z.ZodString;
     buyerName: z.ZodString;
     paymentMethod: z.ZodDiscriminatedUnion<"method", [z.ZodObject<{
@@ -57,7 +57,7 @@ export declare const CheckoutPaymentSchema: z.ZodObject<{
     }>]>;
     holders: z.ZodOptional<z.ZodArray<z.ZodObject<{
         name: z.ZodString;
-        cpf: z.ZodString;
+        cpf: z.ZodEffects<z.ZodString, string, string>;
     }, "strip", z.ZodTypeAny, {
         name: string;
         cpf: string;

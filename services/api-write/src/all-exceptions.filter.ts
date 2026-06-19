@@ -20,13 +20,25 @@ export class AllExceptionsFilter implements ExceptionFilter {
     console.error(`[ERROR] [Correlation ID: ${correlationId}]`, exception);
 
     let message: string | object = 'An unexpected error occurred. Please contact support.';
+    let code = httpStatus === HttpStatus.INTERNAL_SERVER_ERROR ? 'INTERNAL_SERVER_ERROR' : 'HTTP_ERROR';
+    let details: unknown;
+
     if (exception instanceof HttpException) {
       message = exception.getResponse();
     }
 
+    if (typeof message === 'object' && message !== null) {
+      const response = message as any;
+      code = response.code || code;
+      details = response.details;
+      message = response.message || message;
+    }
+
     const responseBody = {
       statusCode: httpStatus,
-      message: typeof message === 'object' && message !== null && 'message' in message ? (message as any).message : message,
+      code,
+      message,
+      ...(details !== undefined ? { details } : {}),
       correlationId,
       timestamp: new Date().toISOString(),
       path: httpAdapter.getRequestUrl(ctx.getRequest()),

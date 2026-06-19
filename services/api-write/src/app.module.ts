@@ -4,6 +4,8 @@ import { APP_GUARD } from '@nestjs/core';
 import { FluxEngineModule } from './tickets/flux-engine.module';
 import { EventsModule } from './events/events.module';
 import { PaymentsModule } from './payments/payments.module';
+import { AuditModule } from './audit/audit.module';
+import { MonitoringModule } from './monitoring/monitoring.module';
 
 @Module({
   imports: [
@@ -13,7 +15,9 @@ import { PaymentsModule } from './payments/payments.module';
     }]),
     FluxEngineModule,
     EventsModule,
-    PaymentsModule
+    PaymentsModule,
+    AuditModule,
+    MonitoringModule
   ],
   providers: [
     {

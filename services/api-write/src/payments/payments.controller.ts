@@ -3,6 +3,7 @@ import { RawBodyRequest } from '@nestjs/common';
 import { Request } from 'express';
 import { PaymentsService } from './payments.service';
 import { CheckoutPaymentSchema } from './payments.dto';
+import { InvalidCpfException } from '../domain-exceptions';
 
 @Controller('payments')
 export class PaymentsController {
@@ -14,6 +15,10 @@ export class PaymentsController {
     const parseResult = CheckoutPaymentSchema.safeParse(body);
     if (!parseResult.success) {
       const errorMsg = parseResult.error.errors.map(e => e.message).join(', ');
+      const hasCpfError = parseResult.error.errors.some((e) => e.path.includes('buyerCpf') || e.path.includes('cpf'));
+      if (hasCpfError) {
+        throw new InvalidCpfException({ errors: parseResult.error.errors });
+      }
       throw new BadRequestException(`Erro de validação: ${errorMsg}`);
     }
     return this.paymentsService.processCheckout(parseResult.data);

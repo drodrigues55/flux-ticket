@@ -13,6 +13,8 @@ const core_1 = require("@nestjs/core");
 const flux_engine_module_1 = require("./tickets/flux-engine.module");
 const events_module_1 = require("./events/events.module");
 const payments_module_1 = require("./payments/payments.module");
+const audit_module_1 = require("./audit/audit.module");
+const monitoring_module_1 = require("./monitoring/monitoring.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -25,7 +27,9 @@ exports.AppModule = AppModule = __decorate([
                 }]),
             flux_engine_module_1.FluxEngineModule,
             events_module_1.EventsModule,
-            payments_module_1.PaymentsModule
+            payments_module_1.PaymentsModule,
+            audit_module_1.AuditModule,
+            monitoring_module_1.MonitoringModule
         ],
         providers: [
             {

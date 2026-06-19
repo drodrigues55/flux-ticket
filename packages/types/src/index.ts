@@ -286,3 +286,5 @@ export interface ReserveResponse {
   ticketId: string;   // comma-separated if multiple
   userId: string;
 }
+
+export * from './cpf';

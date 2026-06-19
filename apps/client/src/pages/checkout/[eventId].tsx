@@ -2,6 +2,7 @@ import { useRouter } from 'next/router';
 import { useTicketLock } from '../../hooks/useTicketLock';
 import { useState, useEffect, useMemo } from 'react';
 import Script from 'next/script';
+import { isValidCpf } from '@flux/types';
 import {
   FaCreditCard,
   FaShieldHalved,
@@ -152,11 +153,11 @@ export default function CheckoutPage() {
     buyerName.trim().length > 3 &&
     email.trim().length > 5 &&
     !emailError &&
-    (buyerCpf.length === 14 || buyerCpf.length === 18);
+    isValidCpf(buyerCpf);
 
   const isHoldersInfoComplete = holders.every((h, idx) => {
     if (idx === 0) return true;
-    return h.name.trim().length > 3 && (h.cpf.length === 14 || h.cpf.length === 18);
+    return h.name.trim().length > 3 && isValidCpf(h.cpf);
   });
 
   const isCardInfoComplete =
@@ -171,7 +172,7 @@ export default function CheckoutPage() {
     (paymentMethod === 'pix' || (paymentMethod === 'credit_card' && isCardInfoComplete));
 
   const isNameInvalid = (nameTouched || submitAttempted) && buyerName.trim().length <= 3;
-  const isCpfInvalid = (cpfTouched || submitAttempted) && buyerCpf.length !== 14 && buyerCpf.length !== 18;
+  const isCpfInvalid = (cpfTouched || submitAttempted) && !isValidCpf(buyerCpf);
 
   const isCardNumberInvalid = submitAttempted && cardNumber.length !== 19;
   const isCardholderNameInvalid = submitAttempted && cardholderName.trim().length <= 3;
@@ -323,19 +324,12 @@ export default function CheckoutPage() {
     const raw = e.target.value.replace(/\D/g, '');
     let formatted = '';
 
-    if (raw.length <= 11) {
-      formatted = raw
-        .replace(/(\d{3})(\d)/, '$1.$2')
-        .replace(/(\d{3})(\d)/, '$1.$2')
-        .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-    } else {
-      formatted = raw
-        .replace(/(\d{2})(\d)/, '$1.$2')
-        .replace(/(\d{3})(\d)/, '$1.$2')
-        .replace(/(\d{3})(\d)/, '$1/$2')
-        .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
-    }
-    setBuyerCpf(formatted.substring(0, 18));
+    formatted = raw
+      .slice(0, 11)
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+    setBuyerCpf(formatted.substring(0, 14));
   };
 
   const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -689,8 +683,7 @@ export default function CheckoutPage() {
                         value={buyerCpf}
                         onChange={(e) => {
                           handleCpfChange(e);
-                          const len = e.target.value.replace(/\D/g, '').length;
-                          if (cpfTouched && (len === 11 || len === 14)) {
+                          if (cpfTouched && isValidCpf(e.target.value)) {
                             setCpfTouched(false);
                           }
                         }}
@@ -700,7 +693,7 @@ export default function CheckoutPage() {
                           }`}
                       />
                       {isCpfInvalid && (
-                        <p className="text-red-500 text-xs font-medium mt-1">Insira um CPF (11 dígitos) ou CNPJ (14 dígitos) válido</p>
+                        <p className="text-red-500 text-xs font-medium mt-1">Insira um CPF válido</p>
                       )}
                     </div>
                   </div>

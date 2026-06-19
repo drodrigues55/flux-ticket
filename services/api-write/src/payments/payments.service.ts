@@ -3,6 +3,7 @@ import { prisma } from '@flux/database';
 import { FluxEngineService } from '../tickets/flux-engine.service';
 import { TicketCryptoService } from '../tickets/ticket-crypto.service';
 import { CheckoutPaymentDto } from './payments.dto';
+import { AuditService } from '../audit/audit.service';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -11,7 +12,8 @@ export class PaymentsService {
 
   constructor(
     private readonly fluxEngine: FluxEngineService,
-    private readonly ticketCryptoService: TicketCryptoService
+    private readonly ticketCryptoService: TicketCryptoService,
+    private readonly auditService: AuditService
   ) {}
 
   /**
@@ -249,6 +251,17 @@ export class PaymentsService {
           },
         });
 
+        await this.auditService.record({
+          actorId: ticket.buyerId || dto?.email || null,
+          actorRole: 'USER',
+          action: 'TICKET_STATUS_CHANGED',
+          entityType: 'Ticket',
+          entityId: ticket.id,
+          before: { status: ticket.status },
+          after: { status: newStatus },
+          metadata: { paymentId: meta.paymentId, paymentStatus: status },
+        });
+
         await this.fluxEngine.releaseTicketLock(ticket.batchId, ticket.buyerId, ticket.id);
         finalStatuses.push({ id: ticket.id, finalStatus: newStatus });
       }
@@ -343,6 +356,17 @@ export class PaymentsService {
           },
         });
 
+        await this.auditService.record({
+          actorId: ticket.buyerId || dto?.email || null,
+          actorRole: 'USER',
+          action: 'TICKET_STATUS_CHANGED',
+          entityType: 'Ticket',
+          entityId: ticket.id,
+          before: { status: ticket.status },
+          after: { status: 'PENDING_PAYMENT' },
+          metadata: { paymentId: meta.paymentId, paymentStatus: status },
+        });
+
         // Estende o lock no Redis para 15 minutos (900s)
         await this.fluxEngine.extendTicketLock(ticket.buyerId, ticket.id, ticket.batchId, 900);
       }
@@ -377,6 +401,17 @@ export class PaymentsService {
         // Exclui a linha correspondente no PostgreSQL
         await prisma.ticket.delete({
           where: { id: ticket.id },
+        });
+
+        await this.auditService.record({
+          actorId: ticket.buyerId || dto?.email || null,
+          actorRole: 'USER',
+          action: 'TICKET_PAYMENT_REJECTED',
+          entityType: 'Ticket',
+          entityId: ticket.id,
+          before: { status: ticket.status },
+          after: { status: 'DELETED' },
+          metadata: { paymentStatus: status },
         });
       }
 

@@ -1,7 +1,9 @@
 import { EventsService } from './events.service';
+import { AuditService } from '../audit/audit.service';
 export declare class EventsController {
     private readonly eventsService;
-    constructor(eventsService: EventsService);
+    private readonly auditService;
+    constructor(eventsService: EventsService, auditService: AuditService);
     /**
      * Rota para criação de evento.
      * Exige token JWT com role STAFF/ORGANIZER.
@@ -58,7 +60,7 @@ export declare class EventsController {
         totalQuantity: number;
         sectorId?: number;
         sectorName?: string;
-    }): Promise<{
+    }, req: any): Promise<{
         id: string;
         eventId: string;
         name: string;

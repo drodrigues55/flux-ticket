@@ -1,12 +1,18 @@
-import { Controller, Post, Get, Param, Body, Query, BadRequestException, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Param, Body, Query, BadRequestException, UseGuards, Req } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { prisma } from '@flux/database';
 import { CheckoutService } from './checkout.service';
 import { StaffGuard } from './staff-guard';
+import { AuditService } from '../audit/audit.service';
+import { SectorAccessDeniedException, StockUnavailableException } from '../domain-exceptions';
 
 
 @Controller()
 export class CheckoutController {
-  constructor(private readonly checkoutService: CheckoutService) {}
+  constructor(
+    private readonly checkoutService: CheckoutService,
+    private readonly auditService: AuditService
+  ) {}
   
   /**
    * Endpoint de Mutação de Borda: Chamado quando o PWA envia os check-ins offline em massa.
@@ -15,12 +21,13 @@ export class CheckoutController {
   @UseGuards(StaffGuard)
   async staffMutation(
     @Param('id') eventId: string,
-    @Body() body: { ticketIds: string[]; checkInTimestamp?: string; deviceId?: string; deviceName?: string; pendingCount?: number }
+    @Body() body: { ticketIds: string[]; checkInTimestamp?: string; deviceId?: string; deviceName?: string; pendingCount?: number; allowedSectorIds?: number[] },
+    @Req() req: any
   ) {
-    const { ticketIds, deviceId, deviceName, pendingCount } = body;
+    const { ticketIds, deviceId, deviceName, pendingCount, allowedSectorIds } = body;
     
     if (deviceId && deviceName) {
-      await this.checkoutService.fluxEngine.registerStaffDevice(eventId, deviceId, deviceName, pendingCount || 0);
+      await this.checkoutService.fluxEngine.registerStaffDevice(eventId, deviceId, deviceName, pendingCount || 0, allowedSectorIds || []);
     }
     
     if (!Array.isArray(ticketIds) || ticketIds.length === 0) {
@@ -29,8 +36,29 @@ export class CheckoutController {
         count: 0,
       };
     }
+
+    const sectorRestricted = Array.isArray(allowedSectorIds) && allowedSectorIds.length > 0;
+    if (sectorRestricted) {
+      const disallowed = await prisma.ticket.count({
+        where: {
+          id: { in: ticketIds },
+          batch: {
+            eventId,
+            sectorId: { notIn: allowedSectorIds },
+          },
+        },
+      });
+      if (disallowed > 0) {
+        throw new SectorAccessDeniedException({ eventId, deviceId, disallowedTickets: disallowed });
+      }
+    }
     
     // Executa a mutação em massa no Postgres
+    const beforeTickets = await prisma.ticket.findMany({
+      where: { id: { in: ticketIds }, batch: { eventId } },
+      select: { id: true, status: true, checkedInAt: true },
+    });
+    const checkInDate = body.checkInTimestamp ? new Date(body.checkInTimestamp) : new Date();
     const result = await prisma.ticket.updateMany({
       where: {
         id: { in: ticketIds },
@@ -38,7 +66,21 @@ export class CheckoutController {
       },
       data: {
         status: 'CONSUMED',
+        checkedInAt: checkInDate,
       },
+    });
+
+    await this.auditService.record({
+      actorId: req.user?.userId,
+      actorRole: req.user?.role,
+      action: 'TICKET_STAFF_MUTATION',
+      entityType: 'Ticket',
+      entityId: eventId,
+      before: beforeTickets,
+      after: { status: 'CONSUMED', count: result.count, checkedInAt: checkInDate.toISOString() },
+      metadata: { ticketIds, deviceId, deviceName, allowedSectorIds },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
     });
     
     console.log(`[MUTATION] ${result.count} ingressos marcados como CONSUMED offline para o evento ${eventId}.`);
@@ -50,39 +92,80 @@ export class CheckoutController {
   }
 
   @Post('settings/throttle')
-  async setThrottle(@Body() body: { limit: number }) {
+  @UseGuards(StaffGuard)
+  async setThrottle(@Body() body: { limit: number }, @Req() req: any) {
     if (body.limit === undefined || body.limit < 0) {
       throw new BadRequestException('limit deve ser maior ou igual a 0.');
     }
+    const previousLimit = await this.checkoutService.fluxEngine.getCheckoutLimit();
     await this.checkoutService.fluxEngine.setCheckoutLimit(body.limit);
+    await this.auditService.record({
+      actorId: req.user?.userId,
+      actorRole: req.user?.role,
+      action: 'SETTINGS_THROTTLE_UPDATED',
+      entityType: 'Settings',
+      entityId: 'checkout_limit',
+      before: { limit: previousLimit },
+      after: { limit: body.limit },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
     return { success: true, limit: body.limit };
   }
 
   @Post('settings/pause')
-  async setPause(@Body() body: { paused: boolean }) {
+  @UseGuards(StaffGuard)
+  async setPause(@Body() body: { paused: boolean }, @Req() req: any) {
     if (body.paused === undefined) {
       throw new BadRequestException('paused é obrigatório.');
     }
+    const previousPaused = await this.checkoutService.fluxEngine.isSalesPaused();
     await this.checkoutService.fluxEngine.setSalesPaused(body.paused);
+    await this.auditService.record({
+      actorId: req.user?.userId,
+      actorRole: req.user?.role,
+      action: 'SETTINGS_PAUSE_UPDATED',
+      entityType: 'Settings',
+      entityId: 'sales_paused',
+      before: { paused: previousPaused },
+      after: { paused: body.paused },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
     return { success: true, paused: body.paused };
   }
 
   @Post('events/:id/scan-fail')
+  @UseGuards(StaffGuard)
   async scanFail(
     @Param('id') eventId: string,
-    @Body() body: { count?: number }
+    @Body() body: { count?: number; deviceId?: string },
+    @Req() req: any
   ) {
     const increment = body.count || 1;
     let finalCount = 0;
     for (let i = 0; i < increment; i++) {
       finalCount = await this.checkoutService.fluxEngine.incrementDeniedAttempts(eventId);
     }
+    await this.auditService.record({
+      actorId: req.user?.userId,
+      actorRole: req.user?.role,
+      action: 'STAFF_SCAN_FAILED',
+      entityType: 'Event',
+      entityId: eventId,
+      metadata: { increment, deniedAttempts: finalCount, deviceId: body.deviceId },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
     return { success: true, deniedAttempts: finalCount };
   }
 
 
   /**
-   * Endpoint de Renovação de Lock: Chamado pelo hook React useTicketLock para evitar a expiração da reser  @Post('tickets/renew-lock')
+   * Endpoint de Renovação de Lock: Chamado pelo hook React useTicketLock para evitar a expiração da reserva.
+   */
+  @Post('tickets/renew-lock')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   async renewLock(
     @Body() body: { userId: string; ticketId: string; batchId?: string }
   ) {
@@ -129,6 +212,7 @@ export class CheckoutController {
    * Endpoint de Reserva de Ingresso: Chamado na inicialização da página de checkout para garantir a reserva do lote.
    */
   @Post('tickets/reserve')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   async reserve(
     @Body() body: { 
       eventId: string; 
@@ -199,6 +283,15 @@ export class CheckoutController {
           });
           ticketIds.push(ticket.id);
           reservedBatchTickets.push({ batchId: item.batchId, ticketId: ticket.id });
+          await this.auditService.record({
+            actorId: user.id,
+            actorRole: user.role,
+            action: 'TICKET_RESERVED',
+            entityType: 'Ticket',
+            entityId: ticket.id,
+            after: { status: ticket.status, batchId: item.batchId, eventId, price: item.price },
+            metadata: { isHalfPrice: item.isHalfPrice },
+          });
         }
       }
     } catch (error) {
@@ -214,6 +307,9 @@ export class CheckoutController {
         } catch (cleanupErr) {
           console.error('[CLEANUP ERROR]', cleanupErr);
         }
+      }
+      if (error instanceof Error && error.message.toLowerCase().includes('estoque')) {
+        throw new StockUnavailableException({ eventId, items: reservationItems });
       }
       throw error;
     }
@@ -273,5 +369,4 @@ export class CheckoutController {
     };
   }
 }
-
 

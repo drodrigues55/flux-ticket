@@ -176,12 +176,13 @@ export class FluxEngineService implements OnModuleInit, OnModuleDestroy {
     return count ? parseInt(count, 10) : 0;
   }
 
-  async registerStaffDevice(eventId: string, deviceId: string, deviceName: string, pendingCount: number): Promise<void> {
+  async registerStaffDevice(eventId: string, deviceId: string, deviceName: string, pendingCount: number, allowedSectorIds: number[] = []): Promise<void> {
     const deviceData = JSON.stringify({
       deviceId,
       deviceName,
       lastSyncTime: new Date().toISOString(),
-      pendingSyncCount: pendingCount
+      pendingSyncCount: pendingCount,
+      allowedSectorIds,
     });
     await this.redisClient.hset(`event:${eventId}:staff_devices`, deviceId, deviceData);
   }
@@ -226,5 +227,16 @@ export class FluxEngineService implements OnModuleInit, OnModuleDestroy {
       return { hits: 0, misses: 0 };
     }
   }
-}
 
+  async getQueueStats(queueName: string): Promise<{ waiting: number; active: number; delayed: number; failed: number; completed: number }> {
+    const prefix = `bull:${queueName}`;
+    const [waiting, active, delayed, failed, completed] = await Promise.all([
+      this.redisClient.llen(`${prefix}:wait`).catch(() => 0),
+      this.redisClient.llen(`${prefix}:active`).catch(() => 0),
+      this.redisClient.zcard(`${prefix}:delayed`).catch(() => 0),
+      this.redisClient.zcard(`${prefix}:failed`).catch(() => 0),
+      this.redisClient.zcard(`${prefix}:completed`).catch(() => 0),
+    ]);
+    return { waiting, active, delayed, failed, completed };
+  }
+}

@@ -16,10 +16,13 @@ exports.EventsController = void 0;
 const common_1 = require("@nestjs/common");
 const events_service_1 = require("./events.service");
 const staff_guard_1 = require("../tickets/staff-guard");
+const audit_service_1 = require("../audit/audit.service");
 let EventsController = class EventsController {
     eventsService;
-    constructor(eventsService) {
+    auditService;
+    constructor(eventsService, auditService) {
         this.eventsService = eventsService;
+        this.auditService = auditService;
     }
     /**
      * Rota para criação de evento.
@@ -34,7 +37,18 @@ let EventsController = class EventsController {
         if (!organizerId) {
             throw new common_1.BadRequestException('Identificação do organizador ausente no token.');
         }
-        return this.eventsService.createEvent(body, organizerId);
+        const event = await this.eventsService.createEvent(body, organizerId);
+        await this.auditService.record({
+            actorId: organizerId,
+            actorRole: req.user.role,
+            action: 'EVENT_CREATED',
+            entityType: 'Event',
+            entityId: event.id,
+            after: event,
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent'],
+        });
+        return event;
     }
     /**
      * Rota para listagem de todos os eventos do organizador.
@@ -51,7 +65,7 @@ let EventsController = class EventsController {
      * Rota para criação de lote de ingressos de um evento.
      * Exige token JWT com role STAFF/ORGANIZER.
      */
-    async createBatch(eventId, body) {
+    async createBatch(eventId, body, req) {
         const { name, price, totalQuantity, sectorId, sectorName } = body;
         if (!name || price === undefined || totalQuantity === undefined) {
             throw new common_1.BadRequestException('Os campos name, price e totalQuantity são obrigatórios.');
@@ -59,7 +73,19 @@ let EventsController = class EventsController {
         if (price < 0 || totalQuantity < 0) {
             throw new common_1.BadRequestException('Preço e quantidade total devem ser maiores ou iguais a zero.');
         }
-        return this.eventsService.createBatch(eventId, { name, price, totalQuantity, sectorId, sectorName });
+        const batch = await this.eventsService.createBatch(eventId, { name, price, totalQuantity, sectorId, sectorName });
+        await this.auditService.record({
+            actorId: req.user?.userId,
+            actorRole: req.user?.role,
+            action: 'BATCH_CREATED',
+            entityType: 'TicketBatch',
+            entityId: batch.id,
+            after: batch,
+            metadata: { eventId },
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent'],
+        });
+        return batch;
     }
     /**
      * Rota para listagem de todos os lotes de um determinado evento.
@@ -92,8 +118,9 @@ __decorate([
     (0, common_1.Post)(':eventId/batches'),
     __param(0, (0, common_1.Param)('eventId')),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String, Object, Object]),
     __metadata("design:returntype", Promise)
 ], EventsController.prototype, "createBatch", null);
 __decorate([
@@ -106,6 +133,7 @@ __decorate([
 exports.EventsController = EventsController = __decorate([
     (0, common_1.Controller)('events'),
     (0, common_1.UseGuards)(staff_guard_1.StaffGuard),
-    __metadata("design:paramtypes", [events_service_1.EventsService])
+    __metadata("design:paramtypes", [events_service_1.EventsService,
+        audit_service_1.AuditService])
 ], EventsController);
 //# sourceMappingURL=events.controller.js.map

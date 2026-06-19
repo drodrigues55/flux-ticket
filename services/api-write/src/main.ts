@@ -1,8 +1,10 @@
 import { NestFactory, HttpAdapterHost } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './all-exceptions.filter';
+import { validateRuntimeEnv } from './env.validation';
 
 async function bootstrap() {
+  validateRuntimeEnv();
   const app = await NestFactory.create(AppModule, { rawBody: true });
   app.enableCors();
 

@@ -236,6 +236,26 @@ model SaleLog {
   @@index([occurredAt])
 }
 
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?
+  actorRole  String?
+  action     String
+  entityType String
+  entityId   String?
+  before     Json?
+  after      Json?
+  metadata   Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
+}
+
 /// Pre-aggregated daily revenue and ticket counts per event.
 /// Feeds the sales history chart without expensive real-time aggregations.
 model DailySalesSnapshot {

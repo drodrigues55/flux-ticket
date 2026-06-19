@@ -155,19 +155,24 @@ import { authMiddleware } from './auth-middleware';
 /**
  * GET /events/:id/staff-sync
  * Ultra-lightweight endpoint for offline PWA check-in sync.
- * Returns only ticket IDs and HMAC signatures for VALID tickets.
+ * Returns ticket IDs, HMAC signatures, and sector IDs for VALID tickets.
  */
 app.get('/events/:id/staff-sync', authMiddleware, async (req, res) => {
   const eventId = req.params.id;
   try {
     const tickets = await prisma.ticket.findMany({
       where: { eventId, status: 'VALID' },
-      select: { id: true, hmacSignature: true },
+      select: {
+        id: true,
+        hmacSignature: true,
+        batch: { select: { sectorId: true } },
+      },
     });
 
     const payload = tickets.map((t) => ({
       ticket_id: t.id,
       hmacSignature: t.hmacSignature,
+      sectorId: t.batch?.sectorId ?? null,
     }));
 
     res.json(payload);

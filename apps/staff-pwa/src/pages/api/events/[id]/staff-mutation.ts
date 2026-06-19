@@ -16,7 +16,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .replace(/=/g, '')
       .replace(/\+/g, '-')
       .replace(/\//g, '_');
-    const mockToken = `eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.${mockPayload}.mock-signature`;
+    const mockToken = `eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.${mockPayload}.mocksignature`;
 
     const response = await fetch(`${apiWriteUrl}/events/${id}/staff-mutation`, {
       method: 'POST',

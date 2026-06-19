@@ -1,9 +1,11 @@
 import db from './db';
+import { getAllowedSectorIds } from './devicePolicy';
 
 export interface ScannedQRData {
   ticket_id: string;
   buyer_cpf: string;
   batch_id: string;
+  sector_id?: number;
   signature: string;
 }
 
@@ -58,7 +60,19 @@ export async function validateTicket(scannedData: string): Promise<ValidationRes
       };
     }
 
-    // 3. Verifica se o ingresso já foi marcado para consumo localmente
+    // 3. Bloqueia setores fora da política do dispositivo, quando configurada.
+    const allowedSectorIds = getAllowedSectorIds();
+    if (allowedSectorIds.length > 0) {
+      const ticketSectorId = localRecord.sectorId ?? parsed.sector_id ?? null;
+      if (!ticketSectorId || !allowedSectorIds.includes(Number(ticketSectorId))) {
+        return {
+          success: false,
+          message: 'Ingresso pertence a um setor não autorizado para este dispositivo.',
+        };
+      }
+    }
+
+    // 4. Verifica se o ingresso já foi marcado para consumo localmente
     const alreadyScanned = await db.mutationQueue.get(ticket_id);
     if (alreadyScanned) {
       return {
@@ -67,7 +81,7 @@ export async function validateTicket(scannedData: string): Promise<ValidationRes
       };
     }
 
-    // 4. Se a assinatura for idêntica e não consumido ainda, enfileira a mutação
+    // 5. Se a assinatura for idêntica e não consumido ainda, enfileira a mutação
     await db.mutationQueue.put({
       ticket_id,
       timestamp: Date.now(),

@@ -1,5 +1,17 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 
+function generateMockJWT(userId: string, role: string): string {
+  const header = { alg: 'none', typ: 'JWT' };
+  const payload = { userId, role };
+  const toBase64Url = (obj: any) =>
+    Buffer.from(JSON.stringify(obj))
+      .toString('base64')
+      .replace(/=/g, '')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_');
+  return `${toBase64Url(header)}.${toBase64Url(payload)}.mocksignature`;
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
@@ -18,6 +30,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${generateMockJWT('organizer-mock', 'ORGANIZER')}`,
       },
       body: JSON.stringify({ limit }),
     });

@@ -6,10 +6,12 @@ import { syncOfflineMutations, setupNetworkSync } from '../lib/sync';
 import { SyncGate } from '../components/SyncGate';
 import { ScanButton } from '../components/ScanButton';
 import { useTheme } from '../hooks/useTheme';
+import { getAllowedSectorIds, saveAllowedSectorInput } from '../lib/devicePolicy';
 
 export default function StaffPortal() {
   const { isDark, toggleTheme } = useTheme();
   const [eventId, setEventId] = useState('event-id-123');
+  const [allowedSectorInput, setAllowedSectorInput] = useState('');
   const [isOnline, setIsOnline] = useState(true);
   const [scannedInput, setScannedInput] = useState('');
   const [scanResult, setScanResult] = useState<{ success: boolean; message: string } | null>(null);
@@ -39,6 +41,7 @@ export default function StaffPortal() {
     if (typeof window === 'undefined') return;
 
     setIsOnline(navigator.onLine);
+    setAllowedSectorInput(getAllowedSectorIds().join(', '));
 
     const goOnline = () => setIsOnline(true);
     const goOffline = () => setIsOnline(false);
@@ -77,7 +80,8 @@ export default function StaffPortal() {
         await db.validTickets.clear();
         await db.validTickets.bulkPut(data.map(t => ({
           ticket_id: t.ticket_id,
-          hmacSignature: t.hmacSignature
+          hmacSignature: t.hmacSignature,
+          sectorId: t.sectorId ?? null
         })));
         setSyncMessage(`Sucesso! ${data.length} assinaturas de ingressos salvas offline.`);
         await updateCounts();
@@ -158,7 +162,8 @@ export default function StaffPortal() {
       // Garante que o ingresso de teste esteja registrado localmente como válido
       await db.validTickets.put({
         ticket_id: validMockTicketId,
-        hmacSignature: validMockSignature
+        hmacSignature: validMockSignature,
+        sectorId: 1
       });
       await updateCounts();
 
@@ -166,6 +171,7 @@ export default function StaffPortal() {
         ticket_id: validMockTicketId,
         buyer_cpf: '12345678909',
         batch_id: 'batch-abc',
+        sector_id: 1,
         signature: validMockSignature
       }, null, 2));
     } else if (type === 'invalid') {
@@ -183,7 +189,8 @@ export default function StaffPortal() {
       // Insere o ingresso com a assinatura válida local, mas no QR escaneado passamos uma assinatura inválida/forjada
       await db.validTickets.put({
         ticket_id: validMockTicketId,
-        hmacSignature: validMockSignature
+        hmacSignature: validMockSignature,
+        sectorId: 1
       });
       await updateCounts();
 
@@ -259,6 +266,22 @@ export default function StaffPortal() {
                     placeholder="Ex: event-id-123"
                     className="flux-input"
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold tracking-wide text-[var(--text-subtle)]">Setores Permitidos no Dispositivo</label>
+                  <Input
+                    value={allowedSectorInput}
+                    onChange={(e) => {
+                      setAllowedSectorInput(e.target.value);
+                      saveAllowedSectorInput(e.target.value);
+                    }}
+                    placeholder="Ex: 1, 2, 3"
+                    className="flux-input"
+                  />
+                  <p className="text-[11px] text-[var(--text-subtle)]">
+                    Deixe vazio para operar sem trava de setor durante testes.
+                  </p>
                 </div>
 
                 <div className="pt-2">

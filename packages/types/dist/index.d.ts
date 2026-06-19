@@ -225,4 +225,5 @@ export interface ReserveResponse {
     ticketId: string;
     userId: string;
 }
+export * from './cpf';
 //# sourceMappingURL=index.d.ts.map

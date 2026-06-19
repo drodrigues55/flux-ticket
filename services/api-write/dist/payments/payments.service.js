@@ -48,14 +48,17 @@ const common_1 = require("@nestjs/common");
 const database_1 = require("@flux/database");
 const flux_engine_service_1 = require("../tickets/flux-engine.service");
 const ticket_crypto_service_1 = require("../tickets/ticket-crypto.service");
+const audit_service_1 = require("../audit/audit.service");
 const crypto = __importStar(require("crypto"));
 let PaymentsService = PaymentsService_1 = class PaymentsService {
     fluxEngine;
     ticketCryptoService;
+    auditService;
     logger = new common_1.Logger(PaymentsService_1.name);
-    constructor(fluxEngine, ticketCryptoService) {
+    constructor(fluxEngine, ticketCryptoService, auditService) {
         this.fluxEngine = fluxEngine;
         this.ticketCryptoService = ticketCryptoService;
+        this.auditService = auditService;
     }
     /**
      * Valida a assinatura de webhook enviada pelo Mercado Pago.
@@ -258,6 +261,16 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                         expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
                     },
                 });
+                await this.auditService.record({
+                    actorId: ticket.buyerId || dto?.email || null,
+                    actorRole: 'USER',
+                    action: 'TICKET_STATUS_CHANGED',
+                    entityType: 'Ticket',
+                    entityId: ticket.id,
+                    before: { status: ticket.status },
+                    after: { status: newStatus },
+                    metadata: { paymentId: meta.paymentId, paymentStatus: status },
+                });
                 await this.fluxEngine.releaseTicketLock(ticket.batchId, ticket.buyerId, ticket.id);
                 finalStatuses.push({ id: ticket.id, finalStatus: newStatus });
             }
@@ -348,6 +361,16 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                         expiresAt: newExpiresAt,
                     },
                 });
+                await this.auditService.record({
+                    actorId: ticket.buyerId || dto?.email || null,
+                    actorRole: 'USER',
+                    action: 'TICKET_STATUS_CHANGED',
+                    entityType: 'Ticket',
+                    entityId: ticket.id,
+                    before: { status: ticket.status },
+                    after: { status: 'PENDING_PAYMENT' },
+                    metadata: { paymentId: meta.paymentId, paymentStatus: status },
+                });
                 // Estende o lock no Redis para 15 minutos (900s)
                 await this.fluxEngine.extendTicketLock(ticket.buyerId, ticket.id, ticket.batchId, 900);
             }
@@ -378,6 +401,16 @@ let PaymentsService = PaymentsService_1 = class PaymentsService {
                 // Exclui a linha correspondente no PostgreSQL
                 await database_1.prisma.ticket.delete({
                     where: { id: ticket.id },
+                });
+                await this.auditService.record({
+                    actorId: ticket.buyerId || dto?.email || null,
+                    actorRole: 'USER',
+                    action: 'TICKET_PAYMENT_REJECTED',
+                    entityType: 'Ticket',
+                    entityId: ticket.id,
+                    before: { status: ticket.status },
+                    after: { status: 'DELETED' },
+                    metadata: { paymentStatus: status },
                 });
             }
             throw new common_1.BadRequestException('O pagamento foi recusado pela instituição financeira ou cancelado.');
@@ -450,6 +483,7 @@ exports.PaymentsService = PaymentsService;
 exports.PaymentsService = PaymentsService = PaymentsService_1 = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [flux_engine_service_1.FluxEngineService,
-        ticket_crypto_service_1.TicketCryptoService])
+        ticket_crypto_service_1.TicketCryptoService,
+        audit_service_1.AuditService])
 ], PaymentsService);
 //# sourceMappingURL=payments.service.js.map

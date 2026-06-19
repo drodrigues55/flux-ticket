@@ -1,4 +1,5 @@
 import db from './db';
+import { getAllowedSectorIds } from './devicePolicy';
 
 /**
  * Envia todos os check-ins offline pendentes de sincronização para o servidor.
@@ -11,6 +12,7 @@ export async function syncOfflineMutations(eventId: string): Promise<{ success: 
       .toArray();
 
     const ticketIds = pending.map(record => record.ticket_id);
+    const allowedSectorIds = getAllowedSectorIds();
     console.log(`[SYNC] Tentando sincronizar ${ticketIds.length} check-ins para o evento ${eventId}...`);
 
     // Obter ou gerar identificador do dispositivo no localStorage
@@ -39,7 +41,8 @@ export async function syncOfflineMutations(eventId: string): Promise<{ success: 
         ticketIds,
         deviceId,
         deviceName,
-        pendingCount: pending.length
+        pendingCount: pending.length,
+        allowedSectorIds
       }),
     });
 

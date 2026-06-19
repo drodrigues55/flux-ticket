@@ -27,12 +27,22 @@ let AllExceptionsFilter = class AllExceptionsFilter {
         // Detailed error trace is logged securely on the backend
         console.error(`[ERROR] [Correlation ID: ${correlationId}]`, exception);
         let message = 'An unexpected error occurred. Please contact support.';
+        let code = httpStatus === common_1.HttpStatus.INTERNAL_SERVER_ERROR ? 'INTERNAL_SERVER_ERROR' : 'HTTP_ERROR';
+        let details;
         if (exception instanceof common_1.HttpException) {
             message = exception.getResponse();
         }
+        if (typeof message === 'object' && message !== null) {
+            const response = message;
+            code = response.code || code;
+            details = response.details;
+            message = response.message || message;
+        }
         const responseBody = {
             statusCode: httpStatus,
-            message: typeof message === 'object' && message !== null && 'message' in message ? message.message : message,
+            code,
+            message,
+            ...(details !== undefined ? { details } : {}),
             correlationId,
             timestamp: new Date().toISOString(),
             path: httpAdapter.getRequestUrl(ctx.getRequest()),

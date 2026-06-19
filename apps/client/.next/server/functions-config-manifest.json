@@ -1,1 +1,1 @@
-{"version":1,"functions":{"/checkout/success":{},"/profile/validate/[ticketId]":{},"/ticket/[ticketId]":{}}}
+{"version":1,"functions":{"/profile/validate/[ticketId]":{},"/ticket/[ticketId]":{},"/checkout/success":{}}}

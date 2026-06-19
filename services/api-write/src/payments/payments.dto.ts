@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isValidCpf } from '@flux/types';
 
 export const PaymentMethodPixSchema = z.object({
   method: z.literal('pix'),
@@ -14,7 +15,7 @@ export const PaymentMethodCardSchema = z.object({
 
 export const CheckoutPaymentSchema = z.object({
   ticketId: z.string().min(1, 'ID do ingresso inválido'),
-  buyerCpf: z.string().min(11, 'CPF do comprador é obrigatório (mínimo 11 caracteres)'),
+  buyerCpf: z.string().refine(isValidCpf, 'CPF do comprador inválido'),
   email: z.string().email('E-mail do comprador é obrigatório'),
   buyerName: z.string().min(3, 'Nome do comprador é obrigatório (mínimo 3 caracteres)'),
   paymentMethod: z.discriminatedUnion('method', [
@@ -24,7 +25,7 @@ export const CheckoutPaymentSchema = z.object({
   holders: z.array(
     z.object({
       name: z.string().min(3, 'Nome do titular é obrigatório'),
-      cpf: z.string().min(11, 'CPF do titular é obrigatório'),
+      cpf: z.string().refine(isValidCpf, 'CPF do titular inválido'),
     })
   ).optional(),
 });
