@@ -1,1 +1,0 @@
-{"version":3,"file":"staff-guard.d.ts","sourceRoot":"","sources":["../../src/tickets/staff-guard.ts"],"names":[],"mappings":"AAAA,OAAO,EAAc,WAAW,EAAE,gBAAgB,EAA6C,MAAM,gBAAgB,CAAC;AAGtH,qBACa,UAAW,YAAW,WAAW;IAC5C,WAAW,CAAC,OAAO,EAAE,gBAAgB,GAAG,OAAO;CA8ChD"}
