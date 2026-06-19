@@ -1,19 +1,40 @@
 import express from 'express';
 import { prisma } from '@flux/database';
 import rateLimit from 'express-rate-limit';
+import Redis from 'ioredis';
 import type { BatchInfo, EventDetail, EventSummary } from '@flux/types';
+import { ok, fail } from './api-response';
+import { validateRuntimeEnv } from './env.validation';
+import { logger } from './logger';
+import { requestIdMiddleware, RequestWithId } from './request-id-middleware';
 
+validateRuntimeEnv();
 const app = express();
 const port = process.env.PORT || 3002;
+const redis = process.env.REDIS_URL
+  ? new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: 1 })
+  : new Redis({
+      host: process.env.REDIS_HOST || 'localhost',
+      port: Number(process.env.REDIS_PORT) || 6379,
+      maxRetriesPerRequest: 1,
+    });
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 300,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many requests from this IP, please try again later.' },
+  handler: (req: RequestWithId, res) => {
+    res.status(429).json(fail({
+      code: 'RATE_LIMITED',
+      message: 'Too many requests from this IP, please try again later.',
+      statusCode: 429,
+      requestId: req.requestId || 'req_unknown',
+    }));
+  },
 });
 
+app.use(requestIdMiddleware);
 app.use(limiter);
 app.use(express.json());
 
@@ -62,6 +83,45 @@ function computeEventAggregates(batches: BatchInfo[]) {
 // ROUTES
 // ─────────────────────────────────────────────
 
+app.get('/health/live', (req: RequestWithId, res) => {
+  res.json(ok({
+    status: 'ok',
+    service: 'api-read',
+    uptimeSeconds: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString(),
+  }, req.requestId || 'req_unknown'));
+});
+
+app.get('/health/ready', async (req: RequestWithId, res) => {
+  const checks = {
+    database: 'unknown',
+    redis: 'unknown',
+  };
+
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    checks.database = 'ok';
+  } catch {
+    checks.database = 'error';
+  }
+
+  try {
+    await redis.ping();
+    checks.redis = 'ok';
+  } catch {
+    checks.redis = 'error';
+  }
+
+  const status = Object.values(checks).every((value) => value === 'ok') ? 'ok' : 'degraded';
+  const statusCode = status === 'ok' ? 200 : 503;
+  res.status(statusCode).json(ok({
+    status,
+    service: 'api-read',
+    checks,
+    timestamp: new Date().toISOString(),
+  }, req.requestId || 'req_unknown'));
+});
+
 /**
  * GET /events
  * Returns full event catalog. Includes computed occupancyPct per batch.
@@ -102,8 +162,13 @@ app.get('/events', async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    console.error('[API-READ] GET /events error:', error);
-    res.status(500).json({ error: 'Failed to retrieve events catalog' });
+    logger.error({ requestId: (req as RequestWithId).requestId, err: error }, 'GET /events failed');
+    res.status(500).json(fail({
+      code: 'EVENT_CATALOG_ERROR',
+      message: 'Failed to retrieve events catalog',
+      statusCode: 500,
+      requestId: (req as RequestWithId).requestId || 'req_unknown',
+    }));
   }
 });
 
@@ -119,7 +184,12 @@ app.get('/events/:id', async (req, res) => {
     });
 
     if (!event) {
-      return res.status(404).json({ error: 'Event not found' });
+      return res.status(404).json(fail({
+        code: 'EVENT_NOT_FOUND',
+        message: 'Event not found',
+        statusCode: 404,
+        requestId: (req as RequestWithId).requestId || 'req_unknown',
+      }));
     }
 
     const batches = event.batches.map(toBatchInfo);
@@ -145,8 +215,13 @@ app.get('/events/:id', async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    console.error('[API-READ] GET /events/:id error:', error);
-    res.status(500).json({ error: 'Failed to retrieve event' });
+    logger.error({ requestId: (req as RequestWithId).requestId, err: error, eventId: req.params.id }, 'GET /events/:id failed');
+    res.status(500).json(fail({
+      code: 'EVENT_DETAIL_ERROR',
+      message: 'Failed to retrieve event',
+      statusCode: 500,
+      requestId: (req as RequestWithId).requestId || 'req_unknown',
+    }));
   }
 });
 
@@ -177,11 +252,20 @@ app.get('/events/:id/staff-sync', authMiddleware, async (req, res) => {
 
     res.json(payload);
   } catch (error) {
-    console.error('[API-READ] GET /events/:id/staff-sync error:', error);
-    res.status(500).json({ error: 'Failed to synchronize event tickets' });
+    logger.error({ requestId: (req as RequestWithId).requestId, err: error, eventId }, 'GET /events/:id/staff-sync failed');
+    res.status(500).json(fail({
+      code: 'STAFF_SYNC_ERROR',
+      message: 'Failed to synchronize event tickets',
+      statusCode: 500,
+      requestId: (req as RequestWithId).requestId || 'req_unknown',
+    }));
   }
 });
 
 app.listen(port, () => {
-  console.log(`api-read service listening on port ${port}`);
+  logger.info({ port }, 'api-read service listening');
+});
+
+process.on('SIGTERM', () => {
+  redis.disconnect();
 });

@@ -5,6 +5,8 @@ import { CheckoutService } from './checkout.service';
 import { StaffGuard } from './staff-guard';
 import { AuditService } from '../audit/audit.service';
 import { SectorAccessDeniedException, StockUnavailableException } from '../domain-exceptions';
+import { logger } from '../logger';
+import { recordTicketStatusHistory } from './ticket-status-history';
 
 
 @Controller()
@@ -82,8 +84,27 @@ export class CheckoutController {
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
     });
+
+    for (const ticket of beforeTickets) {
+      await recordTicketStatusHistory({
+        ticketId: ticket.id,
+        fromStatus: ticket.status,
+        toStatus: 'CONSUMED',
+        reason: 'STAFF_CHECK_IN',
+        actorId: req.user?.userId,
+        requestId: req.requestId,
+        metadata: { eventId, deviceId, deviceName },
+      }).catch((err) => {
+        logger.error({ err, requestId: req.requestId, ticketId: ticket.id }, 'ticket status history write failed');
+      });
+    }
     
-    console.log(`[MUTATION] ${result.count} ingressos marcados como CONSUMED offline para o evento ${eventId}.`);
+    logger.info({
+      requestId: req.requestId,
+      eventId,
+      count: result.count,
+      deviceId,
+    }, 'offline staff mutation consumed tickets');
     
     return {
       success: true,
@@ -167,9 +188,42 @@ export class CheckoutController {
   @Post('tickets/renew-lock')
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   async renewLock(
-    @Body() body: { userId: string; ticketId: string; batchId?: string }
+    @Body() body: { reservationId?: string; userId?: string; ticketId?: string; batchId?: string }
   ) {
-    const { userId, ticketId, batchId } = body;
+    const { reservationId, userId, ticketId, batchId } = body;
+
+    if (reservationId) {
+      const reservation = await (prisma as any).reservation.findUnique({
+        where: { id: reservationId },
+        include: { tickets: { select: { id: true, batchId: true, buyerId: true } } },
+      });
+
+      if (!reservation) {
+        throw new BadRequestException('reservationId inválido.');
+      }
+
+      const expiresAt = new Date(Date.now() + 180 * 1000);
+      let allSuccess = true;
+      for (const ticket of reservation.tickets) {
+        const success = await this.checkoutService.renewTicketLock(ticket.buyerId, ticket.id, ticket.batchId);
+        if (!success) allSuccess = false;
+      }
+
+      await (prisma as any).reservation.update({
+        where: { id: reservationId },
+        data: { expiresAt },
+      });
+      await prisma.ticket.updateMany({
+        where: { reservationId },
+        data: { expiresAt },
+      });
+
+      return {
+        success: allSuccess,
+        reservationId,
+        expiresAt: expiresAt.toISOString(),
+      };
+    }
     
     if (!userId || !ticketId) {
       throw new BadRequestException('userId e ticketId são obrigatórios.');
@@ -221,7 +275,8 @@ export class CheckoutController {
       isHalfPrice?: boolean; 
       quantity?: number;
       items?: Array<{ batchId: string; price: number; isHalfPrice?: boolean; quantity: number }>
-    }
+    },
+    @Req() req: any
   ) {
     const { eventId } = body;
     
@@ -269,9 +324,32 @@ export class CheckoutController {
     
     const ticketIds: string[] = [];
     const reservedBatchTickets: Array<{ batchId: string; ticketId: string }> = [];
+    const expiresAt = new Date(Date.now() + 180 * 1000);
+    const reservation = await (prisma as any).reservation.create({
+      data: {
+        eventId,
+        buyerId: user.id,
+        status: 'ACTIVE',
+        expiresAt,
+      },
+    });
+    const reservationItemsByBatchId = new Map<string, any>();
+
+    for (const item of reservationItems) {
+      const reservationItem = await (prisma as any).reservationItem.create({
+        data: {
+          reservationId: reservation.id,
+          batchId: item.batchId,
+          quantity: item.quantity,
+          unitPrice: item.price,
+        },
+      });
+      reservationItemsByBatchId.set(item.batchId, reservationItem);
+    }
     
     try {
       for (const item of reservationItems) {
+        const reservationItem = reservationItemsByBatchId.get(item.batchId);
         for (let i = 0; i < item.quantity; i++) {
           const ticket = await this.checkoutService.checkout({
             userId: user.id,
@@ -280,6 +358,9 @@ export class CheckoutController {
             buyerCpf: '000.000.000-00', // Placeholder temporário a ser atualizado no pagamento
             price: item.price,
             isHalfPrice: item.isHalfPrice,
+            reservationId: reservation.id,
+            reservationItemId: reservationItem?.id,
+            requestId: req.requestId,
           });
           ticketIds.push(ticket.id);
           reservedBatchTickets.push({ batchId: item.batchId, ticketId: ticket.id });
@@ -290,7 +371,8 @@ export class CheckoutController {
             entityType: 'Ticket',
             entityId: ticket.id,
             after: { status: ticket.status, batchId: item.batchId, eventId, price: item.price },
-            metadata: { isHalfPrice: item.isHalfPrice },
+            metadata: { isHalfPrice: item.isHalfPrice, reservationId: reservation.id, reservationItemId: reservationItem?.id },
+            requestId: req.requestId,
           });
         }
       }
@@ -305,9 +387,15 @@ export class CheckoutController {
           });
           await prisma.ticket.delete({ where: { id: item.ticketId } });
         } catch (cleanupErr) {
-          console.error('[CLEANUP ERROR]', cleanupErr);
+          logger.error({ err: cleanupErr, eventId, batchId: item.batchId, ticketId: item.ticketId }, 'reservation cleanup failed');
         }
       }
+      await (prisma as any).reservation.update({
+        where: { id: reservation.id },
+        data: { status: 'CANCELLED' },
+      }).catch((cleanupErr: unknown) => {
+        logger.error({ err: cleanupErr, eventId, reservationId: reservation.id }, 'reservation cancellation cleanup failed');
+      });
       if (error instanceof Error && error.message.toLowerCase().includes('estoque')) {
         throw new StockUnavailableException({ eventId, items: reservationItems });
       }
@@ -317,6 +405,13 @@ export class CheckoutController {
     return {
       ticketId: ticketIds.join(','),
       userId: user.id,
+      reservationId: reservation.id,
+      expiresAt: expiresAt.toISOString(),
+      items: reservationItems.map((item) => ({
+        batchId: item.batchId,
+        quantity: item.quantity,
+        unitPrice: item.price,
+      })),
     };
   }
 
@@ -369,4 +464,3 @@ export class CheckoutController {
     };
   }
 }
-

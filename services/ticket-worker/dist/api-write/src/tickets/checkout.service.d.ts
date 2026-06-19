@@ -14,6 +14,9 @@ export declare class CheckoutService {
         buyerCpf: string;
         price: number;
         isHalfPrice: boolean;
+        reservationId?: string;
+        reservationItemId?: string;
+        requestId?: string;
     }): Promise<{
         id: string;
         status: import(".prisma/client").$Enums.TicketStatus;
@@ -21,6 +24,11 @@ export declare class CheckoutService {
         batchId: string;
         eventId: string;
         buyerId: string;
+        orderId: string | null;
+        refundedAt: Date | null;
+        updatedAt: Date;
+        reservationId: string | null;
+        reservationItemId: string | null;
         buyerCpf: string;
         holderName: string | null;
         holderCpf: string | null;
@@ -30,9 +38,7 @@ export declare class CheckoutService {
         isTransferred: boolean;
         hmacSignature: string | null;
         checkedInAt: Date | null;
-        refundedAt: Date | null;
         expiresAt: Date;
-        updatedAt: Date;
     }>;
     /**
      * Aprova o pagamento de um ingresso, gerando a assinatura HMAC offline.
@@ -44,6 +50,11 @@ export declare class CheckoutService {
         batchId: string;
         eventId: string;
         buyerId: string;
+        orderId: string | null;
+        refundedAt: Date | null;
+        updatedAt: Date;
+        reservationId: string | null;
+        reservationItemId: string | null;
         buyerCpf: string;
         holderName: string | null;
         holderCpf: string | null;
@@ -53,9 +64,7 @@ export declare class CheckoutService {
         isTransferred: boolean;
         hmacSignature: string | null;
         checkedInAt: Date | null;
-        refundedAt: Date | null;
         expiresAt: Date;
-        updatedAt: Date;
     }>;
     /**
      * Delega a renovação do lock temporário do ingresso no Redis.

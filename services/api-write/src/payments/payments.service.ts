@@ -4,6 +4,7 @@ import { FluxEngineService } from '../tickets/flux-engine.service';
 import { TicketCryptoService } from '../tickets/ticket-crypto.service';
 import { CheckoutPaymentDto } from './payments.dto';
 import { AuditService } from '../audit/audit.service';
+import { recordTicketStatusHistory } from '../tickets/ticket-status-history';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -75,17 +76,92 @@ export class PaymentsService {
     }
   }
 
+  async receiveMercadoPagoWebhook(options: {
+    signatureHeader?: string;
+    rawBody: Buffer;
+    query: any;
+    body: any;
+    requestId?: string | null;
+  }) {
+    const { signatureHeader, rawBody, query, body, requestId } = options;
+    const isValid = this.verifySignature(signatureHeader || '', rawBody, query);
+
+    if (!isValid) {
+      return { received: false, valid: false };
+    }
+
+    const paymentId = (body?.data?.id || query?.id || query?.['data.id'] || '').toString();
+    const providerEventId = (
+      body?.id ||
+      body?.event_id ||
+      body?.resource ||
+      query?.event_id ||
+      paymentId ||
+      crypto.createHash('sha256').update(rawBody).digest('hex')
+    ).toString();
+
+    const aggregateId = providerEventId || paymentId;
+
+    const existing = await prisma.outboxEvent.findFirst({
+      where: {
+        type: 'payments.webhook',
+        aggregateId,
+        status: { in: ['PENDING', 'PROCESSED'] },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (existing) {
+      return {
+        received: true,
+        valid: true,
+        duplicate: true,
+        outboxEventId: existing.id,
+      };
+    }
+
+    const outboxEvent = await prisma.outboxEvent.create({
+      data: {
+        aggregateType: 'PAYMENT_WEBHOOK_RECEIVED',
+        aggregateId,
+        type: 'payments.webhook',
+        status: 'PENDING',
+        nextRunAt: new Date(),
+        requestId: requestId ?? null,
+        payload: {
+          provider: 'MERCADO_PAGO',
+          providerEventId,
+          paymentId: paymentId || null,
+          query,
+          body,
+          rawBody: rawBody.toString('utf8'),
+          receivedAt: new Date().toISOString(),
+        },
+      },
+    });
+
+    return {
+      received: true,
+      valid: true,
+      duplicate: false,
+      outboxEventId: outboxEvent.id,
+    };
+  }
+
   /**
    * Processa o pagamento do checkout do ingresso.
    */
   async processCheckout(dto: CheckoutPaymentDto): Promise<any> {
-    const ticketIds = dto.ticketId.split(',');
+    let ticketIds = dto.ticketId ? dto.ticketId.split(',') : [];
     
     // 1. Recupera os ingressos pré-reservados no Postgres
     const tickets = await prisma.ticket.findMany({
-      where: { id: { in: ticketIds } },
+      where: dto.reservationId
+        ? { reservationId: dto.reservationId }
+        : { id: { in: ticketIds } },
       include: { batch: { include: { event: true } } },
     });
+    ticketIds = tickets.map((ticket) => ticket.id);
 
     if (tickets.length === 0) {
       throw new BadRequestException('Ingressos não encontrados.');
@@ -141,6 +217,40 @@ export class PaymentsService {
 
     // 2. Calcula o valor em reais (o banco guarda em valor decimal normal)
     const amount = tickets.reduce((sum, t) => sum + Number(t.price), 0);
+    const eventId = tickets[0].eventId || tickets[0].batch?.eventId;
+
+    let order = dto.reservationId
+      ? await (prisma as any).order.findFirst({ where: { reservationId: dto.reservationId } })
+      : null;
+
+    if (!order) {
+      order = await (prisma as any).order.create({
+        data: {
+          reservationId: dto.reservationId ?? tickets[0].reservationId ?? null,
+          eventId,
+          buyerId: user.id,
+          status: 'PROCESSING',
+          grossAmount: amount,
+          discountAmount: 0,
+          netAmount: amount,
+        },
+      });
+    } else {
+      order = await (prisma as any).order.update({
+        where: { id: order.id },
+        data: {
+          buyerId: user.id,
+          status: 'PROCESSING',
+          grossAmount: amount,
+          netAmount: amount,
+        },
+      });
+    }
+
+    await prisma.ticket.updateMany({
+      where: { id: { in: ticketIds } },
+      data: { orderId: order.id },
+    });
 
     let mpStatus = 'approved';
     let qrCode = '00020126580014br.gov.bcb.pix2536pix.example.com/qr/v2/mock-code-12345';
@@ -155,7 +265,7 @@ export class PaymentsService {
       const payload: any = {
         transaction_amount: amount,
         description: `Ingressos do Show: ${tickets[0].batch.event.title} (${tickets.length}x)`,
-        external_reference: dto.ticketId,
+        external_reference: ticketIds.join(','),
         payer: {
           email: dto.paymentMethod.method === 'credit_card' ? dto.paymentMethod.email : 'pix-buyer@flux.com',
         },
@@ -194,12 +304,12 @@ export class PaymentsService {
           qrCodeBase64 = mpData.point_of_interaction?.transaction_data?.qr_code_base64 || qrCodeBase64;
         }
       } catch (err: any) {
-        this.logger.error(`[MERCADO PAGO API ERROR] Falha no pagamento do ticket ${dto.ticketId}`, err);
+        this.logger.error(`[MERCADO PAGO API ERROR] Falha no pagamento do ticket ${ticketIds.join(',')}`, err);
         mpStatus = 'rejected';
       }
     } else {
       // 4. Modo Mock local de simulação
-      this.logger.log(`[MERCADO PAGO MOCK MODE] Processando pagamento de R$ ${amount} no ticket ${dto.ticketId}`);
+      this.logger.log(`[MERCADO PAGO MOCK MODE] Processando pagamento de R$ ${amount} no ticket ${ticketIds.join(',')}`);
       if (dto.paymentMethod.method === 'credit_card') {
         const tokenStr = dto.paymentMethod.token;
         if (tokenStr.includes('pending') || tokenStr.includes('process')) {
@@ -216,7 +326,7 @@ export class PaymentsService {
     }
 
     // 5. Máquina de Estado e compensação
-    return this.handlePaymentState(tickets, mpStatus, { qrCode, qrCodeBase64, paymentId }, dto, isMockMode);
+    return this.handlePaymentState(tickets, mpStatus, { qrCode, qrCodeBase64, paymentId }, dto, isMockMode, order);
   }
 
   /**
@@ -228,6 +338,7 @@ export class PaymentsService {
     meta: { qrCode: string; qrCodeBase64: string; paymentId: string },
     dto?: any,
     isMockMode?: boolean,
+    order?: any,
   ) {
     if (status === 'approved') {
       const finalStatuses: Array<{ id: string; finalStatus: string }> = [];
@@ -251,6 +362,15 @@ export class PaymentsService {
           },
         });
 
+        await recordTicketStatusHistory({
+          ticketId: ticket.id,
+          fromStatus: ticket.status,
+          toStatus: newStatus,
+          reason: 'PAYMENT_APPROVED',
+          actorId: ticket.buyerId || dto?.email || null,
+          metadata: { paymentId: meta.paymentId, orderId: order?.id ?? ticket.orderId ?? null },
+        });
+
         await this.auditService.record({
           actorId: ticket.buyerId || dto?.email || null,
           actorRole: 'USER',
@@ -259,7 +379,7 @@ export class PaymentsService {
           entityId: ticket.id,
           before: { status: ticket.status },
           after: { status: newStatus },
-          metadata: { paymentId: meta.paymentId, paymentStatus: status },
+          metadata: { paymentId: meta.paymentId, paymentStatus: status, orderId: order?.id ?? null },
         });
 
         await this.fluxEngine.releaseTicketLock(ticket.batchId, ticket.buyerId, ticket.id);
@@ -274,16 +394,32 @@ export class PaymentsService {
 
       let payment: any = null;
       try {
+        if (order?.id) {
+          await (prisma as any).order.update({
+            where: { id: order.id },
+            data: { status: 'PAID' },
+          });
+          const reservationId = order.reservationId || tickets[0].reservationId;
+          if (reservationId) {
+            await (prisma as any).reservation.update({
+              where: { id: reservationId },
+              data: { status: 'CONVERTED' },
+            }).catch(() => undefined);
+          }
+        }
         payment = await prisma.payment.create({
           data: {
             eventId,
             buyerId,
+            orderId: order?.id ?? null,
             method: paymentMethod,
             status: 'APPROVED',
             amount: totalAmount,
             installments: Number(dto?.paymentMethod?.installments) || 1,
             provider: isMockMode ? 'MOCK' : 'MERCADO_PAGO',
             providerPaymentId: meta.paymentId || null,
+            idempotencyKey: meta.paymentId || null,
+            rawPayload: { status, mock: !!isMockMode },
             paidAt: new Date(),
             tickets: { connect: tickets.map(t => ({ id: t.id })) },
           },
@@ -356,6 +492,15 @@ export class PaymentsService {
           },
         });
 
+        await recordTicketStatusHistory({
+          ticketId: ticket.id,
+          fromStatus: ticket.status,
+          toStatus: 'PENDING_PAYMENT',
+          reason: 'PAYMENT_PENDING',
+          actorId: ticket.buyerId || dto?.email || null,
+          metadata: { paymentId: meta.paymentId, orderId: order?.id ?? ticket.orderId ?? null },
+        });
+
         await this.auditService.record({
           actorId: ticket.buyerId || dto?.email || null,
           actorRole: 'USER',
@@ -364,11 +509,38 @@ export class PaymentsService {
           entityId: ticket.id,
           before: { status: ticket.status },
           after: { status: 'PENDING_PAYMENT' },
-          metadata: { paymentId: meta.paymentId, paymentStatus: status },
+          metadata: { paymentId: meta.paymentId, paymentStatus: status, orderId: order?.id ?? null },
         });
 
         // Estende o lock no Redis para 15 minutos (900s)
         await this.fluxEngine.extendTicketLock(ticket.buyerId, ticket.id, ticket.batchId, 900);
+      }
+
+      try {
+        if (order?.id) {
+          await (prisma as any).order.update({
+            where: { id: order.id },
+            data: { status: 'PROCESSING' },
+          });
+        }
+        await prisma.payment.create({
+          data: {
+            eventId: tickets[0].eventId || tickets[0].batch?.eventId,
+            buyerId: tickets[0].buyerId,
+            orderId: order?.id ?? null,
+            method: dto?.paymentMethod?.method === 'pix' ? 'PIX' : 'CREDIT_CARD',
+            status: 'PENDING',
+            amount: tickets.reduce((s, t) => s + Number(t.price), 0),
+            installments: Number(dto?.paymentMethod?.installments) || 1,
+            provider: isMockMode ? 'MOCK' : 'MERCADO_PAGO',
+            providerPaymentId: meta.paymentId || null,
+            idempotencyKey: meta.paymentId || null,
+            rawPayload: { status, mock: !!isMockMode },
+            tickets: { connect: tickets.map(t => ({ id: t.id })) },
+          },
+        });
+      } catch (err) {
+        this.logger.warn('[PAYMENT RECORD] Could not create pending Payment record (non-fatal):', err);
       }
       
       this.logger.log(`[PAYMENT PENDING] ${tickets.length} tickets pendentes. Locks do Redis estendidos por 15min.`);
@@ -385,6 +557,15 @@ export class PaymentsService {
       this.logger.warn(`[PAYMENT REJECTED] Ingressos rejeitados. Executando compensação...`);
 
       for (const ticket of tickets) {
+        await recordTicketStatusHistory({
+          ticketId: ticket.id,
+          fromStatus: ticket.status,
+          toStatus: 'REVOKED',
+          reason: 'PAYMENT_REJECTED',
+          actorId: ticket.buyerId || dto?.email || null,
+          metadata: { paymentStatus: status, orderId: order?.id ?? ticket.orderId ?? null },
+        }).catch(() => undefined);
+
         // Devolve o estoque do Redis
         await this.fluxEngine.releaseTicketLock(ticket.batchId, ticket.buyerId, ticket.id);
 
@@ -398,9 +579,12 @@ export class PaymentsService {
           },
         });
 
-        // Exclui a linha correspondente no PostgreSQL
-        await prisma.ticket.delete({
+        await prisma.ticket.update({
           where: { id: ticket.id },
+          data: {
+            status: 'REVOKED',
+            expiresAt: new Date(),
+          },
         });
 
         await this.auditService.record({
@@ -410,9 +594,42 @@ export class PaymentsService {
           entityType: 'Ticket',
           entityId: ticket.id,
           before: { status: ticket.status },
-          after: { status: 'DELETED' },
-          metadata: { paymentStatus: status },
+          after: { status: 'REVOKED' },
+          metadata: { paymentStatus: status, orderId: order?.id ?? null },
         });
+      }
+
+      try {
+        if (order?.id) {
+          await (prisma as any).order.update({
+            where: { id: order.id },
+            data: { status: 'FAILED' },
+          });
+          const reservationId = order.reservationId || tickets[0].reservationId;
+          if (reservationId) {
+            await (prisma as any).reservation.update({
+              where: { id: reservationId },
+              data: { status: 'CANCELLED' },
+            }).catch(() => undefined);
+          }
+        }
+        await prisma.payment.create({
+          data: {
+            eventId: tickets[0].eventId || tickets[0].batch?.eventId,
+            buyerId: tickets[0].buyerId,
+            orderId: order?.id ?? null,
+            method: dto?.paymentMethod?.method === 'pix' ? 'PIX' : 'CREDIT_CARD',
+            status: 'REJECTED',
+            amount: tickets.reduce((s, t) => s + Number(t.price), 0),
+            installments: Number(dto?.paymentMethod?.installments) || 1,
+            provider: isMockMode ? 'MOCK' : 'MERCADO_PAGO',
+            providerPaymentId: meta.paymentId || null,
+            idempotencyKey: meta.paymentId || null,
+            rawPayload: { status, mock: !!isMockMode },
+          },
+        });
+      } catch (err) {
+        this.logger.warn('[PAYMENT RECORD] Could not create rejected Payment record (non-fatal):', err);
       }
 
       throw new BadRequestException('O pagamento foi recusado pela instituição financeira ou cancelado.');

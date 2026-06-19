@@ -224,12 +224,13 @@ let FluxEngineService = (() => {
             const count = await this.redisClient.get(`event:${eventId}:denied_attempts`);
             return count ? parseInt(count, 10) : 0;
         }
-        async registerStaffDevice(eventId, deviceId, deviceName, pendingCount) {
+        async registerStaffDevice(eventId, deviceId, deviceName, pendingCount, allowedSectorIds = []) {
             const deviceData = JSON.stringify({
                 deviceId,
                 deviceName,
                 lastSyncTime: new Date().toISOString(),
-                pendingSyncCount: pendingCount
+                pendingSyncCount: pendingCount,
+                allowedSectorIds,
             });
             await this.redisClient.hset(`event:${eventId}:staff_devices`, deviceId, deviceData);
         }
@@ -268,6 +269,17 @@ let FluxEngineService = (() => {
             catch {
                 return { hits: 0, misses: 0 };
             }
+        }
+        async getQueueStats(queueName) {
+            const prefix = `bull:${queueName}`;
+            const [waiting, active, delayed, failed, completed] = await Promise.all([
+                this.redisClient.llen(`${prefix}:wait`).catch(() => 0),
+                this.redisClient.llen(`${prefix}:active`).catch(() => 0),
+                this.redisClient.zcard(`${prefix}:delayed`).catch(() => 0),
+                this.redisClient.zcard(`${prefix}:failed`).catch(() => 0),
+                this.redisClient.zcard(`${prefix}:completed`).catch(() => 0),
+            ]);
+            return { waiting, active, delayed, failed, completed };
         }
     };
     return FluxEngineService = _classThis;

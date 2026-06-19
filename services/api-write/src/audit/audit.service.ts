@@ -10,6 +10,8 @@ export interface AuditLogInput {
   before?: unknown;
   after?: unknown;
   metadata?: unknown;
+  reason?: string | null;
+  requestId?: string | null;
   ipAddress?: string | null;
   userAgent?: string | null;
 }
@@ -30,6 +32,8 @@ export class AuditService {
           before: input.before ?? undefined,
           after: input.after ?? undefined,
           metadata: input.metadata ?? undefined,
+          reason: input.reason ?? null,
+          requestId: input.requestId ?? null,
           ipAddress: input.ipAddress ?? null,
           userAgent: input.userAgent ?? null,
         },

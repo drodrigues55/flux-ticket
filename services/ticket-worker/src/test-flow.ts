@@ -3,7 +3,8 @@ import { CheckoutService } from '../../api-write/src/tickets/checkout.service';
 import { FluxEngineService } from '../../api-write/src/tickets/flux-engine.service';
 import { TicketCryptoService } from '../../api-write/src/tickets/ticket-crypto.service';
 import { processOutbox } from './outbox-publisher';
-import { ticketValidationWorker } from './ticket-validation.worker';
+import { closeQueues } from './queue-registry';
+import { closeWorkers } from './workers';
 import Redis from 'ioredis';
 
 // Reduz o delay da SLA para 2 segundos para o teste rodar rápido
@@ -127,7 +128,8 @@ async function runTest() {
 
   // Limpeza
   await engine.onModuleDestroy();
-  await ticketValidationWorker.close();
+  await closeWorkers();
+  await closeQueues();
   await redis.quit();
 
   if (

@@ -8,7 +8,8 @@ const checkout_service_1 = require("../../api-write/src/tickets/checkout.service
 const flux_engine_service_1 = require("../../api-write/src/tickets/flux-engine.service");
 const ticket_crypto_service_1 = require("../../api-write/src/tickets/ticket-crypto.service");
 const outbox_publisher_1 = require("./outbox-publisher");
-const ticket_validation_worker_1 = require("./ticket-validation.worker");
+const queue_registry_1 = require("./queue-registry");
+const workers_1 = require("./workers");
 const ioredis_1 = __importDefault(require("ioredis"));
 // Reduz o delay da SLA para 2 segundos para o teste rodar rápido
 process.env.VALIDATION_DELAY_MS = '2000';
@@ -110,7 +111,8 @@ async function runTest() {
     console.log(`[TEST] Estoque do lote no Redis: ${updatedRedisStock} (Esperado: 1)`);
     // Limpeza
     await engine.onModuleDestroy();
-    await ticket_validation_worker_1.ticketValidationWorker.close();
+    await (0, workers_1.closeWorkers)();
+    await (0, queue_registry_1.closeQueues)();
     await redis.quit();
     if (updatedTicket?.status === 'REVOKED' &&
         updatedBatch?.availableQuantity === 1 &&

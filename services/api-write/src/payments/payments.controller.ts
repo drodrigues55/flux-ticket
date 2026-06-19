@@ -37,20 +37,18 @@ export class PaymentsController {
       throw new BadRequestException('O corpo original bruto da requisição está ausente.');
     }
 
-    // 1. Validar a assinatura criptográfica original
-    const isValid = this.paymentsService.verifySignature(signatureHeader, rawBody, query);
-    if (!isValid) {
+    const result = await this.paymentsService.receiveMercadoPagoWebhook({
+      signatureHeader,
+      rawBody,
+      query,
+      body,
+      requestId: (req as any).requestId ?? null,
+    });
+
+    if (!result.valid) {
       throw new UnauthorizedException('Assinatura do webhook inválida.');
     }
 
-    // 2. Processar a atualização tardia assíncrona do status
-    const paymentId = body?.data?.id || query?.id || query['data.id'];
-    if (paymentId) {
-      this.paymentsService.handleWebhookNotification(paymentId.toString()).catch((err) => {
-        console.error('[WEBHOOK NOTIFICATION ERROR]', err);
-      });
-    }
-
-    return { received: true };
+    return { received: true, duplicate: result.duplicate === true };
   }
 }

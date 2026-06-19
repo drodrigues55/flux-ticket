@@ -50,6 +50,22 @@ enum PaymentStatus {
   CANCELLED
 }
 
+enum ReservationStatus {
+  ACTIVE
+  EXPIRED
+  CONVERTED
+  CANCELLED
+}
+
+enum OrderStatus {
+  CREATED
+  PROCESSING
+  PAID
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
 enum AlertType {
   LOW_STOCK
   SLOW_SALES
@@ -91,6 +107,8 @@ model User {
   events   Event[]   @relation("EventOrganizer")
   payments Payment[]
   payouts  Payout[]
+  reservations Reservation[]
+  orders Order[]
 }
 
 model Event {
@@ -113,6 +131,8 @@ model Event {
   batches   TicketBatch[]
   tickets   Ticket[]
   payments  Payment[]
+  reservations Reservation[]
+  orders    Order[]
   saleLogs  SaleLog[]
   alerts    EventAlert[]
   snapshots DailySalesSnapshot[]
@@ -140,6 +160,7 @@ model TicketBatch {
 
   tickets  Ticket[]
   saleLogs SaleLog[]
+  reservationItems ReservationItem[]
 
   @@index([eventId])
   @@index([eventId, isActive])
@@ -154,6 +175,12 @@ model Ticket {
   batch         TicketBatch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
   buyerId       String
   buyer         User         @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  reservationId String?
+  reservation   Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  reservationItemId String?
+  reservationItem   ReservationItem? @relation(fields: [reservationItemId], references: [id], onDelete: SetNull)
+  orderId       String?
+  order         Order?       @relation(fields: [orderId], references: [id], onDelete: SetNull)
   buyerCpf      String
   holderName    String?
   holderCpf     String?
@@ -170,6 +197,7 @@ model Ticket {
   updatedAt     DateTime     @updatedAt
 
   payments Payment[]
+  statusHistory TicketStatusHistory[]
 
   // Performance indexes for dashboard aggregation queries
   @@index([eventId])
@@ -177,6 +205,8 @@ model Ticket {
   @@index([eventId, status, createdAt])
   @@index([batchId])
   @@index([buyerId])
+  @@index([reservationId])
+  @@index([orderId])
   @@index([createdAt])
   @@index([status, createdAt])
 }
@@ -187,12 +217,17 @@ model Payment {
   event             Event         @relation(fields: [eventId], references: [id])
   buyerId           String
   buyer             User          @relation(fields: [buyerId], references: [id])
+  orderId           String?
+  order             Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
   method            PaymentMethod
   status            PaymentStatus
   amount            Decimal       // total amount in BRL
   installments      Int           @default(1)
   provider          String        // "MERCADO_PAGO" | "MOCK"
   providerPaymentId String?       // external payment ID (MP ID)
+  providerEventId   String?
+  idempotencyKey    String?
+  rawPayload        Json?
   rawResponse       Json?         // full provider response for audit
   paidAt            DateTime?
   refundedAt        DateTime?
@@ -204,9 +239,90 @@ model Payment {
 
   @@index([eventId])
   @@index([buyerId])
+  @@index([orderId])
+  @@index([providerPaymentId])
+  @@index([idempotencyKey])
   @@index([status])
   @@index([eventId, status])
   @@index([createdAt])
+}
+
+model Reservation {
+  id        String            @id @default(uuid())
+  eventId   String
+  event     Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  buyerId   String
+  buyer     User              @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  status    ReservationStatus @default(ACTIVE)
+  expiresAt DateTime
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  items   ReservationItem[]
+  tickets Ticket[]
+  orders  Order[]
+
+  @@index([eventId])
+  @@index([buyerId])
+  @@index([status, expiresAt])
+  @@index([createdAt])
+}
+
+model ReservationItem {
+  id            String      @id @default(uuid())
+  reservationId String
+  reservation   Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  batchId       String
+  batch         TicketBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  quantity      Int
+  unitPrice     Decimal
+  createdAt     DateTime    @default(now())
+
+  tickets Ticket[]
+
+  @@index([reservationId])
+  @@index([batchId])
+}
+
+model Order {
+  id            String      @id @default(uuid())
+  reservationId String?
+  reservation   Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  eventId       String
+  event         Event       @relation(fields: [eventId], references: [id])
+  buyerId       String
+  buyer         User        @relation(fields: [buyerId], references: [id])
+  status        OrderStatus @default(CREATED)
+  grossAmount   Decimal
+  discountAmount Decimal    @default(0)
+  netAmount     Decimal
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  tickets  Ticket[]
+  payments Payment[]
+
+  @@index([reservationId])
+  @@index([eventId])
+  @@index([buyerId])
+  @@index([status, createdAt])
+}
+
+model TicketStatusHistory {
+  id         String       @id @default(uuid())
+  ticketId   String
+  ticket     Ticket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  fromStatus TicketStatus?
+  toStatus   TicketStatus
+  reason     String?
+  actorId    String?
+  requestId  String?
+  metadata   Json?
+  createdAt  DateTime     @default(now())
+
+  @@index([ticketId, createdAt])
+  @@index([toStatus])
+  @@index([requestId])
 }
 
 /// Business-level audit trail: one record per ticket sold.
@@ -246,6 +362,8 @@ model AuditLog {
   before     Json?
   after      Json?
   metadata   Json?
+  reason     String?
+  requestId  String?
   ipAddress  String?
   userAgent  String?
   createdAt  DateTime @default(now())
@@ -253,6 +371,7 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([actorId])
   @@index([action])
+  @@index([requestId])
   @@index([createdAt])
 }
 
@@ -314,9 +433,17 @@ model OutboxEvent {
   id            String   @id @default(uuid())
   aggregateType String
   aggregateId   String
+  type          String?
   payload       Json
   status        String   @default("PENDING") // PENDING, PROCESSED
+  attempts      Int      @default(0)
+  nextRunAt     DateTime?
+  processedAt   DateTime?
+  requestId     String?
   createdAt     DateTime @default(now())
 
   @@index([status])
+  @@index([type])
+  @@index([status, nextRunAt])
+  @@index([requestId])
 }

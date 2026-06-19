@@ -1,5 +1,7 @@
 import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
+import { fail } from './api-response';
+import { logger } from './logger';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -8,16 +10,23 @@ export class AllExceptionsFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost): void {
     const { httpAdapter } = this.httpAdapterHost;
     const ctx = host.switchToHttp();
+    const request = ctx.getRequest();
 
     const httpStatus =
       exception instanceof HttpException
         ? exception.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
 
-    const correlationId = 'err_' + Math.random().toString(36).substring(2, 10);
+    const requestId = request.requestId || request.headers?.['x-request-id'] || 'req_unknown';
     
     // Detailed error trace is logged securely on the backend
-    console.error(`[ERROR] [Correlation ID: ${correlationId}]`, exception);
+    logger.error({
+      requestId,
+      err: exception,
+      method: request.method,
+      path: httpAdapter.getRequestUrl(request),
+      statusCode: httpStatus,
+    }, 'request failed');
 
     let message: string | object = 'An unexpected error occurred. Please contact support.';
     let code = httpStatus === HttpStatus.INTERNAL_SERVER_ERROR ? 'INTERNAL_SERVER_ERROR' : 'HTTP_ERROR';
@@ -34,15 +43,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
       message = response.message || message;
     }
 
-    const responseBody = {
+    const responseBody = fail({
       statusCode: httpStatus,
       code,
       message,
-      ...(details !== undefined ? { details } : {}),
-      correlationId,
-      timestamp: new Date().toISOString(),
-      path: httpAdapter.getRequestUrl(ctx.getRequest()),
-    };
+      requestId: String(requestId),
+      details,
+    });
 
     httpAdapter.reply(ctx.getResponse(), responseBody, httpStatus);
   }

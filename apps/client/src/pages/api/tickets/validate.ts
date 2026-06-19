@@ -40,6 +40,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         hmacSignature,
       },
     });
+    await (prisma as any).ticketStatusHistory.create({
+      data: {
+        ticketId,
+        fromStatus: ticket.status,
+        toStatus: 'VALID',
+        reason: 'DOCUMENT_VALIDATED',
+        metadata: { source: 'client-validate', documentName: documentName ?? null },
+      },
+    });
 
     return res.status(200).json({
       success: true,

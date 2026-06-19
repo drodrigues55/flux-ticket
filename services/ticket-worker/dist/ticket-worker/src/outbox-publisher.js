@@ -1,60 +1,123 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.processOutbox = processOutbox;
 const database_1 = require("@flux/database");
-const bullmq_1 = require("bullmq");
-const ioredis_1 = __importDefault(require("ioredis"));
-const connection = new ioredis_1.default({
-    host: process.env.REDIS_HOST || 'localhost',
-    port: Number(process.env.REDIS_PORT) || 6379,
-    maxRetriesPerRequest: null,
-});
-const ticketValidationQueue = new bullmq_1.Queue('TicketValidationQueue', { connection: connection });
-/**
- * Busca eventos 'PENDING' na tabela OutboxEvent, enfileira-os no BullMQ e marca como 'PROCESSED'.
- */
+const queue_registry_1 = require("./queue-registry");
+const dead_letter_1 = require("./dead-letter");
+const OUTBOX_BATCH_SIZE = Number(process.env.OUTBOX_BATCH_SIZE || 100);
+const MAX_OUTBOX_ATTEMPTS = Number(queue_registry_1.DEFAULT_JOB_OPTIONS.attempts || 5);
+const RETRY_DELAY_MS = 5000;
+function getOutboxType(event) {
+    return event.type || event.aggregateType;
+}
+function getRetryAt(attempts) {
+    const delay = RETRY_DELAY_MS * Math.pow(2, Math.max(attempts - 1, 0));
+    return new Date(Date.now() + delay);
+}
+function getDelayForQueue(queueName) {
+    if (queueName !== 'halfPrice.validateDeadline') {
+        return 0;
+    }
+    return process.env.VALIDATION_DELAY_MS
+        ? Number(process.env.VALIDATION_DELAY_MS)
+        : 24 * 60 * 60 * 1000;
+}
+async function moveOutboxToDeadLetter(event, queueName, error, attempts) {
+    if (!queueName)
+        return;
+    const err = error instanceof Error ? error : new Error(String(error));
+    await queue_registry_1.deadLetterQueues[queueName].add('outbox-publish.dead', {
+        originalQueue: queueName,
+        outboxEventId: event.id,
+        aggregateType: event.aggregateType,
+        aggregateId: event.aggregateId,
+        type: getOutboxType(event),
+        payload: (0, dead_letter_1.sanitizePayload)(event.payload),
+        failureReason: err.message,
+        attempts,
+        requestId: event.requestId ?? null,
+        failedAt: new Date().toISOString(),
+    }, {
+        removeOnComplete: false,
+        removeOnFail: false,
+    });
+}
 async function processOutbox() {
+    const now = new Date();
     const events = await database_1.prisma.outboxEvent.findMany({
-        where: { status: 'PENDING' },
-        take: 100,
+        where: {
+            status: 'PENDING',
+            OR: [{ nextRunAt: null }, { nextRunAt: { lte: now } }],
+        },
+        take: OUTBOX_BATCH_SIZE,
         orderBy: { createdAt: 'asc' },
     });
     if (events.length > 0) {
-        console.log(`[PUBLISHER] Encontrados ${events.length} eventos pendentes no Outbox.`);
+        console.log(`[PUBLISHER] Found ${events.length} due outbox events.`);
     }
     for (const event of events) {
+        const payload = event.payload;
+        const type = getOutboxType(event);
+        const queueName = (0, queue_registry_1.resolveQueueForOutbox)(type, payload);
         try {
-            const payload = event.payload;
-            if (event.aggregateType === 'TICKET_RESERVED') {
-                if (payload.isHalfPrice) {
-                    // Se for meia-entrada, aplica o SLA de 24 horas (atraso no job)
-                    // Para testes práticos, permitimos configurar um delay menor (ex: via env)
-                    const delay = process.env.VALIDATION_DELAY_MS
-                        ? Number(process.env.VALIDATION_DELAY_MS)
-                        : 24 * 60 * 60 * 1000;
-                    console.log(`[PUBLISHER] Enfileirando meia-entrada do ingresso ${payload.ticketId} com atraso (SLA) de ${delay}ms.`);
-                    await ticketValidationQueue.add('validate-half-price', {
-                        ticketId: payload.ticketId,
-                        buyerId: payload.buyerId,
-                        batchId: payload.batchId,
-                        eventId: payload.eventId,
-                    }, { delay });
-                }
-                else {
-                    console.log(`[PUBLISHER] Ingresso comum ${payload.ticketId} não requer validação de meia-entrada. Ignorando fila de SLA.`);
-                }
+            if (!queueName) {
+                console.log(`[PUBLISHER] Outbox ${event.id} (${type}) has no queue target. Marking processed for compatibility.`);
+                await database_1.prisma.outboxEvent.update({
+                    where: { id: event.id },
+                    data: {
+                        status: 'PROCESSED',
+                        processedAt: new Date(),
+                        type,
+                    },
+                });
+                continue;
             }
-            // Atualiza o evento outbox para PROCESSADO
+            await queue_registry_1.queues[queueName].add(type, {
+                outboxEventId: event.id,
+                aggregateType: event.aggregateType,
+                aggregateId: event.aggregateId,
+                type,
+                payload,
+                requestId: event.requestId ?? null,
+            }, {
+                jobId: event.id,
+                delay: getDelayForQueue(queueName),
+            });
             await database_1.prisma.outboxEvent.update({
                 where: { id: event.id },
-                data: { status: 'PROCESSED' },
+                data: {
+                    status: 'PROCESSED',
+                    processedAt: new Date(),
+                    type,
+                },
             });
         }
         catch (error) {
-            console.error(`[PUBLISHER] Erro ao processar evento outbox ${event.id}:`, error);
+            const attempts = event.attempts + 1;
+            console.error(`[PUBLISHER] Failed to publish outbox ${event.id} (${type}).`, error);
+            if (attempts >= MAX_OUTBOX_ATTEMPTS) {
+                await moveOutboxToDeadLetter(event, queueName, error, attempts).catch((deadLetterError) => {
+                    console.error(`[PUBLISHER] Failed to write dead-letter for outbox ${event.id}.`, deadLetterError);
+                });
+                await database_1.prisma.outboxEvent.update({
+                    where: { id: event.id },
+                    data: {
+                        status: 'DEAD',
+                        attempts,
+                        nextRunAt: null,
+                        type,
+                    },
+                });
+                continue;
+            }
+            await database_1.prisma.outboxEvent.update({
+                where: { id: event.id },
+                data: {
+                    attempts,
+                    nextRunAt: getRetryAt(attempts),
+                    type,
+                },
+            });
         }
     }
 }

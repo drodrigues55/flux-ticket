@@ -43,7 +43,7 @@ export declare class FluxEngineService implements OnModuleInit, OnModuleDestroy 
     setSalesPaused(paused: boolean): Promise<void>;
     incrementDeniedAttempts(eventId: string): Promise<number>;
     getDeniedAttempts(eventId: string): Promise<number>;
-    registerStaffDevice(eventId: string, deviceId: string, deviceName: string, pendingCount: number): Promise<void>;
+    registerStaffDevice(eventId: string, deviceId: string, deviceName: string, pendingCount: number, allowedSectorIds?: number[]): Promise<void>;
     getStaffDevices(eventId: string): Promise<any[]>;
     addLatencyMetric(latencyMs: number): Promise<void>;
     getLatencyHistory(): Promise<number[]>;
@@ -52,6 +52,13 @@ export declare class FluxEngineService implements OnModuleInit, OnModuleDestroy 
     getRedisInfoStats(): Promise<{
         hits: number;
         misses: number;
+    }>;
+    getQueueStats(queueName: string): Promise<{
+        waiting: number;
+        active: number;
+        delayed: number;
+        failed: number;
+        completed: number;
     }>;
 }
 //# sourceMappingURL=flux-engine.service.d.ts.map

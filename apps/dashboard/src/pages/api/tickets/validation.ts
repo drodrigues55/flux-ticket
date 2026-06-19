@@ -45,6 +45,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           hmacSignature,
         },
       });
+      await (prisma as any).ticketStatusHistory.create({
+        data: {
+          ticketId,
+          fromStatus: ticket.status,
+          toStatus: 'VALID',
+          reason: 'HALF_PRICE_APPROVED',
+          metadata: { source: 'dashboard-validation' },
+        },
+      });
 
       return res.status(200).json({ success: true, message: 'Documento aprovado e ingresso ativado.' });
     } else {
@@ -57,6 +66,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         prisma.ticketBatch.update({
           where: { id: ticket.batchId },
           data: { availableQuantity: { increment: 1 } },
+        }),
+        (prisma as any).ticketStatusHistory.create({
+          data: {
+            ticketId,
+            fromStatus: ticket.status,
+            toStatus: 'REVOKED',
+            reason: 'HALF_PRICE_REJECTED',
+            metadata: { source: 'dashboard-validation' },
+          },
         }),
       ]);
 

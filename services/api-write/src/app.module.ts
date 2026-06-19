@@ -6,6 +6,7 @@ import { EventsModule } from './events/events.module';
 import { PaymentsModule } from './payments/payments.module';
 import { AuditModule } from './audit/audit.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -17,7 +18,8 @@ import { MonitoringModule } from './monitoring/monitoring.module';
     EventsModule,
     PaymentsModule,
     AuditModule,
-    MonitoringModule
+    MonitoringModule,
+    HealthModule
   ],
   providers: [
     {

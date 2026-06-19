@@ -70,6 +70,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CheckoutService = void 0;
 const common_1 = require("@nestjs/common");
 const database_1 = require("@flux/database");
+const ticket_status_history_1 = require("./ticket-status-history");
 const crypto = __importStar(require("crypto"));
 let CheckoutService = (() => {
     let _classDecorators = [(0, common_1.Injectable)()];
@@ -153,6 +154,8 @@ let CheckoutService = (() => {
                             id: ticketId,
                             eventId: resolvedEventId,
                             buyerId: data.userId,
+                            reservationId: data.reservationId,
+                            reservationItemId: data.reservationItemId,
                             batchId: data.batchId,
                             buyerCpf: data.buyerCpf,
                             price: data.price,
@@ -160,6 +163,22 @@ let CheckoutService = (() => {
                             channel: 'ONLINE',
                             meiaEntrada: data.isHalfPrice,
                             expiresAt: new Date(Date.now() + 180 * 1000), // Válido por 3 minutos
+                        },
+                    });
+                    await tx.ticketStatusHistory.create({
+                        data: {
+                            ticketId: ticket.id,
+                            fromStatus: null,
+                            toStatus: 'PENDING_VALIDATION',
+                            reason: 'RESERVED',
+                            actorId: data.userId,
+                            requestId: data.requestId ?? null,
+                            metadata: {
+                                reservationId: data.reservationId ?? null,
+                                reservationItemId: data.reservationItemId ?? null,
+                                batchId: data.batchId,
+                                eventId: resolvedEventId,
+                            },
                         },
                     });
                     // Criação do registro na tabela OutboxEvent para consistência eventual
@@ -175,6 +194,9 @@ let CheckoutService = (() => {
                                 price: data.price.toString(),
                                 isHalfPrice: data.isHalfPrice,
                                 eventId: data.eventId,
+                                reservationId: data.reservationId ?? null,
+                                reservationItemId: data.reservationItemId ?? null,
+                                requestId: data.requestId ?? null,
                             },
                         },
                     });
@@ -201,13 +223,21 @@ let CheckoutService = (() => {
             // Gerar a assinatura HMAC
             const signature = this.ticketCryptoService.generateSignature(ticket.id, ticket.buyerCpf, ticket.batchId);
             // Atualizar o status para VALID e salvar a assinatura
-            return database_1.prisma.ticket.update({
+            const updated = await database_1.prisma.ticket.update({
                 where: { id: ticketId },
                 data: {
                     status: 'VALID',
                     hmacSignature: signature,
                 },
             });
+            await (0, ticket_status_history_1.recordTicketStatusHistory)({
+                ticketId,
+                fromStatus: ticket.status,
+                toStatus: 'VALID',
+                reason: 'PAYMENT_APPROVED',
+                actorId: ticket.buyerId,
+            });
+            return updated;
         }
         /**
          * Delega a renovação do lock temporário do ingresso no Redis.

@@ -2,6 +2,7 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { prisma } from '@flux/database';
 import { FluxEngineService } from './flux-engine.service';
 import { TicketCryptoService } from './ticket-crypto.service';
+import { recordTicketStatusHistory } from './ticket-status-history';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -21,6 +22,9 @@ export class CheckoutService {
     buyerCpf: string;
     price: number;
     isHalfPrice: boolean;
+    reservationId?: string;
+    reservationItemId?: string;
+    requestId?: string;
   }) {
     const ticketId = crypto.randomUUID();
     const reservationId = `${data.userId}:${ticketId}`;
@@ -92,6 +96,8 @@ export class CheckoutService {
             id: ticketId,
             eventId: resolvedEventId,
             buyerId: data.userId,
+            reservationId: data.reservationId,
+            reservationItemId: data.reservationItemId,
             batchId: data.batchId,
             buyerCpf: data.buyerCpf,
             price: data.price,
@@ -99,6 +105,23 @@ export class CheckoutService {
             channel: 'ONLINE',
             meiaEntrada: data.isHalfPrice,
             expiresAt: new Date(Date.now() + 180 * 1000), // Válido por 3 minutos
+          },
+        });
+
+        await (tx as any).ticketStatusHistory.create({
+          data: {
+            ticketId: ticket.id,
+            fromStatus: null,
+            toStatus: 'PENDING_VALIDATION',
+            reason: 'RESERVED',
+            actorId: data.userId,
+            requestId: data.requestId ?? null,
+            metadata: {
+              reservationId: data.reservationId ?? null,
+              reservationItemId: data.reservationItemId ?? null,
+              batchId: data.batchId,
+              eventId: resolvedEventId,
+            },
           },
         });
 
@@ -115,6 +138,9 @@ export class CheckoutService {
               price: data.price.toString(),
               isHalfPrice: data.isHalfPrice,
               eventId: data.eventId,
+              reservationId: data.reservationId ?? null,
+              reservationItemId: data.reservationItemId ?? null,
+              requestId: data.requestId ?? null,
             },
           },
         });
@@ -150,13 +176,21 @@ export class CheckoutService {
     );
     
     // Atualizar o status para VALID e salvar a assinatura
-    return prisma.ticket.update({
+    const updated = await prisma.ticket.update({
       where: { id: ticketId },
       data: {
         status: 'VALID',
         hmacSignature: signature,
       },
     });
+    await recordTicketStatusHistory({
+      ticketId,
+      fromStatus: ticket.status,
+      toStatus: 'VALID',
+      reason: 'PAYMENT_APPROVED',
+      actorId: ticket.buyerId,
+    });
+    return updated;
   }
 
   /**
