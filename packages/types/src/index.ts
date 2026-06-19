@@ -36,7 +36,16 @@ export type SalesChannel = 'ONLINE' | 'POS' | 'COMPLIMENTARY';
 
 export type PaymentMethod = 'PIX' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'BANK_TRANSFER';
 
-export type PaymentStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'REFUNDED' | 'CANCELLED';
+export type PaymentStatus =
+  | 'PENDING'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'EXPIRED'
+  | 'REFUNDED'
+  | 'CANCELLED'
+  | 'FAILED';
+
+export type WaitlistStatus = 'WAITING' | 'INVITED' | 'RESERVED' | 'EXPIRED' | 'CANCELLED';
 
 export type AlertType =
   | 'LOW_STOCK'
@@ -132,6 +141,19 @@ export interface PaymentRecord {
   provider: string;
   providerPaymentId: string | null;
   paidAt: string | null;
+}
+
+export interface WaitlistEntryRecord {
+  id: string;
+  eventId: string;
+  batchId: string;
+  email: string;
+  name: string | null;
+  phone: string | null;
+  status: WaitlistStatus;
+  position: number;
+  expiresAt: string | null;
+  invitedAt: string | null;
 }
 
 // ─────────────────────────────────────────────

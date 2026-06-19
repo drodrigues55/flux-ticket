@@ -24,6 +24,15 @@ function getRetryAt(attempts: number) {
 }
 
 function getDelayForQueue(queueName: QueueName) {
+  return getDelayForQueuePayload(queueName, null);
+}
+
+function getDelayForQueuePayload(queueName: QueueName, payload: any) {
+  if (queueName === 'carts.expireAbandoned' && payload?.expiresAt) {
+    const delay = new Date(payload.expiresAt).getTime() - Date.now();
+    return Math.max(delay, 0);
+  }
+
   if (queueName !== 'halfPrice.validateDeadline') {
     return 0;
   }
@@ -104,7 +113,7 @@ export async function processOutbox() {
         },
         {
           jobId: event.id,
-          delay: getDelayForQueue(queueName),
+          delay: getDelayForQueuePayload(queueName, payload),
         }
       );
 

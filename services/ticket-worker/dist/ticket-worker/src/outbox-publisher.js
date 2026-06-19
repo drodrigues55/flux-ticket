@@ -17,6 +17,13 @@ function getRetryAt(attempts) {
     return new Date(Date.now() + delay);
 }
 function getDelayForQueue(queueName) {
+    return getDelayForQueuePayload(queueName, null);
+}
+function getDelayForQueuePayload(queueName, payload) {
+    if (queueName === 'carts.expireAbandoned' && payload?.expiresAt) {
+        const delay = new Date(payload.expiresAt).getTime() - Date.now();
+        return Math.max(delay, 0);
+    }
     if (queueName !== 'halfPrice.validateDeadline') {
         return 0;
     }
@@ -83,7 +90,7 @@ async function processOutbox() {
                 requestId: event.requestId ?? null,
             }, {
                 jobId: event.id,
-                delay: getDelayForQueue(queueName),
+                delay: getDelayForQueuePayload(queueName, payload),
             });
             await database_1.prisma.outboxEvent.update({
                 where: { id: event.id },

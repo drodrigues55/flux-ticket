@@ -46,8 +46,10 @@ enum PaymentStatus {
   PENDING
   APPROVED
   REJECTED
+  EXPIRED
   REFUNDED
   CANCELLED
+  FAILED
 }
 
 enum ReservationStatus {
@@ -55,6 +57,7 @@ enum ReservationStatus {
   EXPIRED
   CONVERTED
   CANCELLED
+  ABANDONED
 }
 
 enum OrderStatus {
@@ -62,8 +65,17 @@ enum OrderStatus {
   PROCESSING
   PAID
   FAILED
+  EXPIRED
   CANCELLED
   REFUNDED
+}
+
+enum WaitlistStatus {
+  WAITING
+  INVITED
+  RESERVED
+  EXPIRED
+  CANCELLED
 }
 
 enum AlertType {
@@ -109,6 +121,7 @@ model User {
   payouts  Payout[]
   reservations Reservation[]
   orders Order[]
+  waitlistEntries WaitlistEntry[]
 }
 
 model Event {
@@ -133,6 +146,7 @@ model Event {
   payments  Payment[]
   reservations Reservation[]
   orders    Order[]
+  waitlistEntries WaitlistEntry[]
   checkins Checkin[]
   saleLogs  SaleLog[]
   alerts    EventAlert[]
@@ -162,6 +176,7 @@ model TicketBatch {
   tickets  Ticket[]
   saleLogs SaleLog[]
   reservationItems ReservationItem[]
+  waitlistEntries WaitlistEntry[]
 
   @@index([eventId])
   @@index([eventId, isActive])
@@ -227,6 +242,7 @@ model Payment {
   installments      Int           @default(1)
   provider          String        // "MERCADO_PAGO" | "MOCK"
   providerPaymentId String?       // external payment ID (MP ID)
+  providerStatus    String?
   providerEventId   String?
   idempotencyKey    String?
   rawPayload        Json?
@@ -243,6 +259,8 @@ model Payment {
   @@index([buyerId])
   @@index([orderId])
   @@index([providerPaymentId])
+  @@index([provider, providerPaymentId])
+  @@index([providerEventId])
   @@index([idempotencyKey])
   @@index([status])
   @@index([eventId, status])
@@ -263,6 +281,7 @@ model Reservation {
   items   ReservationItem[]
   tickets Ticket[]
   orders  Order[]
+  waitlistEntries WaitlistEntry[]
 
   @@index([eventId])
   @@index([buyerId])
@@ -308,6 +327,32 @@ model Order {
   @@index([eventId])
   @@index([buyerId])
   @@index([status, createdAt])
+}
+
+model WaitlistEntry {
+  id            String         @id @default(uuid())
+  eventId       String
+  event         Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  batchId       String
+  batch         TicketBatch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  buyerId       String?
+  buyer         User?          @relation(fields: [buyerId], references: [id], onDelete: SetNull)
+  reservationId String?
+  reservation   Reservation?   @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  email         String
+  name          String?
+  phone         String?
+  status        WaitlistStatus @default(WAITING)
+  position      Int
+  expiresAt     DateTime?
+  invitedAt     DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([eventId])
+  @@index([batchId, status, position])
+  @@index([email])
+  @@index([expiresAt])
 }
 
 model TicketStatusHistory {

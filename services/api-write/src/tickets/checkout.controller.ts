@@ -108,6 +108,100 @@ export class CheckoutController {
     return { success: true, deniedAttempts: finalCount };
   }
 
+  @Post('events/:id/batches/:batchId/waitlist')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  async joinWaitlist(
+    @Param('id') eventId: string,
+    @Param('batchId') batchId: string,
+    @Body() body: { email: string; name?: string; phone?: string },
+    @Req() req: any
+  ) {
+    if (!body.email) {
+      throw new BadRequestException('email é obrigatório.');
+    }
+
+    const batch = await prisma.ticketBatch.findFirst({
+      where: { id: batchId, eventId },
+    });
+
+    if (!batch) {
+      throw new BadRequestException('Lote não encontrado.');
+    }
+
+    if (batch.availableQuantity > 0) {
+      throw new BadRequestException('A lista de espera só está disponível para lote esgotado.');
+    }
+
+    let user = await prisma.user.findUnique({ where: { email: body.email } });
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          email: body.email,
+          name: body.name || body.email,
+          password: 'waitlist-placeholder',
+          role: 'USER',
+        },
+      });
+    }
+
+    const lastEntry = await (prisma as any).waitlistEntry.findFirst({
+      where: { batchId },
+      orderBy: { position: 'desc' },
+      select: { position: true },
+    });
+    const position = (lastEntry?.position ?? 0) + 1;
+
+    const entry = await (prisma as any).waitlistEntry.create({
+      data: {
+        eventId,
+        batchId,
+        buyerId: user.id,
+        email: body.email,
+        name: body.name ?? null,
+        phone: body.phone ?? null,
+        status: 'WAITING',
+        position,
+      },
+    });
+
+    await prisma.outboxEvent.create({
+      data: {
+        aggregateType: 'WAITLIST_JOINED',
+        aggregateId: entry.id,
+        type: 'notifications.placeholder',
+        status: 'PENDING',
+        nextRunAt: new Date(),
+        requestId: req.requestId ?? null,
+        payload: {
+          kind: 'waitlist.joined',
+          waitlistEntryId: entry.id,
+          eventId,
+          batchId,
+          email: body.email,
+          position,
+        },
+      },
+    });
+
+    await this.auditService.record({
+      actorId: user.id,
+      actorRole: user.role,
+      action: 'WAITLIST_JOINED',
+      entityType: 'WaitlistEntry',
+      entityId: entry.id,
+      after: { status: 'WAITING', position, eventId, batchId },
+      requestId: req.requestId,
+    });
+
+    return {
+      waitlistEntryId: entry.id,
+      eventId,
+      batchId,
+      status: entry.status,
+      position,
+    };
+  }
+
 
   /**
    * Endpoint de Renovação de Lock: Chamado pelo hook React useTicketLock para evitar a expiração da reserva.
@@ -258,6 +352,22 @@ export class CheckoutController {
         buyerId: user.id,
         status: 'ACTIVE',
         expiresAt,
+      },
+    });
+    await prisma.outboxEvent.create({
+      data: {
+        aggregateType: 'CART_EXPIRE_ABANDONED',
+        aggregateId: reservation.id,
+        type: 'carts.expireAbandoned',
+        status: 'PENDING',
+        nextRunAt: expiresAt,
+        requestId: req.requestId ?? null,
+        payload: {
+          reservationId: reservation.id,
+          eventId,
+          buyerId: user.id,
+          expiresAt: expiresAt.toISOString(),
+        },
       },
     });
     const reservationItemsByBatchId = new Map<string, any>();
