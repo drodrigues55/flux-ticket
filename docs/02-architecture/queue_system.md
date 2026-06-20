@@ -1,4 +1,4 @@
-# Architecture
+# Queue System
 
 > Version: 2.0
 > Last Updated: June 2026
@@ -7,255 +7,141 @@
 
 # Overview
 
-The Flux Tickets architecture is built around domain separation, service isolation, and event-driven communication.
+The Queue System is responsible for executing asynchronous operations across the Flux Tickets platform.
 
-Instead of a single monolithic application, the platform is composed of specialized services that each own a specific responsibility.
+Instead of executing every business operation inside an HTTP request, long-running and retryable tasks are delegated to BullMQ workers.
 
-This architecture allows the platform to scale individual components independently while maintaining a single source of truth for business operations.
-
----
-
-# Architecture Goals
-
-The architecture is designed to provide:
-
-- High availability
-- Horizontal scalability
-- Service isolation
-- Clear business boundaries
-- Reliable asynchronous processing
-- Complete observability
-- Deterministic business behavior
+This keeps API latency low while guaranteeing reliable execution.
 
 ---
 
-# High-Level Architecture
+# Responsibilities
 
-```text
-                 Consumer Portal
-                 Organizer Dashboard
-                 Staff PWA
-                         │
-                         ▼
-                  API Gateway (Future)
-                         │
-        ┌────────────────┴────────────────┐
-        ▼                                 ▼
-    api-read                        api-write
-        │                                 │
-        │                                 │
-        └──────────────┬──────────────────┘
-                       ▼
-                  PostgreSQL
-                       │
-             ┌─────────┴─────────┐
-             ▼                   ▼
-          Redis            Outbox Events
-                                   │
-                                   ▼
-                            Ticket Worker
-                                   │
-                                   ▼
-                               BullMQ Queues
-```
+The Queue System is responsible for:
 
----
-
-# Applications
-
-Current applications:
-
-```text
-apps/client
-
-apps/dashboard
-
-apps/staff-pwa
-```
-
-Each application has a single responsibility.
-
----
-
-# Consumer Portal
-
-Responsible for:
-
-- Event catalog
-- Checkout
-- Orders
-- Payments
-- Customer tickets
-
-Consumes:
-
-```text
-api-read
-
-api-write
-```
-
-The Consumer Portal never communicates directly with the database.
-
----
-
-# Organizer Dashboard
-
-Responsible for:
-
-- Event management
-- Analytics
-- Dashboard
-- Reports
-- Operational alerts
-
-Consumes:
-
-```text
-api-read
-```
-
-Dashboard calculations are performed exclusively by the backend.
-
----
-
-# Staff PWA
-
-Responsible for:
-
-- QR scanning
-- Offline validation
-- Offline synchronization
-- Check-ins
-
-Consumes:
-
-```text
-api-read
-
-api-write
-```
-
-Offline validation is supported through IndexedDB.
-
----
-
-# Services
-
-Current backend services:
-
-```text
-api-read
-
-api-write
-
-ticket-worker
-```
-
-Each service owns a different business responsibility.
-
----
-
-# api-read
-
-Purpose:
-
-Serve read-only data.
-
-Responsibilities:
-
-- Public catalog
-- Dashboard
-- Staff bundles
-- Event listings
-- Analytics endpoints
-
-Characteristics:
-
-- Stateless
-- Read-only
-- Cache friendly
-
----
-
-# api-write
-
-Purpose:
-
-Execute business transactions.
-
-Responsibilities:
-
-- Reservations
-- Checkout
-- Payments
-- Ticket issuance requests
-- Check-ins
-- Waitlists
-
-Every business mutation originates here.
-
----
-
-# ticket-worker
-
-Purpose:
-
-Execute asynchronous work.
-
-Responsibilities:
-
-- Queue processing
+- Background processing
+- Retry handling
+- Dead-letter routing
 - Payment recovery
-- Ticket issuing
-- Notifications
+- Ticket issuance
 - Waitlist invitations
-- Background jobs
+- Cart expiration
+- Analytics aggregation
+- Future notification delivery
 
-Workers never expose HTTP endpoints.
+Queues never contain business rules.
+
+Business rules remain inside the application services.
 
 ---
 
-# Database
+# Design Principles
 
-Current database:
+The Queue System follows these principles:
+
+- Event-driven
+- Idempotent
+- Retry-safe
+- Observable
+- Horizontally scalable
+- Provider independent
+
+Workers may execute the same job multiple times without creating duplicate business effects.
+
+---
+
+# Architecture
 
 ```text
-PostgreSQL
+Business Transaction
+
+↓
+
+OutboxEvent
+
+↓
+
+BullMQ Queue
+
+↓
+
+Worker
+
+↓
+
+Business Service
+
+↓
+
+Database
 ```
 
-Responsibilities:
-
-- Source of truth
-- Transactions
-- Business entities
-- Audit
-- Ticket lifecycle
-
-Every service communicates through Prisma.
+Workers consume events only after the originating transaction has committed.
 
 ---
 
-# Redis
+# Why Outbox?
 
-Redis stores temporary operational data.
+Without the Outbox pattern:
 
-Responsibilities:
+```text
+Payment Approved
 
-- Reservation locks
-- BullMQ backend
-- Distributed locks
-- Temporary cache
+↓
 
-Redis is never considered the source of truth.
+Issue Ticket
+
+↓
+
+Crash
+```
+
+could leave the system inconsistent.
+
+With Outbox:
+
+```text
+Payment Approved
+
+↓
+
+OutboxEvent
+
+↓
+
+Commit
+
+↓
+
+Worker
+
+↓
+
+Issue Ticket
+```
+
+The event is never lost.
 
 ---
 
 # BullMQ
 
-BullMQ executes asynchronous business operations.
+BullMQ provides:
 
-Current queues include:
+- Persistent queues
+- Delayed jobs
+- Retry policies
+- Dead-letter routing
+- Concurrency
+- Scheduling
+
+Redis acts as the transport layer.
+
+---
+
+# Queue Registry
+
+Current queues:
 
 ```text
 payments.webhook
@@ -268,6 +154,8 @@ checkins.sync
 
 analytics.aggregate
 
+halfPrice.validateDeadline
+
 waitlist.invite
 
 carts.expireAbandoned
@@ -275,26 +163,80 @@ carts.expireAbandoned
 notifications.placeholder
 ```
 
-Every queue has a matching dead-letter queue.
+Each queue owns a dedicated worker.
 
 ---
 
-# Outbox Pattern
+# Queue Naming
 
-Business events never call workers directly.
+Queues follow the convention:
+
+```text
+domain.action
+```
+
+Examples:
+
+```text
+payments.recoverPending
+
+waitlist.invite
+
+tickets.issue
+```
+
+This keeps responsibilities explicit.
+
+---
+
+# Job Structure
+
+Each job contains:
+
+```text
+jobId
+
+requestId
+
+payload
+
+attempts
+
+createdAt
+```
+
+Optional metadata:
+
+```text
+eventId
+
+ticketId
+
+paymentId
+
+orderId
+```
+
+Jobs remain lightweight.
+
+---
+
+# Request Traceability
+
+Every job inherits the originating request ID.
 
 Flow:
 
 ```text
-Business Transaction
+HTTP Request
 
 ↓
 
-OutboxEvent
+requestId
 
 ↓
 
-Worker
+Outbox
 
 ↓
 
@@ -302,309 +244,396 @@ Queue
 
 ↓
 
-Execution
-```
-
-This guarantees reliable asynchronous processing.
-
----
-
-# Business Domains
-
-Current domains:
-
-```text
-Identity
-
-Catalog
-
-Checkout
-
-Payments
-
-Ticket Engine
-
-Staff
-
-Dashboard
-
-Infrastructure
-```
-
-Each domain owns its own business rules.
-
----
-
-# Communication Model
-
-The platform follows synchronous reads and asynchronous side effects.
-
-Example:
-
-```text
-Checkout
-
-↓
-
-Payment Approved
-
-↓
-
-HTTP Response
-```
-
-Side effects:
-
-```text
-Payment Approved
-
-↓
-
-Outbox
-
-↓
-
 Worker
 
 ↓
 
-Ticket Issue
-
-↓
-
-Notification
+Logs
 ```
 
-The customer does not wait for downstream operations.
+This allows complete tracing across services.
 
 ---
 
-# Request Flow
+# Job Lifecycle
+
+```text
+Waiting
+
+↓
+
+Active
+
+↓
+
+Completed
+```
+
+Alternative paths:
+
+```text
+Waiting
+
+↓
+
+Active
+
+↓
+
+Failed
+
+↓
+
+Retry
+```
+
+or:
+
+```text
+Failed
+
+↓
+
+Dead Letter
+```
+
+---
+
+# Retry Policy
+
+Default behavior:
+
+```text
+attempts = 5
+```
+
+Retry strategy:
+
+```text
+Exponential Backoff
+```
+
+Retry delays increase automatically.
+
+---
+
+# Idempotency
+
+Workers must tolerate duplicate execution.
 
 Example:
 
 ```text
-Browser
+Job Executes
 
 ↓
 
-api-write
+Crash Before ACK
 
 ↓
 
-Database Transaction
-
-↓
-
-Outbox
-
-↓
-
-Response
-
-↓
-
-Worker
-
-↓
-
-Notification
+Job Executes Again
 ```
 
-The response is returned immediately after the transaction commits.
+Business state must remain identical.
 
 ---
 
-# Read Flow
+# Database Safety
 
-Example:
+Workers never assume that a job is the first execution.
+
+Typical worker flow:
 
 ```text
-Browser
+Acquire Lock
 
 ↓
 
-api-read
+Reload Entity
 
 ↓
 
-Database
+Already Processed?
 
 ↓
 
-Response
+Yes
+
+↓
+
+Exit
 ```
 
-No business mutation occurs.
+This guarantees safe retries.
 
 ---
 
-# Shared Packages
+# Queue Isolation
 
-Current shared packages include:
-
-```text
-packages/database
-
-packages/types
-
-packages/shared
-```
-
-Shared packages prevent code duplication between services.
-
----
-
-# Dependency Rules
-
-Allowed:
-
-```text
-Apps
-
-↓
-
-APIs
-
-↓
-
-Database
-```
-
-Forbidden:
-
-```text
-Dashboard
-
-↓
-
-Database
-```
-
-Likewise:
-
-```text
-Staff PWA
-
-↓
-
-Database
-```
-
-Applications always consume APIs.
-
----
-
-# Configuration
-
-Services use environment variables.
+Each queue owns a single responsibility.
 
 Examples:
 
-```text
-DATABASE_URL
+`payments.recoverPending`
 
-REDIS_URL
+Only payment reconciliation.
 
-JWT_SECRET
+Never:
 
-HMAC_SECRET
+- notifications
+- analytics
+- ticket issuance
 
-SENTRY_DSN
-```
-
-Secrets are never committed to the repository.
+Those belong to different queues.
 
 ---
 
-# Observability
+# Current Queue Responsibilities
 
-Every service exposes:
+## payments.webhook
 
-```text
-/health/live
+Processes normalized provider webhook events.
 
-/health/ready
-
-/version
-
-/metrics
-```
-
-Structured logging is implemented with Pino.
-
-Optional Sentry integration provides exception tracking.
-
----
-
-# Scalability
-
-Each service scales independently.
-
-Possible future deployment:
+Typical flow:
 
 ```text
-3x api-read
+Webhook
 
-2x api-write
+↓
 
-5x ticket-worker
+Normalize
+
+↓
+
+Business Transaction
 ```
 
-Redis and PostgreSQL remain shared infrastructure.
-
 ---
 
-# Security
+## payments.recoverPending
 
-Security is enforced at multiple layers:
+Reconciles pending payments.
 
-- JWT authentication
-- RBAC authorization
-- HMAC signatures
-- Audit logging
-- Request IDs
-- Idempotency
-- Structured logging
-
-Additional protections are documented in `SECURITY.md`.
-
----
-
-# Future Services
-
-Potential future services include:
+Flow:
 
 ```text
-notification-service
+Pending Payment
 
-analytics-service
+↓
 
-financial-service
+Provider Lookup
 
-admin-service
+↓
 
-public-api
+Business Update
 ```
-
-The current architecture already supports service extraction.
 
 ---
 
-# Design Principles
+## tickets.issue
 
-The Flux Tickets architecture is built around:
+Issues tickets after successful payment.
 
-- Domain separation
-- Stateless services
-- Event-driven processing
-- Backend-owned business logic
-- Provider independence
-- High concurrency
-- Complete observability
-- Horizontal scalability
+Flow:
 
-These principles allow the platform to evolve without introducing tight coupling between applications or business domains.
+```text
+Payment Approved
+
+↓
+
+Create Ticket
+
+↓
+
+History
+
+↓
+
+Audit
+```
+
+Ticket issuance remains asynchronous.
+
+---
+
+## checkins.sync
+
+Processes offline check-in synchronization.
+
+Responsibilities:
+
+- conflict detection
+- accepted check-ins
+- audit generation
+- history updates
+
+---
+
+## analytics.aggregate
+
+Reserved for future dashboard optimization.
+
+Possible responsibilities:
+
+- sales aggregation
+- daily metrics
+- occupancy
+- revenue summaries
+
+---
+
+## halfPrice.validateDeadline
+
+Validates student discount deadlines.
+
+Current implementation is independent of payment processing.
+
+---
+
+## waitlist.invite
+
+Processes inventory returns.
+
+Flow:
+
+```text
+Inventory Available
+
+↓
+
+Invite Customer
+
+↓
+
+Expire Invitation
+```
+
+---
+
+## carts.expireAbandoned
+
+Handles expired reservations.
+
+Flow:
+
+```text
+Reservation Timeout
+
+↓
+
+Release Inventory
+
+↓
+
+Waitlist
+```
+
+---
+
+## notifications.placeholder
+
+Current placeholder queue.
+
+Future providers include:
+
+- Email
+- SMS
+- WhatsApp
+- Push Notifications
+
+No business code depends on the notification provider.
+
+---
+
+# Dead-Letter Queues
+
+Every queue has a corresponding dead-letter queue.
+
+Example:
+
+```text
+payments.webhook
+
+↓
+
+payments.webhook.dead
+```
+
+Dead-letter jobs remain available for inspection and replay.
+
+---
+
+# Monitoring
+
+Queue health is exposed through:
+
+```http
+GET /monitoring/queues
+```
+
+Returned information includes:
+
+- waiting
+- active
+- delayed
+- completed
+- failed
+- dead-letter
+
+This endpoint is intended for operational monitoring.
+
+---
+
+# Worker Scaling
+
+Workers can be scaled horizontally.
+
+Example:
+
+```text
+ticket-worker ×5
+```
+
+All instances safely consume from the same queues using BullMQ's coordination mechanisms.
+
+---
+
+# Failure Recovery
+
+If a worker crashes during processing:
+
+```text
+Job
+
+↓
+
+Crash
+
+↓
+
+Redis Lock Expires
+
+↓
+
+Job Requeued
+```
+
+Another worker may safely continue processing.
+
+---
+
+# Queue System Principles
+
+The Queue System guarantees:
+
+- reliable execution
+- retry safety
+- exactly-once business effects
+- observable processing
+- horizontal scalability
+
+Asynchronous execution is treated as an extension of the transactional business layer rather than a separate subsystem.
 
 ---
 
@@ -612,14 +641,14 @@ These principles allow the platform to evolve without introducing tight coupling
 
 Part 2 documents:
 
-- Internal package organization
-- Repository structure
-- Workspace architecture
-- Service lifecycle
-- Deployment topology
-- Failure recovery
-- Scaling strategy
-- Future microservice evolution
+- Worker architecture
+- Queue concurrency
+- Dead-letter replay
+- Scheduling
+- Monitoring
+- Operational metrics
+- Failure scenarios
+- Future queue roadmap
 
 ---
 ---

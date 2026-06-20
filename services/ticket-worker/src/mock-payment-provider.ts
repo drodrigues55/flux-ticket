@@ -1,30 +1,6 @@
-export type InternalPaymentStatus =
-  | 'PENDING'
-  | 'APPROVED'
-  | 'REJECTED'
-  | 'EXPIRED'
-  | 'CANCELLED'
-  | 'REFUNDED'
-  | 'FAILED';
+import { PaymentProvider, ProviderPaymentResult, TemporaryProviderFailure } from './payment-provider';
 
-export class TemporaryProviderFailure extends Error {
-  constructor(message = 'Temporary payment provider failure') {
-    super(message);
-    this.name = 'TemporaryProviderFailure';
-  }
-}
-
-export interface ProviderPaymentResult {
-  provider: string;
-  providerPaymentId: string;
-  providerStatus: string;
-  status: InternalPaymentStatus;
-  idempotencyKey: string;
-  providerEventId?: string | null;
-  rawPayload?: unknown;
-}
-
-export class MockPaymentProvider {
+export class MockPaymentProvider implements PaymentProvider {
   readonly name = 'MOCK';
 
   async getPaymentStatus(providerPaymentId: string): Promise<ProviderPaymentResult> {
@@ -65,11 +41,4 @@ export class MockPaymentProvider {
       rawPayload: { mock: true, lookup: true, providerPaymentId, providerStatus },
     };
   }
-}
-
-export function getPaymentProvider(provider: string) {
-  if (provider !== 'MOCK') {
-    throw new TemporaryProviderFailure(`Provider ${provider} is not available in Phase 6A`);
-  }
-  return new MockPaymentProvider();
 }

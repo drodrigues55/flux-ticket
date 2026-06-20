@@ -1,82 +1,1622 @@
-# Contratos de APIs (API Contracts)
+# API Contracts
 
-## Objetivo
-
-Definir contratos de API do Flux Tickets com foco em previsibilidade, consistência, segurança, idempotência e suporte a dashboard data-driven.
-
-Todas as APIs devem retornar erros padronizados e incluir `requestId`.
+> Version: 2.0
+> Last Updated: June 2026
 
 ---
 
-## Padrão Global
+# Overview
 
-### Headers
+The Flux Tickets platform is composed of multiple applications that communicate exclusively through documented HTTP APIs.
 
-```http
-x-request-id: req_...
-authorization: Bearer <token>
-content-type: application/json
+Every application consumes backend contracts instead of accessing the database directly.
+
+Applications include:
+
+* Consumer Portal
+* Organizer Dashboard
+* Staff PWA
+* Background Workers
+* Future Mobile Applications
+* Future Public SDKs
+
+The backend is divided into specialized services:
+
+* `api-read`
+* `api-write`
+* `ticket-worker`
+
+Business logic resides exclusively in backend services.
+
+---
+
+# Architecture
+
+```text
+Consumer Portal
+        │
+        ▼
+     api-read
+        │
+        ▼
+Reservation
+        │
+        ▼
+     api-write
+        │
+        ▼
+ Payment Provider
+        │
+        ▼
+     Outbox
+        │
+        ▼
+   BullMQ Workers
+        │
+        ▼
+ Ticket Engine
 ```
 
-### Resposta de Sucesso
+---
+
+# Design Principles
+
+The API follows these principles:
+
+* Backend is the single source of truth.
+* Every request is deterministic.
+* Business logic never exists in the frontend.
+* Every state transition is auditable.
+* Every write endpoint is idempotent whenever possible.
+* Every public contract is versionable.
+* Internal implementation may change without breaking API consumers.
+
+---
+
+# Service Responsibilities
+
+## api-read
+
+Responsible for:
+
+* Event catalog
+* Dashboard queries
+* Ticket visualization
+* Public event information
+* Staff offline bundles
+
+No business mutations occur inside api-read.
+
+---
+
+## api-write
+
+Responsible for:
+
+* Reservations
+* Checkout
+* Payments
+* Ticket issuing
+* Check-ins
+* Waitlists
+* Webhooks
+
+All business mutations occur inside api-write.
+
+---
+
+## ticket-worker
+
+Responsible for:
+
+* Outbox processing
+* Payment recovery
+* Ticket issuing
+* Analytics aggregation
+* Deadline validation
+* Notification scheduling
+
+Workers never expose HTTP endpoints.
+
+---
+
+# API Versioning
+
+Current version:
+
+```text
+v1
+```
+
+Future breaking changes should introduce:
+
+```text
+/api/v2
+```
+
+instead of changing existing contracts.
+
+---
+
+# HTTP Methods
+
+The platform follows REST conventions.
+
+| Method | Purpose          |
+| ------ | ---------------- |
+| GET    | Read             |
+| POST   | Create / Execute |
+| PUT    | Full update      |
+| PATCH  | Partial update   |
+| DELETE | Remove           |
+
+---
+
+# Authentication
+
+Different applications use different authentication models.
+
+## Consumer
+
+Future JWT.
+
+Currently:
+
+* Anonymous browsing
+* Checkout without authentication
+* Order lookup
+
+---
+
+## Organizer
+
+Authentication:
+
+```text
+JWT
+```
+
+Authorization:
+
+```text
+RBAC
+```
+
+Permissions include:
+
+* Events
+* Ticket Batches
+* Dashboard
+* Finance
+* Staff
+
+---
+
+## Staff
+
+Current MVP:
+
+Local operator profile.
+
+Future:
+
+JWT + RBAC.
+
+---
+
+## Workers
+
+Workers authenticate internally.
+
+No public authentication required.
+
+---
+
+# Headers
+
+Common headers:
+
+```http
+Authorization: Bearer <token>
+
+Content-Type: application/json
+
+Accept: application/json
+
+x-request-id: req_xxxxx
+```
+
+---
+
+# Request ID
+
+Every request receives a Request ID.
+
+If supplied:
+
+```http
+x-request-id
+```
+
+the backend reuses it.
+
+Otherwise a new identifier is generated.
+
+The Request ID appears in:
+
+* Logs
+* AuditLog
+* Responses
+* Queue Jobs
+* Error reports
+
+---
+
+# Success Envelope
+
+Every new endpoint returns:
 
 ```json
 {
-  "data": {},
+    "data": {},
+    "meta": {
+        "requestId": "req_xxx"
+    }
+}
+```
+
+---
+
+# Error Envelope
+
+Every error returns:
+
+```json
+{
+    "error": {
+        "code": "PAYMENT_FAILED",
+        "message": "Payment could not be processed.",
+        "statusCode": 422,
+        "requestId": "req_xxx",
+        "details": {}
+    }
+}
+```
+
+Stack traces are never exposed.
+
+---
+
+# HTTP Status Codes
+
+| Code | Meaning         |
+| ---- | --------------- |
+| 200  | Success         |
+| 201  | Created         |
+| 204  | No Content      |
+| 400  | Invalid Request |
+| 401  | Unauthorized    |
+| 403  | Forbidden       |
+| 404  | Not Found       |
+| 409  | Conflict        |
+| 422  | Business Rule   |
+| 429  | Rate Limited    |
+| 500  | Internal Error  |
+
+---
+
+# Pagination
+
+Collections use:
+
+```http
+?page=1
+
+&limit=20
+```
+
+Response:
+
+```json
+{
+    "data": [],
+    "meta": {
+        "page": 1,
+        "limit": 20,
+        "total": 142,
+        "pages": 8,
+        "requestId": "req_xxx"
+    }
+}
+```
+
+---
+
+# Reservation API
+
+Reservations temporarily lock ticket inventory.
+
+They are the canonical checkout entry point.
+
+---
+
+## Create Reservation
+
+```http
+POST /tickets/reserve
+```
+
+Request
+
+```json
+{
+    "eventId": "...",
+    "items": [
+        {
+            "batchId": "...",
+            "quantity": 2
+        }
+    ]
+}
+```
+
+Success
+
+```json
+{
+    "data": {
+        "reservationId": "...",
+        "expiresAt": "...",
+        "items": []
+    },
+    "meta": {
+        "requestId": "..."
+    }
+}
+```
+
+Possible Errors
+
+* Event not found
+* Batch unavailable
+* Sold out
+* Reservation limit exceeded
+
+---
+
+## Renew Reservation
+
+```http
+POST /tickets/renew-lock
+```
+
+Current payload
+
+```json
+{
+    "reservationId": "..."
+}
+```
+
+Legacy payload remains temporarily supported.
+
+Returns:
+
+```json
+{
+    "data": {
+        "expiresAt": "..."
+    },
+    "meta": {
+        "requestId": "..."
+    }
+}
+```
+
+---
+
+## Cancel Reservation
+
+Future endpoint.
+
+```http
+DELETE /tickets/reserve/:reservationId
+```
+
+Inventory returns immediately.
+
+---
+
+# Checkout API
+
+Checkout transforms a Reservation into an Order.
+
+---
+
+## Checkout
+
+```http
+POST /payments/checkout
+```
+
+Request
+
+```json
+{
+    "reservationId": "...",
+    "buyer": {},
+    "holders": [],
+    "paymentMethod": "PIX"
+}
+```
+
+Response
+
+```json
+{
+    "data": {
+        "orderId": "...",
+        "paymentId": "...",
+        "status": "PENDING"
+    },
+    "meta": {
+        "requestId": "..."
+    }
+}
+```
+
+---
+
+# Checkout States
+
+Possible results:
+
+* Pending
+* Approved
+* Failed
+* Expired
+
+The frontend never infers state.
+
+State comes exclusively from backend.
+
+---
+
+# Payment API
+
+Payment Providers are abstracted behind the PaymentProvider interface.
+
+The frontend never knows which provider is active.
+
+---
+
+## Get Payment
+
+```http
+GET /payments/:paymentId
+```
+
+Returns:
+
+```json
+{
+    "data": {
+        "paymentId": "...",
+        "status": "PENDING",
+        "provider": "mock"
+    },
+    "meta": {
+        "requestId": "..."
+    }
+}
+```
+
+---
+
+## Retry Payment
+
+Future endpoint.
+
+```http
+POST /payments/:paymentId/retry
+```
+
+Creates a new payment attempt.
+
+---
+
+## Recover Pending Payment
+
+Background workers periodically synchronize pending payments with the provider.
+
+Clients do not trigger this manually.
+
+---
+
+# Payment States
+
+Supported statuses:
+
+```text
+PENDING
+
+APPROVED
+
+REJECTED
+
+FAILED
+
+EXPIRED
+
+REFUNDED (future)
+```
+
+Provider-specific statuses are mapped into internal statuses.
+
+---
+
+# Payment Idempotency
+
+Every payment approval must be idempotent.
+
+Multiple approval attempts must result in exactly:
+
+* One approved Payment
+* One completed Order
+* One issued Ticket
+* One TicketStatusHistory transition
+* One inventory decrement
+
+Duplicate approvals become no-ops.
+
+---
+
+# Concurrency Guarantee
+
+Approval flow is protected through:
+
+* Transactions
+* Row locking
+* State reload
+* Idempotency guards
+
+Multiple concurrent requests cannot generate duplicated business effects.
+
+---
+
+# Legacy Compatibility
+
+Legacy routes remain available temporarily while frontend applications migrate.
+
+Examples include:
+
+* Legacy reservation payloads
+* Legacy payment webhook aliases
+* Legacy staff synchronization routes
+
+Compatibility layers will be removed after all applications adopt the canonical contracts.
+
+---
+
+# Next Section
+
+Part 2 documents:
+
+* Ticket API
+* Ticket Engine API
+* QR Protocol
+* PDF Generation
+* Apple Wallet
+* Google Wallet
+* Waitlist API
+* Webhooks
+
+---
+
+# Ticket API
+
+The Ticket API exposes all consumer-facing ticket operations.
+
+Tickets only exist after a successful payment approval.
+
+Every ticket has:
+
+- A unique identifier
+- One holder
+- One event
+- One batch
+- One QR Code
+- One lifecycle
+
+The Ticket Engine is the source of truth for ticket validity.
+
+---
+
+## Get Ticket
+
+```http
+GET /tickets/:ticketId
+```
+
+Returns:
+
+```json
+{
+  "data": {
+    "ticketId": "...",
+    "status": "VALID",
+    "holder": {},
+    "event": {},
+    "batch": {},
+    "qrVersion": 1
+  },
   "meta": {
-    "requestId": "req_123"
+    "requestId": "..."
   }
 }
 ```
 
-### Resposta de Erro
+---
+
+## Get Ticket History
+
+Future endpoint.
+
+```http
+GET /tickets/:ticketId/history
+```
+
+Returns chronological state transitions.
+
+Example:
+
+```text
+Reserved
+
+↓
+
+Payment Pending
+
+↓
+
+Payment Approved
+
+↓
+
+Issued
+
+↓
+
+Consumed
+```
+
+---
+
+## Ticket Status
+
+Possible values:
+
+```text
+PENDING
+
+VALID
+
+CONSUMED
+
+REVOKED
+
+CANCELLED
+
+REFUNDED
+
+EXPIRED
+```
+
+The frontend must never infer status.
+
+---
+
+# Ticket Engine
+
+The Ticket Engine is responsible for validating every ticket.
+
+Every application delegates ticket validation to the same backend rules.
+
+It is shared by:
+
+- Consumer Portal
+- Dashboard
+- Staff PWA
+- Workers
+- Wallet exports
+- PDF generation
+
+---
+
+## Responsibilities
+
+The Ticket Engine:
+
+- validates signatures
+- loads ticket
+- validates event
+- validates state
+- validates expiration
+- validates revocation
+- validates ownership (future)
+- returns a normalized Ticket DTO
+
+---
+
+## Validation Flow
+
+```text
+QR Code
+
+↓
+
+Parse Payload
+
+↓
+
+Verify Signature
+
+↓
+
+Load Ticket
+
+↓
+
+Validate Status
+
+↓
+
+Validate Event
+
+↓
+
+Validate Rules
+
+↓
+
+TicketDTO
+```
+
+---
+
+# Ticket DTO
+
+Every validation returns a normalized structure.
+
+Example:
+
+```json
+{
+  "ticketId": "...",
+  "eventId": "...",
+  "holderName": "...",
+  "batchName": "...",
+  "sectorName": "...",
+  "status": "VALID",
+  "qrVersion": 1,
+  "issuedAt": "...",
+  "signatureValid": true
+}
+```
+
+Applications should render this DTO instead of rebuilding business logic.
+
+---
+
+# QR Code
+
+Every issued ticket receives one QR Code.
+
+That QR is reused everywhere.
+
+The QR is identical in:
+
+- Website
+- PDF
+- Apple Wallet
+- Google Wallet
+
+The QR is never regenerated after ticket issuance unless explicitly revoked.
+
+---
+
+## QR Payload
+
+Business information is never embedded.
+
+The QR contains only:
+
+```json
+{
+  "ticketId": "...",
+  "version": 1,
+  "signature": "..."
+}
+```
+
+---
+
+## Signature
+
+The signature is generated using HMAC.
+
+Example:
+
+```text
+HMAC_SHA256
+
+ticketId
+
++
+
+version
+
++
+
+secret
+```
+
+Only the backend knows the signing secret.
+
+---
+
+## QR Validation
+
+Validation never trusts QR contents.
+
+The backend always:
+
+```text
+QR
+
+↓
+
+ticketId
+
+↓
+
+Database
+
+↓
+
+Current Status
+
+↓
+
+Validation
+```
+
+The QR never contains:
+
+- holder name
+- event name
+- batch
+- sector
+- payment information
+
+---
+
+## QR Versioning
+
+Each ticket stores:
+
+```text
+qrVersion
+```
+
+Future revocation strategies may invalidate older QR versions.
+
+Current implementation:
+
+```text
+version = 1
+```
+
+---
+
+# Ticket Validation
+
+Future endpoint:
+
+```http
+POST /tickets/validate
+```
+
+Request:
+
+```json
+{
+  "ticketId": "...",
+  "signature": "...",
+  "version": 1
+}
+```
+
+Response:
+
+```json
+{
+  "data": {
+    "status": "VALID",
+    "ticket": {}
+  },
+  "meta": {
+    "requestId": "..."
+  }
+}
+```
+
+---
+
+# PDF
+
+Tickets may be exported as PDF.
+
+```http
+GET /tickets/:ticketId/pdf
+```
+
+Generated server-side.
+
+Contains:
+
+- Event
+- Holder
+- Batch
+- Sector
+- QR Code
+- Instructions
+
+The PDF always uses the same QR.
+
+---
+
+# Apple Wallet
+
+Tickets may be exported as:
+
+```http
+GET /tickets/:ticketId/wallet/apple
+```
+
+Response:
+
+```text
+application/vnd.apple.pkpass
+```
+
+Contains:
+
+- Event
+- Holder
+- QR
+- Ticket metadata
+
+---
+
+# Google Wallet
+
+Tickets may be exported through:
+
+```http
+GET /tickets/:ticketId/wallet/google
+```
+
+Contains the same information as Apple Wallet.
+
+---
+
+# Wallet Consistency
+
+Website
+
+↓
+
+Apple Wallet
+
+↓
+
+Google Wallet
+
+↓
+
+PDF
+
+↓
+
+Staff Scanner
+
+All use the exact same QR.
+
+No platform generates its own identifier.
+
+---
+
+# Waitlist API
+
+Customers may join the waiting list for sold-out batches.
+
+---
+
+## Join Waitlist
+
+```http
+POST /events/:eventId/batches/:batchId/waitlist
+```
+
+Request:
+
+```json
+{
+  "name": "...",
+  "email": "..."
+}
+```
+
+Response:
+
+```json
+{
+  "data": {
+    "status": "JOINED"
+  },
+  "meta": {
+    "requestId": "..."
+  }
+}
+```
+
+---
+
+## Waitlist Lifecycle
+
+```text
+Sold Out
+
+↓
+
+Join Waitlist
+
+↓
+
+Inventory Returns
+
+↓
+
+Worker
+
+↓
+
+Invitation
+
+↓
+
+Notification
+```
+
+---
+
+## Waitlist Status
+
+Possible values:
+
+```text
+WAITING
+
+INVITED
+
+EXPIRED
+
+PURCHASED
+
+CANCELLED
+```
+
+---
+
+# Webhooks
+
+Webhook endpoints receive asynchronous events from payment providers.
+
+---
+
+## Canonical Endpoint
+
+```http
+POST /webhooks/mercado-pago
+```
+
+---
+
+## Compatibility Alias
+
+```http
+POST /payments/webhook
+```
+
+Both routes execute the same backend logic.
+
+---
+
+# Webhook Flow
+
+```text
+Provider
+
+↓
+
+Webhook
+
+↓
+
+Signature Validation
+
+↓
+
+Persist Raw Payload
+
+↓
+
+Idempotency Check
+
+↓
+
+Outbox
+
+↓
+
+Queue
+
+↓
+
+Payment Processing
+```
+
+---
+
+# Signature Validation
+
+When configured:
+
+- Provider signature is verified.
+- Invalid requests are rejected.
+- Raw payload is preserved for auditing.
+
+---
+
+# Idempotency
+
+Every provider event is processed exactly once.
+
+The backend uses:
+
+- providerEventId
+- providerPaymentId
+- idempotencyKey
+
+Duplicate webhook deliveries become no-ops.
+
+---
+
+# Webhook Response
+
+The endpoint acknowledges quickly.
+
+```text
+Webhook
+
+↓
+
+Persist
+
+↓
+
+Queue
+
+↓
+
+HTTP 200
+```
+
+Provider processing never occurs synchronously.
+
+---
+
+# Outbox Integration
+
+Every accepted webhook creates an OutboxEvent.
+
+Workers consume events asynchronously.
+
+This guarantees:
+
+- retries
+- recovery
+- resilience
+- ordering
+
+---
+
+# Queue Events
+
+Current payment-related queues:
+
+```text
+payments.webhook
+
+payments.recoverPending
+
+tickets.issue
+
+waitlist.invite
+
+notifications.placeholder
+```
+
+---
+
+# Error Handling
+
+Webhook failures never expose internal errors.
+
+Responses remain standardized:
 
 ```json
 {
   "error": {
-    "code": "TICKET_BATCH_SOLD_OUT",
-    "message": "Este lote está esgotado.",
+    "code": "...",
+    "message": "...",
     "statusCode": 422,
-    "requestId": "req_123",
+    "requestId": "...",
     "details": {}
   }
 }
 ```
 
-### Códigos de Erro
+---
 
-| Status | Uso |
-|---:|---|
-| 400 | Payload inválido ou mal formatado |
-| 401 | Não autenticado |
-| 403 | Sem permissão |
-| 404 | Recurso não encontrado |
-| 409 | Conflito de estado |
-| 422 | Regra de negócio inválida |
-| 429 | Rate limit |
-| 500 | Erro interno |
+# Next Section
+
+Part 3 documents:
+
+- Staff API
+- Dashboard API
+- Monitoring API
+- Error Codes
+- Rate Limits
+- Concurrency
+- Idempotency
+- Versioning
+- Roadmap
 
 ---
 
-## APIs Públicas (`apps/client`)
+# Ticket API
 
-### Reservar ingressos
+The Ticket API exposes all consumer-facing ticket operations.
 
-`POST /api/tickets/reserve`
+Tickets only exist after a successful payment approval.
 
-Reserva cotas temporariamente no Redis.
+Every ticket has:
+
+- A unique identifier
+- One holder
+- One event
+- One batch
+- One QR Code
+- One lifecycle
+
+The Ticket Engine is the source of truth for ticket validity.
+
+---
+
+## Get Ticket
+
+```http
+GET /tickets/:ticketId
+```
+
+Returns:
+
+```json
+{
+  "data": {
+    "ticketId": "...",
+    "status": "VALID",
+    "holder": {},
+    "event": {},
+    "batch": {},
+    "qrVersion": 1
+  },
+  "meta": {
+    "requestId": "..."
+  }
+}
+```
+
+---
+
+## Get Ticket History
+
+Future endpoint.
+
+```http
+GET /tickets/:ticketId/history
+```
+
+Returns chronological state transitions.
+
+Example:
+
+```text
+Reserved
+
+↓
+
+Payment Pending
+
+↓
+
+Payment Approved
+
+↓
+
+Issued
+
+↓
+
+Consumed
+```
+
+---
+
+## Ticket Status
+
+Possible values:
+
+```text
+PENDING
+
+VALID
+
+CONSUMED
+
+REVOKED
+
+CANCELLED
+
+REFUNDED
+
+EXPIRED
+```
+
+The frontend must never infer status.
+
+---
+
+# Ticket Engine
+
+The Ticket Engine is responsible for validating every ticket.
+
+Every application delegates ticket validation to the same backend rules.
+
+It is shared by:
+
+- Consumer Portal
+- Dashboard
+- Staff PWA
+- Workers
+- Wallet exports
+- PDF generation
+
+---
+
+## Responsibilities
+
+The Ticket Engine:
+
+- validates signatures
+- loads ticket
+- validates event
+- validates state
+- validates expiration
+- validates revocation
+- validates ownership (future)
+- returns a normalized Ticket DTO
+
+---
+
+## Validation Flow
+
+```text
+QR Code
+
+↓
+
+Parse Payload
+
+↓
+
+Verify Signature
+
+↓
+
+Load Ticket
+
+↓
+
+Validate Status
+
+↓
+
+Validate Event
+
+↓
+
+Validate Rules
+
+↓
+
+TicketDTO
+```
+
+---
+
+# Ticket DTO
+
+Every validation returns a normalized structure.
+
+Example:
+
+```json
+{
+  "ticketId": "...",
+  "eventId": "...",
+  "holderName": "...",
+  "batchName": "...",
+  "sectorName": "...",
+  "status": "VALID",
+  "qrVersion": 1,
+  "issuedAt": "...",
+  "signatureValid": true
+}
+```
+
+Applications should render this DTO instead of rebuilding business logic.
+
+---
+
+# QR Code
+
+Every issued ticket receives one QR Code.
+
+That QR is reused everywhere.
+
+The QR is identical in:
+
+- Website
+- PDF
+- Apple Wallet
+- Google Wallet
+
+The QR is never regenerated after ticket issuance unless explicitly revoked.
+
+---
+
+## QR Payload
+
+Business information is never embedded.
+
+The QR contains only:
+
+```json
+{
+  "ticketId": "...",
+  "version": 1,
+  "signature": "..."
+}
+```
+
+---
+
+## Signature
+
+The signature is generated using HMAC.
+
+Example:
+
+```text
+HMAC_SHA256
+
+ticketId
+
++
+
+version
+
++
+
+secret
+```
+
+Only the backend knows the signing secret.
+
+---
+
+## QR Validation
+
+Validation never trusts QR contents.
+
+The backend always:
+
+```text
+QR
+
+↓
+
+ticketId
+
+↓
+
+Database
+
+↓
+
+Current Status
+
+↓
+
+Validation
+```
+
+The QR never contains:
+
+- holder name
+- event name
+- batch
+- sector
+- payment information
+
+---
+
+## QR Versioning
+
+Each ticket stores:
+
+```text
+qrVersion
+```
+
+Future revocation strategies may invalidate older QR versions.
+
+Current implementation:
+
+```text
+version = 1
+```
+
+---
+
+# Ticket Validation
+
+Future endpoint:
+
+```http
+POST /tickets/validate
+```
 
 Request:
 
 ```json
 {
-  "eventId": "evt_123",
-  "items": [
-    {
-      "batchId": "batch_123",
-      "quantity": 2
-    }
-  ]
+  "ticketId": "...",
+  "signature": "...",
+  "version": 1
 }
 ```
 
@@ -85,40 +1625,119 @@ Response:
 ```json
 {
   "data": {
-    "reservationId": "res_123",
-    "expiresAt": "2026-06-18T20:15:00.000Z",
-    "items": [
-      {
-        "batchId": "batch_123",
-        "quantity": 2,
-        "unitPrice": 120
-      }
-    ]
+    "status": "VALID",
+    "ticket": {}
   },
   "meta": {
-    "requestId": "req_123"
+    "requestId": "..."
   }
 }
 ```
 
-Erros relevantes:
+---
 
-- `TICKET_BATCH_SOLD_OUT`
-- `RESERVATION_LIMIT_EXCEEDED`
-- `EVENT_NOT_AVAILABLE`
-- `RATE_LIMITED`
+# PDF
+
+Tickets may be exported as PDF.
+
+```http
+GET /tickets/:ticketId/pdf
+```
+
+Generated server-side.
+
+Contains:
+
+- Event
+- Holder
+- Batch
+- Sector
+- QR Code
+- Instructions
+
+The PDF always uses the same QR.
 
 ---
 
-### Renovar lock
+# Apple Wallet
 
-`POST /api/tickets/renew-lock`
+Tickets may be exported as:
+
+```http
+GET /tickets/:ticketId/wallet/apple
+```
+
+Response:
+
+```text
+application/vnd.apple.pkpass
+```
+
+Contains:
+
+- Event
+- Holder
+- QR
+- Ticket metadata
+
+---
+
+# Google Wallet
+
+Tickets may be exported through:
+
+```http
+GET /tickets/:ticketId/wallet/google
+```
+
+Contains the same information as Apple Wallet.
+
+---
+
+# Wallet Consistency
+
+Website
+
+↓
+
+Apple Wallet
+
+↓
+
+Google Wallet
+
+↓
+
+PDF
+
+↓
+
+Staff Scanner
+
+All use the exact same QR.
+
+No platform generates its own identifier.
+
+---
+
+# Waitlist API
+
+Customers may join the waiting list for sold-out batches.
+
+---
+
+## Join Waitlist
+
+```http
+POST /events/:eventId/batches/:batchId/waitlist
+```
 
 Request:
 
 ```json
 {
-  "reservationId": "res_123"
+  "name": "...",
+  "email": "..."
 }
 ```
 
@@ -127,364 +1746,896 @@ Response:
 ```json
 {
   "data": {
-    "reservationId": "res_123",
-    "expiresAt": "2026-06-18T20:20:00.000Z"
+    "status": "JOINED"
   },
   "meta": {
-    "requestId": "req_123"
+    "requestId": "..."
   }
 }
 ```
 
 ---
 
-### Checkout
+## Waitlist Lifecycle
 
-`POST /api/payments/checkout`
+```text
+Sold Out
 
-Cria pagamento a partir de uma reserva válida.
+↓
 
-Request:
+Join Waitlist
+
+↓
+
+Inventory Returns
+
+↓
+
+Worker
+
+↓
+
+Invitation
+
+↓
+
+Notification
+```
+
+---
+
+## Waitlist Status
+
+Possible values:
+
+```text
+WAITING
+
+INVITED
+
+EXPIRED
+
+PURCHASED
+
+CANCELLED
+```
+
+---
+
+# Webhooks
+
+Webhook endpoints receive asynchronous events from payment providers.
+
+---
+
+## Canonical Endpoint
+
+```http
+POST /webhooks/mercado-pago
+```
+
+---
+
+## Compatibility Alias
+
+```http
+POST /payments/webhook
+```
+
+Both routes execute the same backend logic.
+
+---
+
+# Webhook Flow
+
+```text
+Provider
+
+↓
+
+Webhook
+
+↓
+
+Signature Validation
+
+↓
+
+Persist Raw Payload
+
+↓
+
+Idempotency Check
+
+↓
+
+Outbox
+
+↓
+
+Queue
+
+↓
+
+Payment Processing
+```
+
+---
+
+# Signature Validation
+
+When configured:
+
+- Provider signature is verified.
+- Invalid requests are rejected.
+- Raw payload is preserved for auditing.
+
+---
+
+# Idempotency
+
+Every provider event is processed exactly once.
+
+The backend uses:
+
+- providerEventId
+- providerPaymentId
+- idempotencyKey
+
+Duplicate webhook deliveries become no-ops.
+
+---
+
+# Webhook Response
+
+The endpoint acknowledges quickly.
+
+```text
+Webhook
+
+↓
+
+Persist
+
+↓
+
+Queue
+
+↓
+
+HTTP 200
+```
+
+Provider processing never occurs synchronously.
+
+---
+
+# Outbox Integration
+
+Every accepted webhook creates an OutboxEvent.
+
+Workers consume events asynchronously.
+
+This guarantees:
+
+- retries
+- recovery
+- resilience
+- ordering
+
+---
+
+# Queue Events
+
+Current payment-related queues:
+
+```text
+payments.webhook
+
+payments.recoverPending
+
+tickets.issue
+
+waitlist.invite
+
+notifications.placeholder
+```
+
+---
+
+# Error Handling
+
+Webhook failures never expose internal errors.
+
+Responses remain standardized:
 
 ```json
 {
-  "reservationId": "res_123",
-  "buyer": {
-    "name": "Nome do comprador",
-    "email": "cliente@email.com",
-    "cpf": "00000000000"
-  },
-  "holders": [
-    {
-      "name": "Nome do portador",
-      "cpf": "00000000000",
-      "isHalfPrice": false
-    }
-  ],
-  "paymentMethod": {
-    "type": "credit_card",
-    "installments": 1,
-    "token": "gateway_token"
+  "error": {
+    "code": "...",
+    "message": "...",
+    "statusCode": 422,
+    "requestId": "...",
+    "details": {}
   }
 }
 ```
 
-Response:
+---
+
+# Next Section
+
+Part 3 documents:
+
+- Staff API
+- Dashboard API
+- Monitoring API
+- Error Codes
+- Rate Limits
+- Concurrency
+- Idempotency
+- Versioning
+- Roadmap
+
+---
+
+# Staff API
+
+The Staff API powers the official Flux Tickets Staff PWA.
+
+Its primary responsibility is validating tickets at the event entrance while supporting fully offline operation.
+
+The Staff API is intentionally separated from checkout and payment operations.
+
+---
+
+# Responsibilities
+
+The Staff Platform is responsible for:
+
+- Downloading offline bundles
+- Offline validation
+- Synchronizing check-ins
+- Conflict detection
+- Audit logging
+- Device identification
+- Operator attribution
+
+---
+
+## Offline Bundle
+
+```http
+GET /staff/events/:eventId/offline-bundle
+```
+
+Returns the complete validation bundle for an event.
+
+Includes:
+
+- Event metadata
+- Ticket list
+- Holder information
+- Ticket signatures
+- Sector permissions
+- Bundle signature
+- Generated timestamp
+
+---
+
+Example Response
 
 ```json
 {
   "data": {
-    "orderId": "ord_123",
-    "paymentId": "pay_123",
-    "status": "pending",
-    "paymentUrl": null
+    "event": {},
+    "generatedAt": "...",
+    "signature": "...",
+    "tickets": []
   },
   "meta": {
-    "requestId": "req_123"
+    "requestId": "..."
   }
 }
 ```
 
 ---
 
-## Webhooks
+## Check-in Synchronization
 
-### Mercado Pago
+```http
+POST /staff/checkins/sync
+```
 
-`POST /api/webhooks/mercado-pago`
+Uploads locally collected check-ins.
 
-Regras:
-
-- Validar assinatura.
-- Persistir payload bruto.
-- Processar com idempotência.
-- Retornar `200` rapidamente.
-- Enfileirar processamento pesado.
-
-Response:
+Example Request
 
 ```json
 {
-  "data": {
-    "received": true
+  "deviceId": "...",
+  "operator": {
+    "name": "John Doe",
+    "cpf": "12345678900"
   },
-  "meta": {
-    "requestId": "req_123"
-  }
+  "checkins": []
 }
 ```
 
 ---
 
-## APIs do Consumidor
+## Operator Identification
 
-### Meus ingressos
+Current MVP identifies the operator using:
 
-`GET /api/me/tickets`
+- Name
+- CPF
 
-Response:
+No authentication is required.
 
-```json
-{
-  "data": [
-    {
-      "ticketId": "ticket_123",
-      "eventName": "Festival Flux",
-      "status": "issued",
-      "qrCodeUrl": "/api/me/tickets/ticket_123/qr",
-      "walletAvailable": true
-    }
-  ],
-  "meta": {
-    "requestId": "req_123"
-  }
-}
-```
+The objective is operational traceability.
 
-### Upload de meia-entrada
-
-`POST /api/me/tickets/:ticketId/half-price-document`
-
-Deve aceitar upload multipart ou URL assinada para storage.
+Future versions will replace this with JWT authentication.
 
 ---
 
-## APIs de Dashboard (`apps/dashboard`)
+## Device Identification
 
-### CRUD Eventos
+Each synchronization includes:
 
-- `GET /api/events`
-- `POST /api/events`
-- `GET /api/events/:id`
-- `PATCH /api/events/:id`
-- `DELETE /api/events/:id`
+- Device ID
+- Bundle Version
+- Synchronization Timestamp
 
-### Gestão de lotes
-
-- `GET /api/events/:id/batches`
-- `POST /api/events/:id/batches`
-- `PATCH /api/events/:id/batches/:batchId`
-- `DELETE /api/events/:id/batches/:batchId`
+Future versions may bind devices to organizers.
 
 ---
 
-## APIs da Dashboard Inteligente
+## Offline Validation Flow
 
-Todas as respostas devem vir do backend já agregadas e prontas para renderização.
+```text
+Offline Bundle
 
-O frontend não deve calcular métricas críticas a partir de listas brutas.
+↓
 
-### Resumo global
+Local IndexedDB
 
-`GET /api/dashboard/overview?period=7d`
+↓
 
-Response:
+Scan QR
 
-```json
-{
-  "data": {
-    "grossRevenue": 154890,
-    "ticketsSold": 1280,
-    "averageTicket": 121,
-    "conversionRate": 8.4,
-    "upcomingPayout": {
-      "amount": 45200,
-      "date": "2026-06-25"
-    }
-  },
-  "meta": {
-    "requestId": "req_123"
-  }
-}
+↓
+
+Validate Signature
+
+↓
+
+Local Status
+
+↓
+
+Accepted
+
+↓
+
+Offline Queue
 ```
 
 ---
 
-### Evento prioritário
+## Synchronization Flow
 
-`GET /api/dashboard/priority-event`
+```text
+Offline Queue
 
-Response:
+↓
 
-```json
-{
-  "data": {
-    "eventId": "evt_123",
-    "name": "Festival Flux",
-    "imageUrl": "https://...",
-    "date": "2026-07-10",
-    "venue": "Arena Central",
-    "priorityScore": 92,
-    "priorityLevel": "critical",
-    "revenue": 184000,
-    "ticketsSold": 1530,
-    "occupancyRate": 84,
-    "daysRemaining": 5,
-    "nextPayout": {
-      "amount": 58000,
-      "date": "2026-06-25"
-    },
-    "mainAlert": {
-      "type": "LOT_NEAR_SOLD_OUT",
-      "severity": "warning",
-      "message": "Lote VIP com 92% de ocupação."
-    }
-  },
-  "meta": {
-    "requestId": "req_123"
-  }
-}
+POST /staff/checkins/sync
+
+↓
+
+Conflict Detection
+
+↓
+
+Audit
+
+↓
+
+History
+
+↓
+
+Checkin
 ```
 
 ---
 
-### Eventos por prioridade
+## Conflict Detection
 
-`GET /api/dashboard/events-priority`
+The backend detects:
 
-Response:
+- Already consumed
+- Invalid signature
+- Event mismatch
+- Sector mismatch
+- Ticket not found
+- Offline state conflict
 
-```json
-{
-  "data": {
-    "critical": [],
-    "attention": [],
-    "healthy": []
-  },
-  "meta": {
-    "requestId": "req_123"
-  }
-}
+---
+
+## Accepted Check-ins
+
+Accepted validations create:
+
+- Checkin
+- TicketStatusHistory
+- AuditLog
+
+Rejected validations create:
+
+- AuditLog only
+
+No Checkin rows are created for rejected attempts.
+
+---
+
+## Offline State Conflict
+
+Late synchronization after another device already validated the ticket returns:
+
+```text
+OFFLINE_STATE_CONFLICT
+```
+
+This status is auditable.
+
+---
+
+## Duplicate Protection
+
+Repeated uploads of the same accepted check-in become no-ops.
+
+Exactly one accepted Checkin exists for each ticket.
+
+---
+
+# Dashboard API
+
+The Organizer Dashboard consumes only backend-generated analytics.
+
+The frontend performs no business calculations.
+
+---
+
+## Overview
+
+```http
+GET /dashboard/overview
+```
+
+Returns:
+
+- Revenue
+- Tickets Sold
+- Average Ticket
+- Occupancy
+- Check-ins
+- Operational Controls
+- Recent Sales
+
+---
+
+## Priority Event
+
+```http
+GET /dashboard/priority-event
+```
+
+Returns the event with the highest operational priority.
+
+---
+
+## Events Priority
+
+```http
+GET /dashboard/events-priority
+```
+
+Returns organizer events sorted by backend priority score.
+
+---
+
+## Lots Performance
+
+```http
+GET /dashboard/events/:eventId/lots-performance
+```
+
+Returns:
+
+- Batch occupancy
+- Sales
+- Remaining inventory
+- Revenue
+- Capacity
+
+---
+
+## Alerts
+
+```http
+GET /dashboard/alerts
+```
+
+Returns operational alerts generated by backend rules.
+
+Examples:
+
+- Low inventory
+- Sales paused
+- Payment failures
+- High validation volume
+
+---
+
+# Dashboard Principles
+
+The Dashboard frontend:
+
+- never aggregates
+- never calculates
+- never ranks events
+- never computes KPIs
+
+It only renders backend responses.
+
+---
+
+# Monitoring API
+
+Production monitoring endpoints.
+
+---
+
+## Health Live
+
+```http
+GET /health/live
+```
+
+Checks process availability.
+
+No external dependency required.
+
+---
+
+## Health Ready
+
+```http
+GET /health/ready
+```
+
+Checks:
+
+- Database
+- Redis
+- Queue availability
+
+Returns:
+
+- 200 Healthy
+- 503 Degraded
+
+---
+
+## Metrics
+
+```http
+GET /metrics
+```
+
+Available only when:
+
+```text
+PROMETHEUS_ENABLED=true
 ```
 
 ---
 
-### Performance de lotes
+Metrics include:
 
-`GET /api/dashboard/events/:eventId/lots-performance`
+- HTTP Requests
+- Latency
+- Redis
+- Database
+- BullMQ
+- Business Counters
 
-Response:
+---
 
-```json
-{
-  "data": [
-    {
-      "batchId": "batch_123",
-      "name": "VIP",
-      "capacity": 500,
-      "sold": 460,
-      "remaining": 40,
-      "occupancyRate": 92,
-      "revenue": 92000,
-      "alertLevel": "warning"
-    }
-  ],
-  "meta": {
-    "requestId": "req_123"
-  }
-}
+## Version
+
+```http
+GET /version
+```
+
+Returns:
+
+- Service
+- Version
+- APP_ENV
+- Commit
+- Build Timestamp
+- Uptime
+
+---
+
+## Queue Monitoring
+
+```http
+GET /monitoring/queues
+```
+
+Returns:
+
+- Waiting Jobs
+- Active Jobs
+- Completed Jobs
+- Failed Jobs
+- Dead-letter Jobs
+
+For every registered queue.
+
+---
+
+# Error Codes
+
+Common business codes include:
+
+```text
+INVALID_REQUEST
+
+UNAUTHORIZED
+
+FORBIDDEN
+
+NOT_FOUND
+
+VALIDATION_FAILED
+
+PAYMENT_PENDING
+
+PAYMENT_FAILED
+
+PAYMENT_EXPIRED
+
+PAYMENT_REJECTED
+
+PAYMENT_ALREADY_APPROVED
+
+RESERVATION_EXPIRED
+
+SOLD_OUT
+
+WAITLIST_JOINED
+
+INVALID_SIGNATURE
+
+INVALID_QR
+
+TICKET_NOT_FOUND
+
+TICKET_ALREADY_CONSUMED
+
+OFFLINE_STATE_CONFLICT
+
+EVENT_MISMATCH
+
+SECTOR_MISMATCH
+
+RATE_LIMITED
+
+INTERNAL_ERROR
 ```
 
 ---
 
-### Alertas operacionais
+# Idempotency
 
-`GET /api/dashboard/alerts`
+The following operations are fully idempotent:
 
-Response:
+- Reservation renewal
+- Payment approval
+- Payment recovery
+- Webhooks
+- Ticket issuance
+- Check-in synchronization
+- Queue retries
 
-```json
-{
-  "data": [
-    {
-      "alertId": "alert_123",
-      "type": "LOT_NEAR_SOLD_OUT",
-      "severity": "warning",
-      "eventId": "evt_123",
-      "eventName": "Festival Flux",
-      "message": "Lote VIP está com 92% de ocupação.",
-      "suggestedAction": "Avaliar abertura de novo lote."
-    }
-  ],
-  "meta": {
-    "requestId": "req_123"
-  }
-}
-```
+Repeated requests must never produce duplicate business effects.
 
 ---
 
-## APIs Staff PWA
+# Concurrency
 
-### Baixar dados do evento para validação offline
+Critical write operations are protected using:
 
-`GET /api/staff/events/:eventId/offline-bundle`
+- Database transactions
+- Row locking
+- Idempotency guards
+- State reloading
+- Queue isolation
 
-Response:
+Expected result:
 
-```json
-{
-  "data": {
-    "eventId": "evt_123",
-    "generatedAt": "2026-06-18T20:00:00.000Z",
-    "tickets": [
-      {
-        "ticketId": "ticket_123",
-        "sectorId": "sector_1",
-        "status": "issued",
-        "signature": "hmac_signature"
-      }
-    ]
-  },
-  "meta": {
-    "requestId": "req_123"
-  }
-}
+```text
+50 concurrent approvals
+
+↓
+
+1 Payment Approved
+
+↓
+
+1 Order Completed
+
+↓
+
+1 Ticket Issued
+
+↓
+
+1 TicketStatusHistory Transition
+
+↓
+
+1 AuditLog Entry
 ```
 
-### Sincronizar check-ins offline
-
-`POST /api/staff/checkins/sync`
-
-Request:
-
-```json
-{
-  "deviceId": "device_123",
-  "eventId": "evt_123",
-  "checkins": [
-    {
-      "ticketId": "ticket_123",
-      "checkedAt": "2026-06-18T21:00:00.000Z",
-      "signature": "hmac_signature"
-    }
-  ]
-}
-```
+The same guarantee applies to Staff check-ins.
 
 ---
 
-## Auditoria
+# Rate Limits
 
-Ações sensíveis devem gerar eventos de auditoria:
+Suggested limits:
 
-- Criar evento.
-- Alterar lote.
-- Pausar vendas.
-- Cancelar ingresso.
-- Reembolsar pedido.
-- Reenviar ingresso.
-- Reprocessar job.
-- Alterar status manualmente.
+| Endpoint | Limit |
+|----------|------:|
+| GET /events | 120/min |
+| POST /tickets/reserve | 20/min |
+| POST /payments/checkout | 10/min |
+| POST /payments/webhook | Provider controlled |
+| POST /staff/checkins/sync | 100/min/device |
+| GET /dashboard/* | 60/min |
+| GET /metrics | Internal only |
+
+Limits may evolve according to infrastructure.
 
 ---
 
-## Checklist
+# API Compatibility
 
-- [ ] Todas as APIs retornam `requestId`.
-- [ ] Erros padronizados.
-- [ ] Webhooks idempotentes.
-- [ ] APIs de dashboard agregadas.
-- [ ] Contratos de widgets definidos.
-- [ ] Staff PWA com contratos offline.
-- [ ] Auditoria em ações sensíveis.
+Backward-compatible aliases remain available during migrations.
+
+Examples include:
+
+- Legacy webhook endpoint
+- Legacy reservation payload
+- Legacy staff synchronization endpoint
+
+Deprecated endpoints will be removed only after all first-party applications migrate.
+
+---
+
+# Security
+
+The API never exposes:
+
+- JWT secrets
+- HMAC secrets
+- Payment provider secrets
+- Card numbers
+- CVV
+- Raw gateway credentials
+
+Sensitive values are redacted from logs.
+
+---
+
+# Observability
+
+Every request is traceable using:
+
+- requestId
+- AuditLog
+- Pino structured logs
+- Queue metadata
+- Worker logs
+- Optional Sentry integration
+
+This enables full request tracing across the platform.
+
+---
+
+# Future APIs
+
+Planned additions include:
+
+- Customer authentication
+- Coupon management
+- Promoter management
+- Affiliate APIs
+- Marketing attribution
+- Financial reconciliation
+- Refund management
+- Administrative platform
+- Public Organizer APIs
+- Mobile SDK
+
+---
+
+# Roadmap
+
+## Phase 6A
+
+- Payment abstraction
+- Waitlist
+- Pending recovery
+- Abandoned carts
+- Mock Payment Provider
+
+Completed.
+
+---
+
+## Phase 6A.1
+
+- Payment Engine hardening
+- Queue validation
+- Concurrency guarantees
+- Approval idempotency
+- Worker idempotency
+
+---
+
+## Phase 6B
+
+- Ticket Engine
+- QR generation
+- QR validation
+- PDF generation
+- Apple Wallet
+- Google Wallet
+
+---
+
+## Phase 6C
+
+- Consumer ticket experience
+- Staff scanner UI
+- Ticket lifecycle completion
+- End-to-end validation
+
+---
+
+## Phase 7+
+
+- Marketing Platform
+- Financial Platform
+- Administrative Panel
+- Analytics Engine
+- AI Insights
+- Public APIs
+
+---
+
+# Contract Stability
+
+The Flux Tickets API follows a **contract-first** philosophy.
+
+Internal implementations may evolve, providers may change, and database structures may be optimized, but published API contracts should remain stable whenever possible.
+
+Breaking changes require a new API version and a documented migration path.
+

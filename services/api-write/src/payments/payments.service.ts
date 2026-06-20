@@ -1,12 +1,12 @@
-import { BadRequestException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { prisma } from '@flux/database';
 import { FluxEngineService } from '../tickets/flux-engine.service';
 import { TicketCryptoService } from '../tickets/ticket-crypto.service';
 import { CheckoutPaymentDto } from './payments.dto';
 import { AuditService } from '../audit/audit.service';
 import { recordTicketStatusHistory } from '../tickets/ticket-status-history';
-import { getPaymentProvider } from './mock-payment.provider';
-import { InternalPaymentStatus, ProviderPaymentResult, TemporaryProviderFailure } from './payment-provider';
+import { InternalPaymentStatus, PaymentProvider, ProviderPaymentResult, TemporaryProviderFailure } from './payment-provider';
+import { PAYMENT_PROVIDER } from './payment-provider.token';
 import * as crypto from 'crypto';
 
 const FINAL_RELEASE_STATUSES: InternalPaymentStatus[] = ['REJECTED', 'EXPIRED', 'CANCELLED', 'FAILED'];
@@ -14,12 +14,12 @@ const FINAL_RELEASE_STATUSES: InternalPaymentStatus[] = ['REJECTED', 'EXPIRED', 
 @Injectable()
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
-  private readonly provider = getPaymentProvider();
 
   constructor(
     private readonly fluxEngine: FluxEngineService,
     private readonly ticketCryptoService: TicketCryptoService,
-    private readonly auditService: AuditService
+    private readonly auditService: AuditService,
+    @Inject(PAYMENT_PROVIDER) private readonly paymentProvider: PaymentProvider
   ) {}
 
   verifySignature(): boolean {
@@ -43,7 +43,7 @@ export class PaymentsService {
     body: any;
     requestId?: string | null;
   }) {
-    const parsed = await this.provider.parseWebhook(options.body, {
+    const parsed = await this.paymentProvider.parseWebhook(options.body, {
       'x-signature': options.signatureHeader ?? '',
       ...options.query,
     });
@@ -117,7 +117,7 @@ export class PaymentsService {
 
     let providerResult: ProviderPaymentResult;
     try {
-      providerResult = await this.provider.createPayment(
+      providerResult = await this.paymentProvider.createPayment(
         {
           id: order.id,
           eventId,
@@ -138,7 +138,7 @@ export class PaymentsService {
           amount,
           installments: Number(paymentInput.installments) || 1,
           providerResult: {
-            provider: this.provider.name,
+            provider: this.paymentProvider.name,
             providerPaymentId: `mock-provider-error-${idempotencyKey}`,
             providerStatus: 'temporary_error',
             status: 'FAILED',
@@ -332,73 +332,186 @@ export class PaymentsService {
     buyerEmail?: string;
     requestId?: string | null;
   }) {
-    const finalStatuses: Array<{ id: string; finalStatus: string }> = [];
+    const result = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "Payment" WHERE id = ${input.payment.id} FOR UPDATE`;
 
-    for (const ticket of input.tickets) {
-      if (ticket.status === 'VALID') {
-        finalStatuses.push({ id: ticket.id, finalStatus: 'VALID' });
-        continue;
-      }
-
-      const activeCpf = ticket.holderCpf || ticket.buyerCpf;
-      const signature = this.ticketCryptoService.generateSignature(ticket.id, activeCpf, ticket.batchId);
-      const newStatus = ticket.meiaEntrada ? 'PENDING_VALIDATION' : 'VALID';
-
-      await prisma.ticket.update({
-        where: { id: ticket.id },
-        data: {
-          status: newStatus as any,
-          hmacSignature: signature,
-          expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+      const lockedPayment = await tx.payment.findUnique({
+        where: { id: input.payment.id },
+        include: {
+          tickets: { include: { batch: { include: { event: true } }, buyer: true } },
+          order: true,
         },
       });
 
-      await recordTicketStatusHistory({
-        ticketId: ticket.id,
-        fromStatus: ticket.status,
-        toStatus: newStatus as any,
-        reason: 'PAYMENT_APPROVED',
-        actorId: ticket.buyerId,
-        requestId: input.requestId ?? undefined,
-        metadata: { paymentId: input.payment.id, providerPaymentId: input.providerResult.providerPaymentId, orderId: input.payment.orderId },
+      if (!lockedPayment) {
+        throw new BadRequestException('Pagamento não encontrado.');
+      }
+
+      if (lockedPayment.status === 'APPROVED') {
+        return {
+          alreadyApproved: true,
+          tickets: lockedPayment.tickets,
+        };
+      }
+
+      const issuedStatuses: Array<{ id: string; finalStatus: string }> = [];
+
+      for (const ticket of lockedPayment.tickets) {
+        if (ticket.status === 'VALID' || ticket.status === 'CONSUMED') {
+          continue;
+        }
+
+        const activeCpf = ticket.holderCpf || ticket.buyerCpf;
+        const signature = this.ticketCryptoService.generateSignature(ticket.id, activeCpf, ticket.batchId);
+        const newStatus = ticket.meiaEntrada ? 'PENDING_VALIDATION' : 'VALID';
+        const updated = await tx.ticket.updateMany({
+          where: {
+            id: ticket.id,
+            status: { in: ['PENDING_PAYMENT', 'PENDING_VALIDATION'] as any },
+          },
+          data: {
+            status: newStatus as any,
+            hmacSignature: signature,
+            expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+          },
+        });
+
+        if (updated.count !== 1) {
+          continue;
+        }
+
+        await (tx as any).ticketStatusHistory.create({
+          data: {
+            ticketId: ticket.id,
+            fromStatus: ticket.status,
+            toStatus: newStatus,
+            reason: 'PAYMENT_APPROVED',
+            actorId: ticket.buyerId,
+            requestId: input.requestId ?? null,
+            metadata: {
+              paymentId: lockedPayment.id,
+              providerPaymentId: input.providerResult.providerPaymentId,
+              orderId: lockedPayment.orderId,
+            },
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            actorId: ticket.buyerId,
+            actorRole: 'USER',
+            action: 'TICKET_STATUS_CHANGED',
+            entityType: 'Ticket',
+            entityId: ticket.id,
+            before: { status: ticket.status },
+            after: { status: newStatus },
+            metadata: {
+              paymentId: lockedPayment.id,
+              providerPaymentId: input.providerResult.providerPaymentId,
+              orderId: lockedPayment.orderId,
+            },
+            requestId: input.requestId ?? null,
+          },
+        });
+
+        issuedStatuses.push({ id: ticket.id, finalStatus: newStatus });
+      }
+
+      if (lockedPayment.orderId && lockedPayment.order?.status !== 'PAID') {
+        await (tx as any).order.update({
+          where: { id: lockedPayment.orderId },
+          data: { status: 'PAID' },
+        });
+      }
+
+      if (lockedPayment.order?.reservationId) {
+        await (tx as any).reservation.updateMany({
+          where: { id: lockedPayment.order.reservationId, status: { not: 'CONVERTED' } },
+          data: { status: 'CONVERTED' },
+        });
+      }
+
+      await tx.payment.update({
+        where: { id: lockedPayment.id },
+        data: {
+          status: 'APPROVED',
+          providerStatus: input.providerResult.providerStatus,
+          rawPayload: input.providerResult.rawPayload as any,
+          rawResponse: input.providerResult as any,
+          paidAt: new Date(),
+        },
       });
 
-      await this.auditService.record({
-        actorId: ticket.buyerId,
-        actorRole: 'USER',
-        action: 'TICKET_STATUS_CHANGED',
-        entityType: 'Ticket',
-        entityId: ticket.id,
-        before: { status: ticket.status },
-        after: { status: newStatus },
-        metadata: { paymentId: input.payment.id, providerPaymentId: input.providerResult.providerPaymentId, orderId: input.payment.orderId },
-        requestId: input.requestId,
+      await tx.auditLog.create({
+        data: {
+          actorRole: 'SYSTEM',
+          action: 'PAYMENT_STATUS_CHANGED',
+          entityType: 'Payment',
+          entityId: lockedPayment.id,
+          before: { status: lockedPayment.status },
+          after: { status: 'APPROVED' },
+          reason: 'PAYMENT_APPROVED',
+          requestId: input.requestId ?? null,
+          metadata: {
+            orderId: lockedPayment.orderId,
+            providerPaymentId: input.providerResult.providerPaymentId,
+          },
+        },
       });
 
-      await this.fluxEngine.releaseTicketLock(ticket.batchId, ticket.buyerId, ticket.id);
-      finalStatuses.push({ id: ticket.id, finalStatus: newStatus });
-    }
+      for (const ticket of lockedPayment.tickets) {
+        if (!issuedStatuses.some((status) => status.id === ticket.id)) {
+          continue;
+        }
 
-    await (prisma as any).order.update({ where: { id: input.payment.orderId }, data: { status: 'PAID' } });
-    const order = await (prisma as any).order.findUnique({ where: { id: input.payment.orderId } });
-    if (order?.reservationId) {
-      await (prisma as any).reservation.update({ where: { id: order.reservationId }, data: { status: 'CONVERTED' } }).catch(() => undefined);
-    }
-    await prisma.payment.update({
-      where: { id: input.payment.id },
-      data: { status: 'APPROVED', paidAt: new Date(), tickets: { connect: input.tickets.map((ticket) => ({ id: ticket.id })) } },
+        await tx.saleLog.create({
+          data: {
+            eventId: ticket.eventId || ticket.batch?.eventId,
+            ticketId: ticket.id,
+            batchId: ticket.batchId,
+            paymentId: lockedPayment.id,
+            buyerName: input.buyerName || ticket.buyer?.name || 'Unknown',
+            buyerEmail: input.buyerEmail || ticket.buyer?.email || '',
+            holderName: ticket.holderName || null,
+            batchName: ticket.batch?.name || '',
+            eventTitle: ticket.batch?.event?.title || '',
+            price: ticket.price,
+            channel: 'ONLINE',
+            method: lockedPayment.method,
+            status: (issuedStatuses.find((status) => status.id === ticket.id)?.finalStatus || 'VALID') as any,
+          },
+        }).catch(() => undefined);
+      }
+
+      if (issuedStatuses.length > 0) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        await tx.dailySalesSnapshot.upsert({
+          where: { eventId_date: { eventId: lockedPayment.eventId, date: today } },
+          create: { eventId: lockedPayment.eventId, date: today, revenue: Number(lockedPayment.amount), ticketsSold: issuedStatuses.length },
+          update: { revenue: { increment: Number(lockedPayment.amount) }, ticketsSold: { increment: issuedStatuses.length } },
+        }).catch(() => undefined);
+      }
+
+      return {
+        alreadyApproved: false,
+        tickets: lockedPayment.tickets,
+        issuedStatuses,
+      };
     });
 
-    await this.recordSales(input, finalStatuses);
-    await this.auditPaymentTransition(input.payment.id, input.payment.status, 'APPROVED', 'PAYMENT_APPROVED', {
-      orderId: input.payment.orderId,
-      providerPaymentId: input.providerResult.providerPaymentId,
-    });
+    if (!result.alreadyApproved) {
+      for (const ticket of result.tickets) {
+        if (result.issuedStatuses?.some((status) => status.id === ticket.id)) {
+          await this.fluxEngine.releaseTicketLock(ticket.batchId, ticket.buyerId, ticket.id);
+        }
+      }
+    }
 
     return {
       status: 'approved',
-      ticketId: input.tickets.map((ticket) => ticket.id).join(','),
-      isStudent: input.tickets.some((ticket) => ticket.meiaEntrada === true),
+      ticketId: result.tickets.map((ticket: any) => ticket.id).join(','),
+      isStudent: result.tickets.some((ticket: any) => ticket.meiaEntrada === true),
       paymentId: input.providerResult.providerPaymentId,
     };
   }
@@ -571,7 +684,7 @@ export class PaymentsService {
       return;
     }
 
-    const providerResult = await this.provider.getPaymentStatus(providerPaymentId);
+    const providerResult = await this.paymentProvider.getPaymentStatus(providerPaymentId);
     if (payment.status === providerResult.status) return;
 
     await this.applyPaymentStatus({

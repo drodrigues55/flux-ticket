@@ -6,7 +6,8 @@ import { createRedisConnection } from './redis';
 import { ACTIVE_QUEUE_NAMES, DEFAULT_JOB_OPTIONS, QUEUE_NAMES, QueueName } from './queue-registry';
 import { logger } from './logger';
 import { captureException } from './sentry';
-import { getPaymentProvider, InternalPaymentStatus } from './mock-payment-provider';
+import { InternalPaymentStatus } from './payment-provider';
+import { getPaymentProvider } from './payment-provider-registry';
 
 const connection = createRedisConnection();
 const FINAL_PAYMENT_STATUSES: InternalPaymentStatus[] = ['APPROVED', 'REJECTED', 'EXPIRED', 'CANCELLED', 'REFUNDED'];
@@ -59,56 +60,87 @@ async function enqueueWaitlistInvite(batchId: string, eventId: string, requestId
 }
 
 async function issueTicketsForPayment(payment: any, providerStatus: string, requestId?: string | null) {
-  for (const ticket of payment.tickets ?? []) {
-    if (ticket.status === 'VALID' || ticket.status === 'CONSUMED') continue;
-    const newStatus = ticket.meiaEntrada ? 'PENDING_VALIDATION' : 'VALID';
-    const signature = generateSignature(ticket.id, ticket.holderCpf || ticket.buyerCpf, ticket.batchId);
+  const result = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Payment" WHERE id = ${payment.id} FOR UPDATE`;
 
-    await prisma.ticket.update({
-      where: { id: ticket.id },
-      data: {
-        status: newStatus as any,
-        hmacSignature: signature,
-        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-      },
+    const lockedPayment = await tx.payment.findUnique({
+      where: { id: payment.id },
+      include: { tickets: true, order: true },
     });
 
-    await prisma.ticketStatusHistory.create({
+    if (!lockedPayment || lockedPayment.status === 'APPROVED') {
+      return { issuedTickets: [] as any[] };
+    }
+
+    const issuedTickets: any[] = [];
+    for (const ticket of lockedPayment.tickets ?? []) {
+      if (ticket.status === 'VALID' || ticket.status === 'CONSUMED') continue;
+      const newStatus = ticket.meiaEntrada ? 'PENDING_VALIDATION' : 'VALID';
+      const signature = generateSignature(ticket.id, ticket.holderCpf || ticket.buyerCpf, ticket.batchId);
+      const updated = await tx.ticket.updateMany({
+        where: {
+          id: ticket.id,
+          status: { in: ['PENDING_PAYMENT', 'PENDING_VALIDATION'] as any },
+        },
+        data: {
+          status: newStatus as any,
+          hmacSignature: signature,
+          expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+        },
+      });
+
+      if (updated.count !== 1) continue;
+
+      await tx.ticketStatusHistory.create({
+        data: {
+          ticketId: ticket.id,
+          fromStatus: ticket.status,
+          toStatus: newStatus as any,
+          reason: 'PAYMENT_APPROVED',
+          actorId: ticket.buyerId,
+          requestId: requestId ?? null,
+          metadata: { paymentId: lockedPayment.id, providerPaymentId: lockedPayment.providerPaymentId, providerStatus },
+        },
+      }).catch(() => undefined);
+
+      issuedTickets.push(ticket);
+    }
+
+    await tx.payment.update({
+      where: { id: lockedPayment.id },
+      data: { status: 'APPROVED', providerStatus, paidAt: new Date() },
+    });
+
+    if (lockedPayment.orderId && lockedPayment.order?.status !== 'PAID') {
+      await (tx as any).order.update({ where: { id: lockedPayment.orderId }, data: { status: 'PAID' } }).catch(() => undefined);
+    }
+    if (lockedPayment.order?.reservationId) {
+      await (tx as any).reservation.updateMany({
+        where: { id: lockedPayment.order.reservationId, status: { not: 'CONVERTED' } },
+        data: { status: 'CONVERTED' },
+      }).catch(() => undefined);
+    }
+
+    await tx.auditLog.create({
       data: {
-        ticketId: ticket.id,
-        fromStatus: ticket.status,
-        toStatus: newStatus as any,
-        reason: 'PAYMENT_RECOVERED_APPROVED',
-        actorId: ticket.buyerId,
+        actorRole: 'SYSTEM',
+        action: 'PAYMENT_STATUS_CHANGED',
+        entityType: 'Payment',
+        entityId: lockedPayment.id,
+        before: { status: lockedPayment.status },
+        after: { status: 'APPROVED' },
+        reason: 'PAYMENT_APPROVED',
         requestId: requestId ?? null,
-        metadata: { paymentId: payment.id, providerPaymentId: payment.providerPaymentId, providerStatus },
+        metadata: { providerPaymentId: lockedPayment.providerPaymentId },
       },
     }).catch(() => undefined);
 
+    return { issuedTickets };
+  });
+
+  for (const ticket of result.issuedTickets) {
     await connection.del(`lock:{${ticket.batchId}}:${ticket.buyerId}:${ticket.id}`);
   }
-
-  await prisma.payment.update({
-    where: { id: payment.id },
-    data: { status: 'APPROVED', providerStatus, paidAt: new Date() },
-  });
-  if (payment.orderId) {
-    await (prisma as any).order.update({ where: { id: payment.orderId }, data: { status: 'PAID' } }).catch(() => undefined);
-  }
-  if (payment.order?.reservationId) {
-    await (prisma as any).reservation.update({ where: { id: payment.order.reservationId }, data: { status: 'CONVERTED' } }).catch(() => undefined);
-  }
-
-  await auditTransition({
-    action: 'PAYMENT_STATUS_CHANGED',
-    entityType: 'Payment',
-    entityId: payment.id,
-    before: { status: payment.status },
-    after: { status: 'APPROVED' },
-    reason: 'PAYMENT_RECOVERED_APPROVED',
-    requestId,
-    metadata: { providerPaymentId: payment.providerPaymentId },
-  });
 }
 
 async function releaseTicketsForPayment(payment: any, status: InternalPaymentStatus, providerStatus: string, requestId?: string | null) {
