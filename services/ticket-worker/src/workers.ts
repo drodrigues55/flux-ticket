@@ -8,9 +8,11 @@ import { logger } from './logger';
 import { captureException } from './sentry';
 import { InternalPaymentStatus } from './payment-provider';
 import { getPaymentProvider } from './payment-provider-registry';
+import { BatchProgressionService } from './batch-progression';
 
 const connection = createRedisConnection();
 const FINAL_PAYMENT_STATUSES: InternalPaymentStatus[] = ['APPROVED', 'REJECTED', 'EXPIRED', 'CANCELLED', 'REFUNDED'];
+const batchProgressionService = new BatchProgressionService();
 
 function generateSignature(ticketId: string, version: number = 1): string {
   const payload = `${ticketId}:${version}`;
@@ -580,6 +582,11 @@ async function handleAnalyticsAggregate(job: Job) {
   logger.info({ queueName: QUEUE_NAMES.analyticsAggregate, jobId: job.id, requestId: job.data?.requestId }, 'analytics.aggregate job accepted');
 }
 
+async function handleBatchesProgressionCheck(job: Job) {
+  logger.info({ queueName: QUEUE_NAMES.batchesProgressionCheck, jobId: job.id }, 'batches.progressionCheck job accepted');
+  await batchProgressionService.processBatchTransitions();
+}
+
 async function processJob(queueName: QueueName, job: Job) {
   if (queueName === QUEUE_NAMES.paymentsWebhook) {
     return handlePaymentsWebhook(job);
@@ -615,6 +622,10 @@ async function processJob(queueName: QueueName, job: Job) {
 
   if (queueName === QUEUE_NAMES.analyticsAggregate) {
     return handleAnalyticsAggregate(job);
+  }
+
+  if (queueName === QUEUE_NAMES.batchesProgressionCheck) {
+    return handleBatchesProgressionCheck(job);
   }
 }
 

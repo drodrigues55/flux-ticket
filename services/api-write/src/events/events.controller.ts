@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Req, UseGuards, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Get, Put, Body, Param, Req, UseGuards, BadRequestException } from '@nestjs/common';
 import { EventsService } from './events.service';
 import { StaffGuard } from '../tickets/staff-guard';
 import { AuditService } from '../audit/audit.service';
@@ -11,13 +11,9 @@ export class EventsController {
     private readonly auditService: AuditService
   ) {}
 
-  /**
-   * Rota para criação de evento.
-   * Exige token JWT com role STAFF/ORGANIZER.
-   */
   @Post()
   async create(
-    @Body() body: { title: string; description?: string; date: string; location: string; categoryId?: number },
+    @Body() body: { title: string; slug?: string; description?: string; date: string; location: string; categoryId?: number },
     @Req() req: any
   ) {
     const { title, date, location } = body;
@@ -26,9 +22,7 @@ export class EventsController {
     }
 
     const organizerId = req.user.userId;
-    if (!organizerId) {
-      throw new BadRequestException('Identificação do organizador ausente no token.');
-    }
+    if (!organizerId) throw new BadRequestException('Identificação do organizador ausente no token.');
 
     const event = await this.eventsService.createEvent(body, organizerId);
     await this.auditService.record({
@@ -44,61 +38,65 @@ export class EventsController {
     return event;
   }
 
-  /**
-   * Rota para listagem de todos os eventos do organizador.
-   * Exige token JWT com role STAFF/ORGANIZER.
-   */
   @Get()
   async findAll(@Req() req: any) {
     const organizerId = req.user.userId;
-    if (!organizerId) {
-      throw new BadRequestException('Identificação do organizador ausente no token.');
-    }
-
+    if (!organizerId) throw new BadRequestException('Identificação do organizador ausente no token.');
     return this.eventsService.findAllEvents(organizerId);
   }
 
-  /**
-   * Rota para criação de lote de ingressos de um evento.
-   * Exige token JWT com role STAFF/ORGANIZER.
-   */
-  @Post(':eventId/batches')
-  async createBatch(
-    @Param('eventId') eventId: string,
-    @Body() body: { name: string; price: number; totalQuantity: number; sectorId?: number; sectorName?: string },
+  @Get(':id')
+  async findOne(@Param('id') id: string, @Req() req: any) {
+    return this.eventsService.getEvent(id, req.user.userId);
+  }
+
+  @Put(':id')
+  async update(
+    @Param('id') id: string,
+    @Body() body: { title?: string; slug?: string; description?: string; date?: string; location?: string; venue?: string; categoryId?: number; capacityTarget?: number },
     @Req() req: any
   ) {
-    const { name, price, totalQuantity, sectorId, sectorName } = body;
-    if (!name || price === undefined || totalQuantity === undefined) {
-      throw new BadRequestException('Os campos name, price e totalQuantity são obrigatórios.');
-    }
-    if (price < 0 || totalQuantity < 0) {
-      throw new BadRequestException('Preço e quantidade total devem ser maiores ou iguais a zero.');
-    }
-    const batch = await this.eventsService.createBatch(eventId, { name, price, totalQuantity, sectorId, sectorName });
+    const organizerId = req.user.userId;
+    const event = await this.eventsService.updateEvent(id, organizerId, body);
     await this.auditService.record({
-      actorId: req.user?.userId,
-      actorRole: req.user?.role,
-      action: 'BATCH_CREATED',
-      entityType: 'TicketBatch',
-      entityId: batch.id,
-      after: batch,
-      metadata: { eventId },
+      actorId: organizerId,
+      actorRole: req.user.role,
+      action: 'EVENT_UPDATED',
+      entityType: 'Event',
+      entityId: event.id,
+      after: event,
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
     });
-    return batch;
+    return event;
   }
 
-  /**
-   * Rota para listagem de todos os lotes de um determinado evento.
-   * Exige token JWT com role STAFF/ORGANIZER.
-   */
-  @Get(':eventId/batches')
-  async findAllBatches(@Param('eventId') eventId: string) {
-    if (!eventId) {
-      throw new BadRequestException('O parâmetro eventId é obrigatório.');
-    }
-    return this.eventsService.findAllBatches(eventId);
+  @Post(':id/publish')
+  async publish(@Param('id') id: string, @Req() req: any) {
+    const organizerId = req.user.userId;
+    const event = await this.eventsService.publishEvent(id, organizerId);
+    await this.auditService.record({
+      actorId: organizerId,
+      actorRole: req.user.role,
+      action: 'EVENT_PUBLISHED',
+      entityType: 'Event',
+      entityId: event.id,
+      after: event,
+    });
+    return event;
+  }
+
+  @Post(':id/archive')
+  async archive(@Param('id') id: string, @Req() req: any) {
+    const event = await this.eventsService.archiveEvent(id, req.user.userId);
+    await this.auditService.record({ actorId: req.user.userId, action: 'EVENT_ARCHIVED', entityType: 'Event', entityId: id });
+    return event;
+  }
+
+  @Post(':id/cancel')
+  async cancel(@Param('id') id: string, @Req() req: any) {
+    const event = await this.eventsService.cancelEvent(id, req.user.userId);
+    await this.auditService.record({ actorId: req.user.userId, action: 'EVENT_CANCELLED', entityType: 'Event', entityId: id });
+    return event;
   }
 }

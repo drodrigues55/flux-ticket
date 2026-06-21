@@ -1,100 +1,103 @@
-import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { prisma } from '@flux/database';
-import { FluxEngineService } from '../tickets/flux-engine.service';
+import { EventStatus } from '@prisma/client';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class EventsService {
   private readonly logger = new Logger(EventsService.name);
 
-  constructor(private readonly fluxEngine: FluxEngineService) {}
-
-  /**
-   * Cria um novo evento vinculando-o ao organizerId recebido do JWT.
-   */
   async createEvent(
-    data: { title: string; description?: string; date: string; location: string; categoryId?: number },
+    data: { title: string; slug?: string; description?: string; date: string; location: string; categoryId?: number },
     organizerId: string
   ) {
+    const slug = data.slug || `${data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${uuidv4().substring(0, 8)}`;
     return prisma.event.create({
       data: {
         title: data.title,
+        slug,
         description: data.description,
         date: new Date(data.date),
         location: data.location,
         categoryId: data.categoryId,
         organizerId: organizerId,
+        status: EventStatus.DRAFT,
       },
     });
   }
 
-  /**
-   * Lista todos os eventos pertencentes ao organizador autenticado.
-   */
+  async updateEvent(
+    id: string,
+    organizerId: string,
+    data: { title?: string; slug?: string; description?: string; date?: string; location?: string; venue?: string; categoryId?: number; capacityTarget?: number }
+  ) {
+    const event = await prisma.event.findUnique({ where: { id } });
+    if (!event || event.organizerId !== organizerId) {
+      throw new NotFoundException('Event not found');
+    }
+    return prisma.event.update({
+      where: { id },
+      data: {
+        title: data.title,
+        slug: data.slug,
+        description: data.description,
+        date: data.date ? new Date(data.date) : undefined,
+        location: data.location,
+        venue: data.venue,
+        categoryId: data.categoryId,
+        capacityTarget: data.capacityTarget,
+      },
+    });
+  }
+
   async findAllEvents(organizerId: string) {
     return prisma.event.findMany({
-      where: {
-        organizerId: organizerId,
-      },
-      orderBy: {
-        date: 'asc',
-      },
+      where: { organizerId },
+      orderBy: { date: 'asc' },
     });
   }
 
-  /**
-   * Cria um novo lote de ingressos de forma consistente.
-   * Inicializa o estoque no Redis e faz rollback no Postgres se falhar.
-   * Converte o preço de reais para centavos inteiros.
-   */
-  async createBatch(
-    eventId: string,
-    data: { name: string; price: number; totalQuantity: number; sectorId?: number; sectorName?: string }
-  ) {
-    // 2. Gravação relacional no PostgreSQL (salva em valor decimal normal)
-    const batch = await prisma.ticketBatch.create({
-      data: {
-        eventId: eventId,
-        name: data.name,
-        price: data.price,
-        totalQuantity: data.totalQuantity,
-        availableQuantity: data.totalQuantity,
-        sectorId: data.sectorId,
-        sectorName: data.sectorName || data.name,
-      },
+  async getEvent(id: string, organizerId: string) {
+    const event = await prisma.event.findUnique({
+      where: { id },
+      include: { ticketTypes: { include: { batches: true } } }
     });
-
-    // 3. Inicialização de estoque no cache Redis
-    try {
-      await this.fluxEngine.setBatchStock(batch.id, data.totalQuantity);
-      this.logger.log(`[BATCH SYNC] Estoque do lote ${batch.id} (${data.name}) de ${data.totalQuantity} vagas inicializado no Redis Cluster.`);
-      return batch;
-    } catch (error) {
-      this.logger.error(`[BATCH SYNC ERROR] Falha ao sincronizar lote ${batch.id} com o Redis. Executando compensação relacional...`, error);
-      
-      // Ação de compensação: Remove do PostgreSQL relacional
-      try {
-        await prisma.ticketBatch.delete({
-          where: { id: batch.id },
-        });
-      } catch (dbError) {
-        this.logger.error(`[COMPENSATION FATAL] Falha ao remover lote órfão ${batch.id} do banco relacional!`, dbError);
-      }
-
-      throw new InternalServerErrorException('Falha crítica de comunicação com o cluster de cache. O lote não pôde ser criado.');
+    if (!event || event.organizerId !== organizerId) {
+      throw new NotFoundException('Event not found');
     }
+    return event;
   }
 
-  /**
-   * Lista todos os lotes cadastrados para um determinado evento.
-   */
-  async findAllBatches(eventId: string) {
-    return prisma.ticketBatch.findMany({
-      where: {
-        eventId: eventId,
-      },
-      orderBy: {
-        createdAt: 'asc',
-      },
+  async publishEvent(id: string, organizerId: string) {
+    const event = await prisma.event.findUnique({ where: { id } });
+    if (!event || event.organizerId !== organizerId) throw new NotFoundException('Event not found');
+    if (event.status !== EventStatus.DRAFT) throw new BadRequestException('Only DRAFT events can be published');
+
+    return prisma.event.update({
+      where: { id },
+      data: { status: EventStatus.PUBLISHED },
+    });
+  }
+
+  async archiveEvent(id: string, organizerId: string) {
+    const event = await prisma.event.findUnique({ where: { id } });
+    if (!event || event.organizerId !== organizerId) throw new NotFoundException('Event not found');
+    if (event.status === EventStatus.CANCELLED) throw new BadRequestException('Cannot archive a cancelled event');
+
+    return prisma.event.update({
+      where: { id },
+      data: { status: EventStatus.ARCHIVED },
+    });
+  }
+
+  async cancelEvent(id: string, organizerId: string) {
+    const event = await prisma.event.findUnique({ where: { id } });
+    if (!event || event.organizerId !== organizerId) throw new NotFoundException('Event not found');
+    
+    // In a real system, we'd also trigger refunds here.
+    return prisma.event.update({
+      where: { id },
+      data: { status: EventStatus.CANCELLED },
     });
   }
 }

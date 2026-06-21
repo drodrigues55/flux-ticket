@@ -30,7 +30,7 @@ export type TicketStatus =
   | 'REVOKED'
   | 'CONSUMED';
 
-export type EventStatus = 'DRAFT' | 'PUBLISHED' | 'CANCELLED' | 'ENDED';
+export type EventStatus = 'DRAFT' | 'PUBLISHED' | 'SALES_OPEN' | 'LIVE' | 'FINISHED' | 'ARCHIVED' | 'CANCELLED';
 
 export type SalesChannel = 'ONLINE' | 'POS' | 'COMPLIMENTARY';
 
@@ -85,10 +85,24 @@ export interface BatchInfo {
   isActive: boolean;
 }
 
+export interface TicketTypeInfo {
+  id: string;
+  name: string;
+  description: string | null;
+  capacity: number;
+  visibility: boolean;
+  transferable: boolean;
+  refundable: boolean;
+  purchaseLimit: number;
+  isActive: boolean;
+  batches: BatchInfo[];
+}
+
 /** Lightweight event summary for lists and dropdowns. */
 export interface EventSummary {
   id: string;
   title: string;
+  slug: string | null;
   date: string;            // ISO 8601 string
   location: string;        // full address
   venue: string | null;    // display name
@@ -104,6 +118,7 @@ export interface EventDetail extends EventSummary {
   tags: string[];
   capacityTarget: number | null;
   batches: BatchInfo[];
+  ticketTypes: TicketTypeInfo[];
   // Aggregated fields computed server-side
   totalCapacity: number;
   totalSold: number;

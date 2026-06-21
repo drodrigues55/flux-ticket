@@ -47,6 +47,10 @@
     "picomatch": "4.0.4",
     "qs": "6.15.2",
     "tmp": "0.2.7",
-    "webpack": "5.107.2"
+    "webpack": "5.107.2",
+    "postcss": "^8.5.15",
+    "next": {
+      "postcss": "$postcss"
+    }
   }
 }

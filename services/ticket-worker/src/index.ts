@@ -1,4 +1,4 @@
-import { closeQueues, ACTIVE_QUEUE_NAMES, SCAFFOLD_QUEUE_NAMES } from './queue-registry';
+import { closeQueues, ACTIVE_QUEUE_NAMES, SCAFFOLD_QUEUE_NAMES, queues, QUEUE_NAMES } from './queue-registry';
 import { processOutbox } from './outbox-publisher';
 import { closeWorkers, workers } from './workers';
 import { logger } from './logger';
@@ -32,6 +32,13 @@ async function bootstrap() {
     scaffoldQueues: SCAFFOLD_QUEUE_NAMES,
     workerCount: workers.length,
   }, 'ticket-worker started');
+
+  if (process.env.WORKER_RUN_ONCE !== 'true') {
+    await queues[QUEUE_NAMES.batchesProgressionCheck].add('batches.progressionCheck', {}, {
+      repeat: { every: 60000 },
+      jobId: 'batches-progression-check-cron',
+    });
+  }
 
   if (process.env.WORKER_RUN_ONCE === 'true') {
     await processOutbox();

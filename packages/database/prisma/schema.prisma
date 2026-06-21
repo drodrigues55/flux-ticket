@@ -25,8 +25,26 @@ enum TicketStatus {
 enum EventStatus {
   DRAFT
   PUBLISHED
+  SALES_OPEN
+  LIVE
+  FINISHED
+  ARCHIVED
   CANCELLED
-  ENDED
+}
+
+enum TicketBatchStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+  PAUSED
+}
+
+enum BatchProgressionRule {
+  QUANTITY_SOLD
+  DATE_REACHED
+  QUANTITY_OR_DATE
+  QUANTITY_AND_DATE
+  MANUAL
 }
 
 enum SalesChannel {
@@ -126,6 +144,7 @@ model User {
 
 model Event {
   id             String      @id @default(uuid())
+  slug           String?
   title          String
   description    String?
   date           DateTime
@@ -141,6 +160,7 @@ model Event {
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
+  ticketTypes TicketType[]
   batches   TicketBatch[]
   tickets   Ticket[]
   payments  Payment[]
@@ -154,14 +174,40 @@ model Event {
   payouts   Payout[]
 
   @@index([organizerId])
+  @@unique([organizerId, slug])
   @@index([date])
   @@index([status])
+}
+
+model TicketType {
+  id            String        @id @default(uuid())
+  eventId       String
+  event         Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name          String
+  description   String?
+  sectorId      Int?
+  sectorName    String?
+  capacity      Int
+  visibility    Boolean       @default(true)
+  transferable  Boolean       @default(true)
+  refundable    Boolean       @default(true)
+  purchaseLimit Int           @default(5)
+  isActive      Boolean       @default(true)
+  archivedAt    DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  batches       TicketBatch[]
+
+  @@index([eventId])
 }
 
 model TicketBatch {
   id                String   @id @default(uuid())
   eventId           String
   event             Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  ticketTypeId      String?
+  ticketType        TicketType? @relation(fields: [ticketTypeId], references: [id], onDelete: Cascade)
   name              String
   price             Decimal
   totalQuantity     Int
@@ -170,6 +216,15 @@ model TicketBatch {
   sectorName        String?
   meiaEntrada       Boolean  @default(false)
   isActive          Boolean  @default(true)
+  
+  salesStart        DateTime?
+  salesEnd          DateTime?
+  purchaseLimit     Int?
+  status            TicketBatchStatus @default(PENDING)
+  progressionRule   BatchProgressionRule @default(QUANTITY_OR_DATE)
+  displayOrder      Int      @default(0)
+  archivedAt        DateTime?
+
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -179,6 +234,9 @@ model TicketBatch {
   waitlistEntries WaitlistEntry[]
 
   @@index([eventId])
+  @@index([ticketTypeId])
+  @@index([status])
+  @@index([displayOrder])
   @@index([eventId, isActive])
 }
 

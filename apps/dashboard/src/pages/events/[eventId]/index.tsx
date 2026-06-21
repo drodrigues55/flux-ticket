@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import Layout from '../../../components/Layout';
+import EventLayout from '../../../components/EventLayout';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, Button } from '@flux/ui';
 import Link from 'next/link';
 
@@ -69,7 +69,7 @@ export default function EventDetailsPage() {
 
   if (loading) {
     return (
-      <Layout>
+      <EventLayout eventId={eventId as string} eventName="Carregando...">
         <div className="p-12 text-center text-neutral-550 flex flex-col items-center space-y-3 bg-[#FAFAFA]">
           <svg className="animate-spin h-8 w-8 text-[#FF3200]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -77,13 +77,13 @@ export default function EventDetailsPage() {
           </svg>
           <span className="text-sm">Carregando detalhes do evento...</span>
         </div>
-      </Layout>
+      </EventLayout>
     );
   }
 
   if (error || !event) {
     return (
-      <Layout>
+      <EventLayout eventId={eventId as string} eventName="Erro">
         <div className="space-y-6 max-w-2xl mx-auto bg-[#FAFAFA]">
           <div className="bg-red-50 border border-red-200 text-red-500 text-sm p-4 rounded-lg">
             {error || 'Evento não encontrado.'}
@@ -92,117 +92,60 @@ export default function EventDetailsPage() {
             <Button className="border border-[#DCDCDC] text-neutral-700 bg-white hover:bg-neutral-50 px-5 py-2 rounded-full text-xs font-bold transition-all cursor-pointer">Voltar para Eventos</Button>
           </Link>
         </div>
-      </Layout>
+      </EventLayout>
     );
   }
 
   return (
-    <Layout>
-      <div className="space-y-8 bg-[#FAFAFA]">
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <div className="flex items-center gap-2 text-xs text-neutral-550 font-bold uppercase tracking-wider mb-2">
-              <Link href="/events" className="hover:text-[#FF3200] transition-colors">Eventos</Link>
-              <span>/</span>
-              <span className="text-[#FF3200]">Detalhes</span>
-            </div>
-            <h1 className="text-3xl font-black text-neutral-900 tracking-tight">{event.title}</h1>
-            <p className="text-sm text-neutral-500 mt-1">
-              {event.location} &bull; {new Date(event.date).toLocaleDateString('pt-BR', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </p>
-          </div>
+      <EventLayout eventId={event.id} eventName={event.title}>
+        <div className="space-y-8 bg-[#FAFAFA] mt-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Card className="border-[#EAEAEA] bg-white rounded-xl shadow-sm p-6 col-span-2">
+              <h2 className="text-neutral-500 text-xs uppercase tracking-wider font-bold mb-4">Detalhes do Evento</h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs text-neutral-450 uppercase font-bold tracking-wider">Localização</label>
+                  <p className="text-neutral-900 font-medium text-sm mt-1">{event.location}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-neutral-450 uppercase font-bold tracking-wider">Data</label>
+                  <p className="text-neutral-900 font-medium text-sm mt-1">
+                    {new Date(event.date).toLocaleDateString('pt-BR', {
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </p>
+                </div>
+                {event.description && (
+                  <div>
+                    <label className="text-xs text-neutral-450 uppercase font-bold tracking-wider">Descrição</label>
+                    <p className="text-neutral-700 whitespace-pre-wrap leading-relaxed text-sm mt-1">{event.description}</p>
+                  </div>
+                )}
+              </div>
+            </Card>
 
-          <div className="flex gap-3">
-            <Link href="/events" legacyBehavior>
-              <button className="bg-transparent hover:bg-neutral-105 text-neutral-500 font-bold px-6 py-2.5 rounded-full border-none transition-colors cursor-pointer text-xs">Voltar</button>
-            </Link>
-            <Link href={`/events/${event.id}/batches/new`} legacyBehavior>
-              <button className="bg-[#FF3200] hover:bg-[#E62D00] text-white font-bold py-2.5 px-6 rounded-full border-none transition-all cursor-pointer shadow-sm text-xs">Criar Novo Lote</button>
-            </Link>
-          </div>
-        </div>
-
-        {/* Event Meta Card */}
-        {event.description && (
-          <Card className="border-[#EAEAEA] bg-white rounded-xl shadow-sm">
-            <CardHeader className="border-b border-[#EAEAEA]">
-              <CardTitle className="text-xs text-neutral-500 uppercase tracking-wider font-bold">Descrição do Evento</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <p className="text-sm text-neutral-700 whitespace-pre-wrap leading-relaxed">{event.description}</p>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Batches Table Card */}
-        <Card className="border-[#EAEAEA] bg-white rounded-xl shadow-sm overflow-hidden">
-          <CardHeader className="border-b border-[#EAEAEA]">
-            <CardTitle className="text-neutral-900 font-bold text-lg">Lotes de Ingressos</CardTitle>
-            <CardDescription className="text-neutral-500 text-sm">Gerencie as faixas de preço e quantidades de ingressos para este evento.</CardDescription>
-          </CardHeader>
-          <CardContent className="p-0">
-            {batches.length === 0 ? (
-              <div className="p-12 text-center text-neutral-500 space-y-4">
-                <p>Nenhum lote cadastrado para este evento.</p>
-                <Link href={`/events/${event.id}/batches/new`} legacyBehavior>
-                  <Button className="border border-[#DCDCDC] text-neutral-700 bg-white hover:bg-neutral-50 px-5 py-2 rounded-full text-xs font-bold transition-all cursor-pointer">Criar Primeiro Lote</Button>
+            <Card className="border-[#EAEAEA] bg-white rounded-xl shadow-sm p-6">
+              <h2 className="text-neutral-500 text-xs uppercase tracking-wider font-bold mb-4">Ações Rápidas</h2>
+              <div className="flex flex-col gap-3">
+                <Link href={`/events/${event.id}/ticket-types`} legacyBehavior>
+                  <Button className="w-full bg-[#FF3200] hover:bg-[#E62D00] text-white font-bold py-2 rounded-lg border-none transition-all cursor-pointer shadow-sm text-sm">
+                    Gerenciar Tipos de Ingresso
+                  </Button>
+                </Link>
+                <Link href={`/events/${event.id}/edit`} legacyBehavior>
+                  <Button className="w-full border border-[#DCDCDC] text-neutral-700 bg-white hover:bg-neutral-50 py-2 rounded-lg font-bold transition-all cursor-pointer text-sm">
+                    Editar Informações
+                  </Button>
                 </Link>
               </div>
-            ) : (
-              <div className="overflow-x-auto border-none">
-                <table className="w-full text-left border-collapse bg-white">
-                  <thead>
-                    <tr className="border-b border-[#EAEAEA] text-xs font-bold uppercase tracking-wider text-neutral-500 bg-neutral-50/50">
-                      <th className="px-6 py-4">Nome do Lote</th>
-                      <th className="px-6 py-4">Preço</th>
-                      <th className="px-6 py-4">Ingressos Vendidos / Total</th>
-                      <th className="px-6 py-4">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#EAEAEA] font-medium text-sm text-neutral-700">
-                    {batches.map((batch) => {
-                      const sold = batch.totalQuantity - batch.availableQuantity;
-                      const isSoldOut = batch.availableQuantity === 0;
-
-                      return (
-                        <tr key={batch.id} className="hover:bg-neutral-50/50 transition-all duration-150">
-                          <td className="px-6 py-4">
-                            <div className="text-neutral-900 font-bold text-base">{batch.name}</div>
-                          </td>
-                          <td className="px-6 py-4 text-[#FF3200] font-mono font-bold text-base">
-                            {formatReais(batch.price)}
-                          </td>
-                          <td className="px-6 py-4 text-neutral-600 font-mono">
-                            {sold} / {batch.totalQuantity}
-                          </td>
-                          <td className="px-6 py-4">
-                            {isSoldOut ? (
-                              <span className="bg-red-50 border border-red-200 text-red-500 text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider">
-                                Esgotado
-                              </span>
-                            ) : (
-                              <span className="bg-[#FF3200]/10 border border-[#FF3200]/30 text-[#FF3200] text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider">
-                                Ativo
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    </Layout>
+            </Card>
+          </div>
+        </div>
+      </EventLayout>
   );
 }

@@ -14,6 +14,7 @@ export const QUEUE_NAMES = {
   ticketsEmail: 'tickets.email',
   walletGenerate: 'wallet.generate',
   refundsProcess: 'refunds.process',
+  batchesProgressionCheck: 'batches.progressionCheck',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
@@ -28,6 +29,7 @@ export const ACTIVE_QUEUE_NAMES: QueueName[] = [
   QUEUE_NAMES.notificationsPlaceholder,
   QUEUE_NAMES.checkinsSync,
   QUEUE_NAMES.analyticsAggregate,
+  QUEUE_NAMES.batchesProgressionCheck,
 ];
 
 export const SCAFFOLD_QUEUE_NAMES: QueueName[] = [
@@ -112,6 +114,10 @@ export function resolveQueueForOutbox(type: string, payload: any): QueueName | n
 
   if (type === 'TICKET_RESERVED' && payload?.isHalfPrice === true) {
     return QUEUE_NAMES.halfPriceValidateDeadline;
+  }
+
+  if (type === QUEUE_NAMES.batchesProgressionCheck || type === 'BATCHES_PROGRESSION_CHECK') {
+    return QUEUE_NAMES.batchesProgressionCheck;
   }
 
   return null;

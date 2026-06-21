@@ -304,10 +304,11 @@ export class CheckoutController {
     @Body() body: { 
       eventId: string; 
       batchId?: string; 
+      ticketTypeId?: string;
       price?: number; 
       isHalfPrice?: boolean; 
       quantity?: number;
-      items?: Array<{ batchId: string; price: number; isHalfPrice?: boolean; quantity: number }>
+      items?: Array<{ batchId?: string; ticketTypeId?: string; price?: number; isHalfPrice?: boolean; quantity: number }>
     },
     @Req() req: any
   ) {
@@ -318,25 +319,47 @@ export class CheckoutController {
     }
     
     // Normaliza para uma lista uniforme de itens a serem reservados
-    let reservationItems: Array<{ batchId: string; price: number; isHalfPrice: boolean; quantity: number }> = [];
+    let reservationItems: Array<{ batchId?: string; ticketTypeId?: string; price?: number; isHalfPrice: boolean; quantity: number }> = [];
     
     if (body.items && Array.isArray(body.items)) {
       reservationItems = body.items.map(item => ({
         batchId: item.batchId,
-        price: Number(item.price),
+        ticketTypeId: item.ticketTypeId,
+        price: item.price !== undefined ? Number(item.price) : undefined,
         isHalfPrice: !!item.isHalfPrice,
         quantity: Number(item.quantity) || 1
       }));
     } else {
-      if (!body.batchId || body.price === undefined) {
-        throw new BadRequestException('batchId e price são obrigatórios se items não for fornecido.');
+      if (!body.batchId && !body.ticketTypeId) {
+        throw new BadRequestException('batchId ou ticketTypeId é obrigatório se items não for fornecido.');
       }
       reservationItems = [{
         batchId: body.batchId,
-        price: Number(body.price),
+        ticketTypeId: body.ticketTypeId,
+        price: body.price !== undefined ? Number(body.price) : undefined,
         isHalfPrice: !!body.isHalfPrice,
         quantity: Number(body.quantity) || 1
       }];
+    }
+
+    // Resolve active batches for ticket types
+    for (const item of reservationItems) {
+      if (item.ticketTypeId && !item.batchId) {
+        const activeBatch = await prisma.ticketBatch.findFirst({
+          where: { ticketTypeId: item.ticketTypeId, status: 'ACTIVE', archivedAt: null },
+          orderBy: { displayOrder: 'asc' }
+        });
+        if (!activeBatch) {
+          throw new BadRequestException(`Nenhum lote ativo encontrado para o tipo de ingresso ${item.ticketTypeId}`);
+        }
+        item.batchId = activeBatch.id;
+        if (item.price === undefined) {
+          item.price = Number(activeBatch.price);
+        }
+      }
+      if (!item.batchId || item.price === undefined) {
+        throw new BadRequestException('Não foi possível resolver o lote ou preço do item.');
+      }
     }
     
     // 1. Garantir que exista um usuário guest no banco de dados para a reserva
@@ -388,24 +411,24 @@ export class CheckoutController {
       const reservationItem = await (prisma as any).reservationItem.create({
         data: {
           reservationId: reservation.id,
-          batchId: item.batchId,
+          batchId: item.batchId!,
           quantity: item.quantity,
-          unitPrice: item.price,
+          unitPrice: item.price!,
         },
       });
-      reservationItemsByBatchId.set(item.batchId, reservationItem);
+      reservationItemsByBatchId.set(item.batchId!, reservationItem);
     }
     
     try {
       for (const item of reservationItems) {
-        const reservationItem = reservationItemsByBatchId.get(item.batchId);
+        const reservationItem = reservationItemsByBatchId.get(item.batchId!);
         for (let i = 0; i < item.quantity; i++) {
           const ticket = await this.checkoutService.checkout({
             userId: user.id,
             eventId,
-            batchId: item.batchId,
+            batchId: item.batchId!,
             buyerCpf: '000.000.000-00', // Placeholder temporário a ser atualizado no pagamento
-            price: item.price,
+            price: item.price!,
             isHalfPrice: item.isHalfPrice,
             reservationId: reservation.id,
             reservationItemId: reservationItem?.id,

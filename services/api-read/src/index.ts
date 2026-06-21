@@ -195,16 +195,29 @@ app.get('/events', async (req, res) => {
 
     const events = await prisma.event.findMany({
       where,
-      include: { batches: true },
+      include: { ticketTypes: { include: { batches: true } } },
       orderBy: { date: 'asc' },
     });
 
     const result: EventDetail[] = events.map((event) => {
-      const batches = event.batches.map(toBatchInfo);
-      const agg = computeEventAggregates(batches);
+      const ticketTypes = event.ticketTypes.map(tt => ({
+        id: tt.id,
+        name: tt.name,
+        description: tt.description,
+        capacity: tt.capacity,
+        visibility: tt.visibility,
+        transferable: tt.transferable,
+        refundable: tt.refundable,
+        purchaseLimit: tt.purchaseLimit,
+        isActive: tt.isActive,
+        batches: tt.batches.map(toBatchInfo),
+      }));
+      const allBatches = ticketTypes.flatMap(tt => tt.batches);
+      const agg = computeEventAggregates(allBatches);
       return {
         id: event.id,
         title: event.title,
+        slug: event.slug ?? null,
         description: event.description ?? null,
         date: event.date.toISOString(),
         location: event.location,
@@ -215,7 +228,8 @@ app.get('/events', async (req, res) => {
         categoryId: event.categoryId ?? null,
         tags: event.tags ?? [],
         capacityTarget: event.capacityTarget ?? null,
-        batches,
+        batches: allBatches,
+        ticketTypes,
         ...agg,
         grossRevenue: 0, // not computed in public catalog; available in dashboard API
       };
@@ -241,7 +255,7 @@ app.get('/events/:id', async (req, res) => {
   try {
     const event = await prisma.event.findUnique({
       where: { id: req.params.id },
-      include: { batches: true },
+      include: { ticketTypes: { include: { batches: true } } },
     });
 
     if (!event) {
@@ -253,12 +267,25 @@ app.get('/events/:id', async (req, res) => {
       }));
     }
 
-    const batches = event.batches.map(toBatchInfo);
-    const agg = computeEventAggregates(batches);
+    const ticketTypes = event.ticketTypes.map(tt => ({
+      id: tt.id,
+      name: tt.name,
+      description: tt.description,
+      capacity: tt.capacity,
+      visibility: tt.visibility,
+      transferable: tt.transferable,
+      refundable: tt.refundable,
+      purchaseLimit: tt.purchaseLimit,
+      isActive: tt.isActive,
+      batches: tt.batches.map(toBatchInfo),
+    }));
+    const allBatches = ticketTypes.flatMap(tt => tt.batches);
+    const agg = computeEventAggregates(allBatches);
 
     const result: EventDetail = {
       id: event.id,
       title: event.title,
+      slug: event.slug ?? null,
       description: event.description ?? null,
       date: event.date.toISOString(),
       location: event.location,
@@ -269,7 +296,8 @@ app.get('/events/:id', async (req, res) => {
       categoryId: event.categoryId ?? null,
       tags: event.tags ?? [],
       capacityTarget: event.capacityTarget ?? null,
-      batches,
+      batches: allBatches,
+      ticketTypes,
       ...agg,
       grossRevenue: 0,
     };
