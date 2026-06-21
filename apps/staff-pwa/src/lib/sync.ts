@@ -12,8 +12,16 @@ export async function syncOfflineMutations(eventId: string): Promise<{ success: 
       .toArray();
 
     const ticketIds = pending.map(record => record.ticket_id);
+    const checkins = pending.map(record => ({
+      ticketId: record.ticket_id,
+      offlineId: (record as any).offlineId || `offline-${record.ticket_id}-${record.timestamp}`,
+      scannedAt: new Date(record.timestamp).toISOString(),
+      hmacSignature: (record as any).hmacSignature,
+      sectorId: (record as any).sectorId ?? null,
+      version: (record as any).version ?? 1,
+    }));
     const allowedSectorIds = getAllowedSectorIds();
-    console.log(`[SYNC] Tentando sincronizar ${ticketIds.length} check-ins para o evento ${eventId}...`);
+    console.log(`[SYNC] Tentando sincronizar ${checkins.length} check-ins para o evento ${eventId}...`);
 
     // Obter ou gerar identificador do dispositivo no localStorage
     let deviceId = '';
@@ -39,6 +47,7 @@ export async function syncOfflineMutations(eventId: string): Promise<{ success: 
       },
       body: JSON.stringify({
         ticketIds,
+        checkins,
         deviceId,
         deviceName,
         pendingCount: pending.length,

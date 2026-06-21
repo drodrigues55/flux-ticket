@@ -11,8 +11,45 @@ import { captureException, initSentry } from './sentry';
 async function bootstrap() {
   validateRuntimeEnv();
   initSentry('api-write');
+
+  // Production Security check
+  const isProd = process.env.APP_ENV === 'production' || process.env.NODE_ENV === 'production';
+  if (isProd) {
+    const jwtSecret = process.env.JWT_SECRET;
+    const hmacSecret = process.env.HMAC_SECRET || process.env.HMAC_SECRET_KEY;
+
+    if (!jwtSecret || jwtSecret.length < 32 || jwtSecret.includes('replace-with')) {
+      throw new Error('FATAL: JWT_SECRET must be set in production, have at least 32 characters, and not be default placeholder.');
+    }
+    if (!hmacSecret || hmacSecret.length < 32 || hmacSecret.includes('replace-with')) {
+      throw new Error('FATAL: HMAC_SECRET must be set in production, have at least 32 characters, and not be default placeholder.');
+    }
+  }
+
   const app = await NestFactory.create(AppModule, new ExpressAdapter(), { rawBody: true, logger: false });
-  app.enableCors();
+
+  // CORS Hardening
+  if (isProd) {
+    app.enableCors({
+      origin: process.env.CORS_ALLOWED_ORIGINS ? process.env.CORS_ALLOWED_ORIGINS.split(',') : ['https://fluxtickets.com', 'https://staff.fluxtickets.com'],
+      methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+      preflightContinue: false,
+      optionsSuccessStatus: 204,
+    });
+  } else {
+    app.enableCors({ origin: '*' });
+  }
+
+  // Security Headers Middleware (Helmet Equivalent)
+  app.use((req: any, res: any, next: any) => {
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Strict-Transport-Security', 'max-age=15768000; includeSubDomains');
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'");
+    next();
+  });
+
   app.use(requestIdMiddleware);
 
   const httpAdapter = app.get(HttpAdapterHost);

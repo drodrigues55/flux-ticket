@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Flux Project Monorepo",
   "private": true,
+  "packageManager": "npm@11.17.0",
   "workspaces": [
     "apps/*",
     "packages/*",
@@ -13,7 +14,13 @@
     "dev": "concurrently --kill-others -p \"[{name}]\" -n \"PWA,DASH,READ,WRITE,CLIENT,WORK\" -c \"cyan,magenta,yellow,green,blue,red\" \"npm run dev -w @flux/staff-pwa\" \"npm run dev -w @flux/dashboard\" \"npm run dev -w @flux/api-read\" \"npm run dev -w @flux/api-write\" \"npm run dev -w @flux/client\" \"npm run dev -w @flux/ticket-worker\"",
     "lint": "turbo run lint",
     "test": "turbo run test",
-    "smoke:observability": "tsx scripts/smoke-observability-compat.ts"
+    "prisma:validate": "prisma validate --schema=packages/database/prisma/schema.prisma",
+    "prisma:generate": "prisma generate --schema=packages/database/prisma/schema.prisma",
+    "prisma:migrate:deploy": "prisma migrate deploy --schema=packages/database/prisma/schema.prisma",
+    "smoke:observability": "tsx scripts/smoke-observability-compat.ts",
+    "smoke:phase6a": "npx ts-node --project services/api-write/tsconfig.json scripts/test-critical-flows.ts",
+    "smoke:phase6b": "npx ts-node --project services/api-write/tsconfig.json scripts/test-phase6b-flows.ts",
+    "smoke:production": "npx ts-node --project services/api-write/tsconfig.json scripts/smoke-production.ts"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.23",

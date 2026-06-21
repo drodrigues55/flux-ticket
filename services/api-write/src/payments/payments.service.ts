@@ -280,7 +280,7 @@ export class PaymentsService {
         buyerId: input.order.buyerId,
         orderId: input.order.id,
         method: input.paymentMethod,
-        status: input.status as any,
+        status: 'PENDING',
         amount: input.amount,
         installments: input.installments,
         provider: input.providerResult.provider,
@@ -342,7 +342,6 @@ export class PaymentsService {
           order: true,
         },
       });
-
       if (!lockedPayment) {
         throw new BadRequestException('Pagamento não encontrado.');
       }

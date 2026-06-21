@@ -4,6 +4,7 @@ import { AuditService } from '../audit/audit.service';
 import { logger } from '../logger';
 import { recordTicketStatusHistory } from './ticket-status-history';
 import { FluxEngineService } from './flux-engine.service';
+import { TicketCryptoService } from './ticket-crypto.service';
 
 type IncomingCheckin = {
   ticketId?: string;
@@ -34,13 +35,15 @@ type CheckinDecision = {
   status: 'ACCEPTED' | 'DUPLICATE' | 'CONFLICT' | 'REJECTED';
   reason?: string;
   checkinId?: string;
+  isDuplicateSync?: boolean;
 };
 
 @Injectable()
 export class StaffPlatformService {
   constructor(
     private readonly auditService: AuditService,
-    private readonly fluxEngine: FluxEngineService
+    private readonly fluxEngine: FluxEngineService,
+    private readonly ticketCryptoService: TicketCryptoService
   ) {}
 
   async syncCheckins(input: SyncInput) {
@@ -83,8 +86,8 @@ export class StaffPlatformService {
       }));
     }
 
-    const accepted = results.filter((result) => result.status === 'ACCEPTED').length;
-    const duplicates = results.filter((result) => result.status === 'DUPLICATE').length;
+    const accepted = results.filter((result) => result.status === 'ACCEPTED' && !result.isDuplicateSync).length;
+    const duplicates = results.filter((result) => result.status === 'DUPLICATE' || (result.status === 'ACCEPTED' && result.isDuplicateSync)).length;
     const conflicts = results.filter((result) => result.status === 'CONFLICT').length;
     const rejected = results.filter((result) => result.status === 'REJECTED').length;
 
@@ -184,7 +187,24 @@ export class StaffPlatformService {
           status: existingOffline.status,
           reason: existingOffline.conflictReason ?? undefined,
           checkinId: existingOffline.id,
+          isDuplicateSync: true,
         };
+      }
+    }
+
+    const version = (checkin as any).version ?? 1;
+    const rawPayload = {
+      checkin,
+      deviceId,
+      deviceName,
+      allowedSectorIds,
+    };
+
+    if (ticketId && checkin.hmacSignature) {
+      const isSignatureValid = this.ticketCryptoService.verifySignature(ticketId, version, checkin.hmacSignature);
+      if (!isSignatureValid) {
+        await this.auditRejected(eventId, ticketId, 'SIGNATURE_MISMATCH', request, rawPayload);
+        return { ticketId, status: 'CONFLICT', reason: 'SIGNATURE_MISMATCH' };
       }
     }
 
@@ -196,12 +216,6 @@ export class StaffPlatformService {
       : null;
 
     const sectorId = ticket?.batch?.sectorId ?? checkin.sectorId ?? null;
-    const rawPayload = {
-      checkin,
-      deviceId,
-      deviceName,
-      allowedSectorIds,
-    };
 
     if (!ticketId || !ticket) {
       await this.auditRejected(eventId, ticketId, 'TICKET_NOT_FOUND', request, rawPayload);

@@ -46,3 +46,10 @@ Bem-vindo à documentação oficial da plataforma **Flux Tickets**. Esta pasta c
 - [Observabilidade](file:///c:/Users/DRODRIGUES/Documents/flux-ticket/docs/06-devops/observability.md)
 - [Configurações de Ambientes](file:///c:/Users/DRODRIGUES/Documents/flux-ticket/docs/06-devops/environments.md)
 - [Recuperação de Desastres](file:///c:/Users/DRODRIGUES/Documents/flux-ticket/docs/06-devops/disaster-recovery.md)
+
+### 📂 10-decisions/ (Decisões Arquiteturais)
+- [Registro de Decisões Arquiteturais (ADRs)](file:///c:/Users/DRODRIGUES/Documents/flux-ticket/docs/10-decisions/README.md)
+
+### 📖 Guias & Integração (Onboarding)
+- [Guia de Inicialização do Desenvolvedor](file:///c:/Users/DRODRIGUES/Documents/flux-ticket/docs/DEVELOPER_GUIDE.md)
+

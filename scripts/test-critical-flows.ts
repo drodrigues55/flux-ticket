@@ -10,6 +10,8 @@ import { moveJobToDeadLetter } from '../services/ticket-worker/src/dead-letter';
 import { processOutbox } from '../services/ticket-worker/src/outbox-publisher';
 import { closeQueues, deadLetterQueues, QUEUE_NAMES } from '../services/ticket-worker/src/queue-registry';
 import { closeWorkers } from '../services/ticket-worker/src/workers';
+import { StaffPlatformService } from '../services/api-write/src/tickets/staff-platform.service';
+import { MockPaymentProvider } from '../services/api-write/src/payments/mock-payment.provider';
 
 type Check = {
   name: string;
@@ -159,9 +161,11 @@ async function main() {
   await fluxEngine.onModuleInit();
 
   const auditService = new AuditService();
-  const checkoutService = new CheckoutService(fluxEngine, new TicketCryptoService());
-  const checkoutController = new CheckoutController(checkoutService, auditService);
-  const paymentsService = new PaymentsService(fluxEngine, new TicketCryptoService(), auditService);
+  const cryptoService = new TicketCryptoService();
+  const checkoutService = new CheckoutService(fluxEngine, cryptoService);
+  const staffPlatformService = new StaffPlatformService(auditService, fluxEngine, cryptoService);
+  const checkoutController = new CheckoutController(checkoutService, auditService, staffPlatformService, cryptoService);
+  const paymentsService = new PaymentsService(fluxEngine, new TicketCryptoService(), auditService, new MockPaymentProvider());
 
   try {
     await cleanup().catch(() => undefined);
@@ -261,24 +265,20 @@ async function main() {
         headers: { 'user-agent': 'manual-critical-flows' },
       }
     );
-    assertCheck(await countHistory(approvedTicket.id, 'STAFF_CHECK_IN') === 1, 'historico: check-in', approvedTicket.id);
+    assertCheck(await countHistory(approvedTicket.id, 'STAFF_CHECK_IN_SYNC') === 1, 'historico: check-in', approvedTicket.id);
 
-    try {
-      await checkoutController.staffMutation(
-        fixture.event.id,
-        { ticketIds: [approvedTicket.id], deviceId: `${runId}-restricted`, allowedSectorIds: [999999] },
-        {
-          user: { userId: fixture.organizer.id, role: 'STAFF' },
-          requestId: `${runId}-conflict`,
-          ip: '127.0.0.1',
-          headers: { 'user-agent': 'manual-critical-flows' },
-        }
-      );
-      fail('conflito: acesso setorial negado', 'esperava excecao');
-    } catch {
-      pass('conflito: acesso setorial negado');
-      pass('historico: conflito sem transicao de status', 'nenhum TicketStatusHistory esperado porque o ticket nao muda de status');
-    }
+    const conflictRes = await checkoutController.staffMutation(
+      fixture.event.id,
+      { ticketIds: [approvedTicket.id], deviceId: `${runId}-restricted`, allowedSectorIds: [999999] },
+      {
+        user: { userId: fixture.organizer.id, role: 'STAFF' },
+        requestId: `${runId}-conflict`,
+        ip: '127.0.0.1',
+        headers: { 'user-agent': 'manual-critical-flows' },
+      }
+    );
+    assertCheck(conflictRes.rejected === 1, 'conflito: acesso setorial negado');
+    assertCheck(await countHistory(approvedTicket.id, 'STAFF_CHECK_IN_SYNC') === 1, 'historico: conflito sem transicao de status');
 
     const duplicateBody = {
       id: `${runId}-provider-event`,

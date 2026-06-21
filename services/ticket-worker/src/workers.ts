@@ -12,8 +12,8 @@ import { getPaymentProvider } from './payment-provider-registry';
 const connection = createRedisConnection();
 const FINAL_PAYMENT_STATUSES: InternalPaymentStatus[] = ['APPROVED', 'REJECTED', 'EXPIRED', 'CANCELLED', 'REFUNDED'];
 
-function generateSignature(ticketId: string, buyerCpf: string, batchId: string): string {
-  const payload = `${ticketId}:${buyerCpf}:${batchId}`;
+function generateSignature(ticketId: string, version: number = 1): string {
+  const payload = `${ticketId}:${version}`;
   return crypto
     .createHmac('sha256', process.env.HMAC_SECRET_KEY || 'default-super-secret-key-12345')
     .update(payload)
@@ -76,7 +76,7 @@ async function issueTicketsForPayment(payment: any, providerStatus: string, requ
     for (const ticket of lockedPayment.tickets ?? []) {
       if (ticket.status === 'VALID' || ticket.status === 'CONSUMED') continue;
       const newStatus = ticket.meiaEntrada ? 'PENDING_VALIDATION' : 'VALID';
-      const signature = generateSignature(ticket.id, ticket.holderCpf || ticket.buyerCpf, ticket.batchId);
+      const signature = generateSignature(ticket.id, 1);
       const updated = await tx.ticket.updateMany({
         where: {
           id: ticket.id,

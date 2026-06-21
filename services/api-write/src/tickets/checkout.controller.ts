@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Param, Body, Query, BadRequestException, UseGuards, Req } from '@nestjs/common';
+import { Controller, Post, Get, Param, Body, Query, BadRequestException, UseGuards, Req, NotFoundException } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { prisma } from '@flux/database';
 import { CheckoutService } from './checkout.service';
@@ -7,6 +7,7 @@ import { AuditService } from '../audit/audit.service';
 import { StockUnavailableException } from '../domain-exceptions';
 import { logger } from '../logger';
 import { StaffPlatformService } from './staff-platform.service';
+import { TicketCryptoService } from './ticket-crypto.service';
 
 
 @Controller()
@@ -14,22 +15,33 @@ export class CheckoutController {
   constructor(
     private readonly checkoutService: CheckoutService,
     private readonly auditService: AuditService,
-    private readonly staffPlatformService: StaffPlatformService
+    private readonly staffPlatformService: StaffPlatformService,
+    private readonly ticketCryptoService: TicketCryptoService
   ) {}
   
   /**
    * Endpoint de Mutação de Borda: Chamado quando o PWA envia os check-ins offline em massa.
    */
+  @Throttle({ sync: { limit: 45, ttl: 60000 } })
   @Post('events/:id/staff-mutation')
   @UseGuards(StaffGuard)
   async staffMutation(
     @Param('id') eventId: string,
-    @Body() body: { ticketIds: string[]; checkInTimestamp?: string; deviceId?: string; deviceName?: string; pendingCount?: number; allowedSectorIds?: number[] },
+    @Body() body: {
+      ticketIds?: string[];
+      checkins?: any[];
+      checkInTimestamp?: string;
+      deviceId?: string;
+      deviceName?: string;
+      pendingCount?: number;
+      allowedSectorIds?: number[];
+    },
     @Req() req: any
   ) {
     return this.staffPlatformService.syncCheckins({
       eventId,
       ticketIds: body.ticketIds,
+      checkins: body.checkins,
       checkInTimestamp: body.checkInTimestamp,
       deviceId: body.deviceId,
       deviceName: body.deviceName,
@@ -286,8 +298,8 @@ export class CheckoutController {
   /**
    * Endpoint de Reserva de Ingresso: Chamado na inicialização da página de checkout para garantir a reserva do lote.
    */
+  @Throttle({ reserve: { limit: 30, ttl: 60000 } })
   @Post('tickets/reserve')
-  @Throttle({ default: { limit: 10, ttl: 60000 } })
   async reserve(
     @Body() body: { 
       eventId: string; 
@@ -498,6 +510,173 @@ export class CheckoutController {
       cacheStats,
       latencyHistory,
       queueSizeHistory,
+    };
+  }
+
+  @Post('tickets/:id/validate')
+  async validateTicket(
+    @Param('id') id: string,
+    @Body() body: { signature: string; version?: number },
+    @Req() req: any
+  ) {
+    const version = body.version ?? 1;
+    const signature = body.signature;
+
+    if (!signature) {
+      throw new BadRequestException('A assinatura do QR Code é obrigatória.');
+    }
+
+    // 1. Signature check before database lookup
+    const isSignatureValid = this.ticketCryptoService.verifySignature(id, version, signature);
+    if (!isSignatureValid) {
+      throw new BadRequestException('Assinatura do ingresso inválida ou adulterada.');
+    }
+
+    // 2. Database lookup
+    const ticket = await prisma.ticket.findUnique({
+      where: { id },
+      include: { event: true },
+    });
+
+    if (!ticket) {
+      throw new NotFoundException('Ingresso não encontrado no banco de dados.');
+    }
+
+    if (ticket.event.status === 'CANCELLED') {
+      throw new BadRequestException('Evento cancelado. O ingresso não é mais válido.');
+    }
+
+    if (ticket.status === 'CONSUMED' || ticket.checkedInAt) {
+      throw new BadRequestException('Ingresso já consumido. Entrada duplicada recusada.');
+    }
+
+    if (ticket.status !== 'VALID') {
+      throw new BadRequestException(`Ingresso inválido. Status atual: ${ticket.status}`);
+    }
+
+    if (new Date() > ticket.expiresAt) {
+      throw new BadRequestException('Ingresso expirado.');
+    }
+
+    // 3. Atomically perform check-in
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        const updated = await tx.ticket.updateMany({
+          where: {
+            id,
+            status: 'VALID',
+            checkedInAt: null,
+          },
+          data: {
+            status: 'CONSUMED',
+            checkedInAt: new Date(),
+          },
+        });
+
+        if (updated.count !== 1) {
+          throw new BadRequestException('Ingresso já consumido por outra portaria simultânea.');
+        }
+
+        const checkin = await tx.checkin.create({
+          data: {
+            eventId: ticket.eventId,
+            ticketId: ticket.id,
+            status: 'ACCEPTED',
+            scannedAt: new Date(),
+            operatorId: req.user?.userId ?? null,
+            requestId: req.requestId ?? null,
+          },
+        });
+
+        await tx.ticketStatusHistory.create({
+          data: {
+            ticketId: ticket.id,
+            fromStatus: 'VALID',
+            toStatus: 'CONSUMED',
+            reason: 'ONLINE_CHECK_IN',
+            actorId: req.user?.userId ?? null,
+            requestId: req.requestId ?? null,
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            actorId: req.user?.userId ?? null,
+            actorRole: req.user?.role ?? 'SYSTEM',
+            action: 'TICKET_CHECKED_IN',
+            entityType: 'Ticket',
+            entityId: ticket.id,
+            before: { status: ticket.status, checkedInAt: ticket.checkedInAt },
+            after: { status: 'CONSUMED', checkedInAt: checkin.scannedAt.toISOString() },
+            metadata: { eventId: ticket.eventId, checkinId: checkin.id },
+            requestId: req.requestId ?? null,
+          },
+        });
+
+        return checkin;
+      });
+
+      return {
+        success: true,
+        message: 'Acesso liberado! Check-in realizado online com sucesso.',
+        ticketId: ticket.id,
+        checkinId: result.id,
+      };
+    } catch (error: any) {
+      throw new BadRequestException(error.message || 'Erro na transação de check-in.');
+    }
+  }
+
+  @Get('tickets/:id/wallet/apple')
+  async getAppleWalletPass(@Param('id') id: string) {
+    const ticket = await prisma.ticket.findUnique({
+      where: { id },
+    });
+    if (!ticket) {
+      throw new NotFoundException('Ingresso não encontrado.');
+    }
+    const payload = this.ticketCryptoService.generateQrPayload(ticket.id, 1);
+    return {
+      formatVersion: 1,
+      passTypeIdentifier: 'pass.com.fluxtickets',
+      serialNumber: ticket.id,
+      teamIdentifier: 'FLUX123456',
+      barcode: {
+        message: JSON.stringify(payload),
+        format: 'PKBarcodeFormatQR',
+        messageEncoding: 'iso-8859-1',
+      },
+      organizationName: 'Flux Tickets',
+      description: 'Flux Tickets Digital Pass',
+      logoText: 'Flux Tickets',
+      foregroundColor: 'rgb(255, 255, 255)',
+      backgroundColor: 'rgb(13, 21, 38)',
+    };
+  }
+
+  @Get('tickets/:id/wallet/google')
+  async getGoogleWalletPass(@Param('id') id: string) {
+    const ticket = await prisma.ticket.findUnique({
+      where: { id },
+    });
+    if (!ticket) {
+      throw new NotFoundException('Ingresso não encontrado.');
+    }
+    const payload = this.ticketCryptoService.generateQrPayload(ticket.id, 1);
+    return {
+      id: `issuer_id.${ticket.id}`,
+      classId: `issuer_id.event_${ticket.eventId}`,
+      state: 'ACTIVE',
+      barcode: {
+        type: 'QR_CODE',
+        value: JSON.stringify(payload),
+      },
+      cardTitle: {
+        defaultValue: {
+          language: 'pt-BR',
+          value: 'Flux Tickets',
+        },
+      },
     };
   }
 }

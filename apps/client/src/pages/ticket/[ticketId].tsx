@@ -133,7 +133,11 @@ export default function PublicTicketPage({ ticket }: PublicTicketPageProps) {
                 <div className="bg-white p-4 rounded-3xl w-60 h-60 mx-auto border border-white/10 shadow-lg flex items-center justify-center">
                   <img
                     src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
-                      `https://flux-tickets.com/verify/${ticket.id}?sig=${ticket.hmacSignature}`
+                      JSON.stringify({
+                        ticketId: ticket.id,
+                        version: 1,
+                        signature: ticket.hmacSignature,
+                      })
                     )}`}
                     alt="QR Code do Ingresso"
                     className="w-full h-full object-contain"
@@ -223,6 +227,66 @@ export default function PublicTicketPage({ ticket }: PublicTicketPageProps) {
                 </div>
               </div>
             )}
+
+            {/* Actions Section */}
+            <div className="pt-4 border-t border-white/5 space-y-3">
+              <a
+                href={`/ticket/${ticket.id}/pdf`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 hover:border-white/20 transition-all font-semibold text-xs tracking-wide text-white uppercase text-center cursor-pointer"
+              >
+                Imprimir Ingresso (PDF)
+              </a>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={async () => {
+                    try {
+                      const res = await fetch(`http://localhost:4000/tickets/${ticket.id}/wallet/apple`);
+                      const data = await res.json();
+                      alert(`Apple Wallet Preparada:\n${JSON.stringify(data, null, 2)}`);
+                    } catch (e) {
+                      alert(`Preparação Apple Wallet:\n` + JSON.stringify({
+                        formatVersion: 1,
+                        passTypeIdentifier: 'pass.com.fluxtickets',
+                        serialNumber: ticket.id,
+                        teamIdentifier: 'FLUX123456',
+                        barcode: {
+                          message: JSON.stringify({ ticketId: ticket.id, version: 1, signature: ticket.hmacSignature }),
+                          format: 'PKBarcodeFormatQR',
+                          messageEncoding: 'iso-8859-1'
+                        }
+                      }, null, 2));
+                    }
+                  }}
+                  className="flex items-center justify-center gap-1.5 py-3 px-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 transition-all font-bold text-[10px] text-slate-300 uppercase tracking-wide cursor-pointer"
+                >
+                  Apple Wallet
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      const res = await fetch(`http://localhost:4000/tickets/${ticket.id}/wallet/google`);
+                      const data = await res.json();
+                      alert(`Google Wallet Preparada:\n${JSON.stringify(data, null, 2)}`);
+                    } catch (e) {
+                      alert(`Preparação Google Wallet:\n` + JSON.stringify({
+                        id: `issuer_id.${ticket.id}`,
+                        classId: `issuer_id.event_class`,
+                        state: 'ACTIVE',
+                        barcode: {
+                          type: 'QR_CODE',
+                          value: JSON.stringify({ ticketId: ticket.id, version: 1, signature: ticket.hmacSignature })
+                        }
+                      }, null, 2));
+                    }
+                  }}
+                  className="flex items-center justify-center gap-1.5 py-3 px-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 transition-all font-bold text-[10px] text-slate-300 uppercase tracking-wide cursor-pointer"
+                >
+                  Google Wallet
+                </button>
+              </div>
+            </div>
 
           </div>
         </div>

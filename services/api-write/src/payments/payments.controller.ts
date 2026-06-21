@@ -1,6 +1,7 @@
 import { Controller, Post, Body, Headers, Req, Query, BadRequestException, UnauthorizedException, HttpCode } from '@nestjs/common';
 import { RawBodyRequest } from '@nestjs/common';
 import { Request } from 'express';
+import { Throttle } from '@nestjs/throttler';
 import { PaymentsService } from './payments.service';
 import { CheckoutPaymentSchema } from './payments.dto';
 import { InvalidCpfException } from '../domain-exceptions';
@@ -9,6 +10,7 @@ import { InvalidCpfException } from '../domain-exceptions';
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
+  @Throttle({ checkout: { limit: 15, ttl: 60000 } })
   @Post('checkout')
   @HttpCode(200)
   async checkout(@Body() body: any) {
@@ -24,6 +26,7 @@ export class PaymentsController {
     return this.paymentsService.processCheckout(parseResult.data);
   }
 
+  @Throttle({ webhooks: { limit: 300, ttl: 60000 } })
   @Post('webhook')
   @HttpCode(200)
   async webhook(

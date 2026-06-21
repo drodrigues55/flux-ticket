@@ -87,13 +87,71 @@ let TicketCryptoService = (() => {
         secretKey = process.env.HMAC_SECRET_KEY || 'default-super-secret-key-12345';
         /**
          * Gera a assinatura HMAC SHA-256 para garantir a autenticidade offline do ingresso.
+         * Suporta o novo padrão compacto (ticketId:version) e o padrão antigo (ticketId:cpf:batchId) para compatibilidade.
          */
-        generateSignature(ticketId, buyerCpf, batchId) {
-            const payload = `${ticketId}:${buyerCpf}:${batchId}`;
-            return crypto
-                .createHmac('sha256', this.secretKey)
-                .update(payload)
-                .digest('hex');
+        generateSignature(ticketId, versionOrCpf, batchId) {
+            if (typeof versionOrCpf === 'number' || versionOrCpf === undefined) {
+                const version = versionOrCpf ?? 1;
+                const payload = `${ticketId}:${version}`;
+                return crypto
+                    .createHmac('sha256', this.secretKey)
+                    .update(payload)
+                    .digest('hex');
+            }
+            else {
+                const payload = `${ticketId}:${versionOrCpf}:${batchId || ''}`;
+                return crypto
+                    .createHmac('sha256', this.secretKey)
+                    .update(payload)
+                    .digest('hex');
+            }
+        }
+        /**
+         * Generates the immutable QR payload containing only ticketId, version, and signature.
+         * Never contains PII or pricing.
+         */
+        generateQrPayload(ticketId, version = 1) {
+            const signature = this.generateSignature(ticketId, version);
+            return {
+                ticketId,
+                version,
+                signature,
+            };
+        }
+        /**
+         * Generates a reusable QR image URL.
+         */
+        generateQrUrl(ticketId, version = 1) {
+            const payload = this.generateQrPayload(ticketId, version);
+            const dataString = JSON.stringify(payload);
+            return `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(dataString)}`;
+        }
+        /**
+         * Verifies the signature of a payload. Returns true if valid, false otherwise.
+         * Executes signature check using HMAC before any database lookup.
+         */
+        verifySignature(ticketId, version, signature) {
+            const expected = this.generateSignature(ticketId, version);
+            return expected === signature;
+        }
+        /**
+         * Parses and validates a QR payload string.
+         */
+        verifyRawPayload(payloadStr) {
+            try {
+                const parsed = JSON.parse(payloadStr);
+                if (!parsed.ticketId || typeof parsed.version !== 'number' || !parsed.signature) {
+                    return { success: false, reason: 'MALFORMED_PAYLOAD' };
+                }
+                const isValid = this.verifySignature(parsed.ticketId, parsed.version, parsed.signature);
+                if (!isValid) {
+                    return { success: false, reason: 'INVALID_SIGNATURE' };
+                }
+                return { success: true, data: parsed };
+            }
+            catch {
+                return { success: false, reason: 'MALFORMED_PAYLOAD' };
+            }
         }
     };
     return TicketCryptoService = _classThis;

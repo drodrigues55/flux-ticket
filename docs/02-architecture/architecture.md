@@ -56,7 +56,67 @@ The architecture is designed to provide:
                             Ticket Worker
                                    │
                                    ▼
-                               BullMQ Queues
+                              BullMQ Queues
+```
+
+## System Interaction Diagrams
+
+### 1. Asynchronous Checkout & Ticket Issuance Flow
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Buyer as Web Client (Browser)
+    participant WriteAPI as api-write (Service)
+    participant Database as PostgreSQL
+    participant Redis as Redis (locks/stock)
+    participant Worker as ticket-worker (BullMQ)
+    participant Provider as Payment Provider Gateway (Mock)
+
+    Buyer->>WriteAPI: POST /checkout (Reserve seats)
+    WriteAPI->>Redis: Check stock & lock seats (15m TTL)
+    WriteAPI->>Database: Create Reservation & PENDING Ticket
+    WriteAPI-->>Buyer: Return Reservation ID
+    
+    Buyer->>WriteAPI: POST /payments (Pay Pix/Credit Card)
+    WriteAPI->>Provider: Create transaction
+    Provider-->>WriteAPI: Return payment details / QR Code
+    WriteAPI-->>Buyer: Show QR Code / Pix code
+
+    Note over Provider, Worker: Payment status check
+    Provider->>WriteAPI: Webhook notification (Payment Approved)
+    WriteAPI->>Database: Write OUTBOX_EVENT ("payment.approved")
+    WriteAPI-->>Provider: HTTP 200 OK
+
+    Note over Database, Worker: Asynchronous Outbox publishing
+    Worker->>Database: Poll outbox events & mark PROCESSING
+    Worker->>Database: Set Ticket as VALID, generates signature
+    Worker->>Redis: Release temporary locks & update stock cache
+    Worker-->>Buyer: Send ticket validation push/email notification
+```
+
+### 2. Offline Staff PWA Bundle Synchronization Flow
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Staff as Staff Scanner (Offline PWA)
+    participant ReadAPI as api-read (Service)
+    participant WriteAPI as api-write (Service)
+    participant Database as PostgreSQL
+
+    Staff->>ReadAPI: GET /offline-bundle (Prepare device while online)
+    ReadAPI->>Database: Query valid tickets, events, batch parameters
+    Database-->>ReadAPI: Return active registry
+    ReadAPI-->>Staff: Download encrypted Offline Bundle (IndexedDB)
+    
+    Note over Staff: Device goes offline at Event Gates
+    Staff->>Staff: Scan QR Ticket (offline validation via local key/HMAC)
+    Staff->>Staff: Save Check-in locally in offline queue (IndexedDB)
+
+    Note over Staff, WriteAPI: Device regains internet access
+    Staff->>WriteAPI: POST /staff/checkins/sync (Upload local check-ins queue)
+    WriteAPI->>Database: Bulk insert check-ins, validate against duplicate check-ins
+    Database-->>WriteAPI: Save status and history log
+    WriteAPI-->>Staff: HTTP 200 Sync OK
 ```
 
 ---

@@ -1,0 +1,168 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: flux-postgres-prod
+    environment:
+      POSTGRES_USER: flux_user
+      POSTGRES_PASSWORD: flux_secure_password_12345
+      POSTGRES_DB: flux_ticket
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flux_user -d flux_ticket"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+  redis:
+    image: redis:7-alpine
+    container_name: flux-redis-prod
+    command: redis-server --requirepass flux_redis_secure_password_12345 --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_prod_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a flux_redis_secure_password_12345 ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+  api-write:
+    build:
+      context: .
+      dockerfile: services/api-write/Dockerfile
+    container_name: flux-api-write-prod
+    ports:
+      - "4000:4000"
+    environment:
+      APP_ENV: production
+      NODE_ENV: production
+      DATABASE_URL: postgresql://flux_user:flux_secure_password_12345@postgres:5432/flux_ticket?schema=public
+      REDIS_URL: redis://:flux_redis_secure_password_12345@redis:6379
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: production-high-entropy-jwt-secret-at-least-32-chars
+      HMAC_SECRET: production-high-entropy-hmac-secret-at-least-32-chars
+      HMAC_SECRET_KEY: production-high-entropy-hmac-secret-at-least-32-chars
+      TICKET_HMAC_SECRET: production-high-entropy-hmac-secret-at-least-32-chars
+      LOG_LEVEL: info
+      PROMETHEUS_ENABLED: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4000/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    restart: always
+
+  api-read:
+    build:
+      context: .
+      dockerfile: services/api-read/Dockerfile
+    container_name: flux-api-read-prod
+    ports:
+      - "3002:3002"
+    environment:
+      APP_ENV: production
+      NODE_ENV: production
+      DATABASE_URL: postgresql://flux_user:flux_secure_password_12345@postgres:5432/flux_ticket?schema=public
+      REDIS_URL: redis://:flux_redis_secure_password_12345@redis:6379
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      LOG_LEVEL: info
+      PROMETHEUS_ENABLED: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3002/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    restart: always
+
+  ticket-worker:
+    build:
+      context: .
+      dockerfile: services/ticket-worker/Dockerfile
+    container_name: flux-ticket-worker-prod
+    environment:
+      APP_ENV: production
+      NODE_ENV: production
+      DATABASE_URL: postgresql://flux_user:flux_secure_password_12345@postgres:5432/flux_ticket?schema=public
+      REDIS_URL: redis://:flux_redis_secure_password_12345@redis:6379
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      HMAC_SECRET_KEY: production-high-entropy-hmac-secret-at-least-32-chars
+      LOG_LEVEL: info
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: always
+
+  client:
+    build:
+      context: .
+      dockerfile: apps/client/Dockerfile
+    container_name: flux-client-prod
+    ports:
+      - "3003:3003"
+    environment:
+      NODE_ENV: production
+      API_WRITE_URL: http://api-write:4000
+      API_READ_URL: http://api-read:3002
+    depends_on:
+      - api-write
+      - api-read
+    restart: always
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: apps/dashboard/Dockerfile
+    container_name: flux-dashboard-prod
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: production
+      API_WRITE_URL: http://api-write:4000
+      API_READ_URL: http://api-read:3002
+    depends_on:
+      - api-write
+      - api-read
+    restart: always
+
+  staff-pwa:
+    build:
+      context: .
+      dockerfile: apps/staff-pwa/Dockerfile
+    container_name: flux-staff-pwa-prod
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      API_WRITE_URL: http://api-write:4000
+      API_READ_URL: http://api-read:3002
+    depends_on:
+      - api-write
+      - api-read
+    restart: always
+
+volumes:
+  postgres_prod_data:
+  redis_prod_data:

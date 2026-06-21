@@ -32,9 +32,11 @@ export async function validateTicket(scannedData: string): Promise<ValidationRes
     };
   }
 
-  const { ticket_id, signature } = parsed;
+  const ticketId = (parsed as any).ticketId || parsed.ticket_id;
+  const signature = parsed.signature;
+  const version = (parsed as any).version ?? 1;
 
-  if (!ticket_id || !signature) {
+  if (!ticketId || !signature) {
     return {
       success: false,
       message: 'Dados do ingresso incompletos no QR Code escaneado.',
@@ -43,7 +45,7 @@ export async function validateTicket(scannedData: string): Promise<ValidationRes
 
   try {
     // 1. Busca o ingresso local pelo ID
-    const localRecord = await db.validTickets.get(ticket_id);
+    const localRecord = await db.validTickets.get(ticketId);
 
     if (!localRecord) {
       return {
@@ -73,7 +75,7 @@ export async function validateTicket(scannedData: string): Promise<ValidationRes
     }
 
     // 4. Verifica se o ingresso já foi marcado para consumo localmente
-    const alreadyScanned = await db.mutationQueue.get(ticket_id);
+    const alreadyScanned = await db.mutationQueue.get(ticketId);
     if (alreadyScanned) {
       return {
         success: false,
@@ -81,19 +83,23 @@ export async function validateTicket(scannedData: string): Promise<ValidationRes
       };
     }
 
-    // 5. Se a assinatura for idêntica e não consumido ainda, enfileira a mutação
+    // 5. Se a assinatura for idêntica e não consumido ainda, enfileira a mutação com dados ricos e offlineId
     await db.mutationQueue.put({
-      ticket_id,
+      ticket_id: ticketId,
       timestamp: Date.now(),
       status: 'PENDING_SYNC',
-    });
+      offlineId: `offline-${ticketId}-${Date.now()}`,
+      hmacSignature: signature,
+      sectorId: localRecord.sectorId ?? null,
+      version: version,
+    } as any);
 
-    console.log(`[EDGE VALIDATION] Ticket ${ticket_id} validado com sucesso offline.`);
+    console.log(`[EDGE VALIDATION] Ticket ${ticketId} validado com sucesso offline.`);
 
     return {
       success: true,
       message: 'Ingresso AUTÊNTICO e validado! Check-in registrado offline com sucesso.',
-      ticketId: ticket_id,
+      ticketId: ticketId,
     };
   } catch (error: any) {
     console.error('[EDGE VALIDATION ERROR] Erro na validação local:', error);

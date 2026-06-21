@@ -42,6 +42,34 @@ const limiter = rateLimit({
 });
 
 app.use(requestIdMiddleware);
+
+// CORS & Security Headers Middleware (Helmet Equivalent)
+app.use((req: any, res: any, next: any) => {
+  const isProd = process.env.APP_ENV === 'production' || process.env.NODE_ENV === 'production';
+  if (isProd) {
+    const allowed = ['https://fluxtickets.com', 'https://staff.fluxtickets.com'];
+    const origin = req.headers.origin;
+    if (origin && allowed.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+    res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE');
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', '*');
+  }
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-request-id');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Strict-Transport-Security', 'max-age=15768000; includeSubDomains');
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'");
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).send();
+  }
+  next();
+});
+
 app.use(limiter);
 app.use(express.json());
 app.use('/dashboard', dashboardRouter);

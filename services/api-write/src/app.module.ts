@@ -10,10 +10,33 @@ import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
-    ThrottlerModule.forRoot([{
-      ttl: 60000, // 60 seconds (1 minute)
-      limit: 60, // 60 requests
-    }]),
+    ThrottlerModule.forRoot([
+      {
+        name: 'default',
+        ttl: 60000,
+        limit: Number(process.env.RATE_LIMIT_DEFAULT) || 120,
+      },
+      {
+        name: 'checkout',
+        ttl: 60000,
+        limit: Number(process.env.RATE_LIMIT_CHECKOUT) || 15,
+      },
+      {
+        name: 'reserve',
+        ttl: 60000,
+        limit: Number(process.env.RATE_LIMIT_RESERVE) || 30,
+      },
+      {
+        name: 'sync',
+        ttl: 60000,
+        limit: Number(process.env.RATE_LIMIT_SYNC) || 45,
+      },
+      {
+        name: 'webhooks',
+        ttl: 60000,
+        limit: Number(process.env.RATE_LIMIT_WEBHOOKS) || 300, // separate high limit for webhook retries
+      }
+    ]),
     FluxEngineModule,
     EventsModule,
     PaymentsModule,

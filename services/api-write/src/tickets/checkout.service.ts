@@ -171,8 +171,7 @@ export class CheckoutService {
     // Gerar a assinatura HMAC
     const signature = this.ticketCryptoService.generateSignature(
       ticket.id,
-      ticket.buyerCpf,
-      ticket.batchId
+      1
     );
     
     // Atualizar o status para VALID e salvar a assinatura

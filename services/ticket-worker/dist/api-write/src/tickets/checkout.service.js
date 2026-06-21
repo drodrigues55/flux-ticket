@@ -221,7 +221,7 @@ let CheckoutService = (() => {
                 throw new common_1.BadRequestException('Ingresso não encontrado.');
             }
             // Gerar a assinatura HMAC
-            const signature = this.ticketCryptoService.generateSignature(ticket.id, ticket.buyerCpf, ticket.batchId);
+            const signature = this.ticketCryptoService.generateSignature(ticket.id, 1);
             // Atualizar o status para VALID e salvar a assinatura
             const updated = await database_1.prisma.ticket.update({
                 where: { id: ticketId },
