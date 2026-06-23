@@ -40,7 +40,7 @@ export default function EventsListPage() {
   const getStatusBadge = (dateString: string) => {
     const eventDate = new Date(dateString);
     const today = new Date();
-    
+
     if (eventDate > today) {
       return (
         <span className="bg-[#FF3200]/10 border border-[#FF3200]/30 text-[#FF3200] text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider">
@@ -60,12 +60,12 @@ export default function EventsListPage() {
       <div className="space-y-8 bg-[#FAFAFA]">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-black text-neutral-900 tracking-tight">Meus Eventos</h1>
-            <p className="text-sm text-neutral-500 mt-1">Gerencie a venda de ingressos dos seus eventos ativos.</p>
+            <h1 className="text-3xl font-black text-neutral-900 tracking-normal">Eventos</h1>
+            <p className="text-sm text-neutral-500 mt-2 leading-relaxed">Crie, publique e acompanhe seus eventos.</p>
           </div>
 
           <Link href="/events/new" legacyBehavior>
-            <Button className="bg-[#FF3200] hover:bg-[#E62D00] text-white font-bold py-2 px-5 rounded-full border-none transition-all cursor-pointer">Criar Novo Evento</Button>
+            <Button className="bg-[#FF3200] hover:bg-[#E62D00] text-white font-bold py-2 px-5 rounded-full border-none transition-all cursor-pointer">Novo Evento</Button>
           </Link>
         </div>
 
@@ -76,9 +76,9 @@ export default function EventsListPage() {
         )}
 
         <Card className="border-[#EAEAEA] bg-white overflow-hidden rounded-xl shadow-sm">
-          <CardHeader className="border-b border-[#EAEAEA]">
-            <CardTitle className="text-neutral-950 font-bold text-lg">Catálogo de Shows</CardTitle>
-            <CardDescription className="text-neutral-500 text-sm">Lista de eventos criados e vinculados à sua conta de organizador.</CardDescription>
+          <CardHeader className="border-b border-[#EAEAEA] pb-5 px-6 pt-6">
+            <CardTitle className="text-neutral-950 font-bold text-xl tracking-normal mb-1">Catálogo de Shows</CardTitle>
+            <CardDescription className="text-neutral-500 text-sm leading-relaxed">Lista de eventos criados e vinculados à sua conta de organizador.</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             {loading ? (
@@ -90,11 +90,15 @@ export default function EventsListPage() {
                 <span className="text-sm">Carregando eventos...</span>
               </div>
             ) : events.length === 0 ? (
-              <div className="p-12 text-center text-neutral-500 space-y-4 bg-white rounded-lg">
-                <p className="text-base font-semibold text-neutral-850">Nenhum evento cadastrado para a sua conta.</p>
-                <p className="text-sm text-neutral-450 max-w-sm mx-auto">Comece a cadastrar seus shows agora mesmo para habilitar a venda de ingressos com alta concorrência.</p>
+              <div className="p-16 text-center text-neutral-500 flex flex-col items-center justify-center bg-white rounded-lg">
+                <p className="text-lg font-bold text-neutral-800 tracking-normal mb-3">Nenhum evento cadastrado para a sua conta.</p>
+                <p className="text-sm text-neutral-500 max-w-md mx-auto leading-relaxed mb-8">
+                  Comece a cadastrar seus shows agora mesmo para habilitar a venda de ingressos com alta concorrência.
+                </p>
                 <Link href="/events/new" legacyBehavior>
-                  <Button className="bg-[#FF3200] hover:bg-[#E62D00] text-white font-bold py-2.5 px-6 rounded-full border-none transition-all cursor-pointer">Criar Primeiro Evento</Button>
+                  <Button className="bg-[#FF3200] hover:bg-[#E62D00] text-white font-bold py-3 px-8 rounded-full border-none transition-all cursor-pointer shadow-sm">
+                    Criar Primeiro Evento
+                  </Button>
                 </Link>
               </div>
             ) : (

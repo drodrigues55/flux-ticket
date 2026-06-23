@@ -25,6 +25,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       select: {
         id: true,
         title: true,
+        slug: true,
         date: true,
         location: true,
         venue: true,
@@ -40,6 +41,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         id: 'all',
         title: 'Todos os eventos',
         label: 'Todos os eventos',
+        slug: null,
         date: '',
         location: '',
         venue: null,
@@ -52,6 +54,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         id: e.id,
         title: e.title,
         label: e.title,
+        slug: e.slug ?? null,
         date: e.date.toISOString(),
         location: e.location,
         venue: e.venue ?? null,

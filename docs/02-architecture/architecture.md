@@ -509,9 +509,12 @@ packages/database
 packages/types
 
 packages/shared
+
+packages/ui
 ```
 
-Shared packages prevent code duplication between services.
+Shared packages prevent code duplication between services. 
+See `docs/02-architecture/form-system.md` for details on the shared Form Architecture (`@flux/ui`).
 
 ---
 
@@ -680,6 +683,18 @@ Part 2 documents:
 - Failure recovery
 - Scaling strategy
 - Future microservice evolution
+
+---
+
+# Quality Assurance & Verification
+
+The platform enforces a strict testing pyramid to ensure business continuity:
+
+- **Unit & Integration**: Validates business schemas, API contracts, and component composition.
+- **End-to-End & Regression**: Protects critical revenue paths (Checkout, Ticket Issuance, Check-in).
+- **Performance**: Validates massive concurrent reservation loads via Redis.
+
+Detailed strategies are documented in the `docs/03-quality/` directory.
 
 ---
 ---

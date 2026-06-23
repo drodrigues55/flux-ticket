@@ -209,6 +209,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           sectorName: b.sectorName ?? null,
           meiaEntrada: b.meiaEntrada,
           isActive: b.isActive,
+          status: b.status ?? (b.isActive ? 'ACTIVE' : 'PAUSED'),
         };
       });
 

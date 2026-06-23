@@ -1,23 +1,24 @@
 import { Injectable, InternalServerErrorException, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { prisma } from '@flux/database';
 import { EventStatus } from '@prisma/client';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class EventsService {
   private readonly logger = new Logger(EventsService.name);
 
   async createEvent(
-    data: { title: string; slug?: string; description?: string; date: string; location: string; categoryId?: number },
+    data: { title: string; slug?: string; description?: string; date: string; endDate?: string; location: string; categoryId?: number },
     organizerId: string
   ) {
-    const slug = data.slug || `${data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${uuidv4().substring(0, 8)}`;
+    const slug = data.slug || `${data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${randomUUID().substring(0, 8)}`;
     return prisma.event.create({
       data: {
         title: data.title,
         slug,
         description: data.description,
         date: new Date(data.date),
+        endDate: data.endDate ? new Date(data.endDate) : undefined,
         location: data.location,
         categoryId: data.categoryId,
         organizerId: organizerId,
@@ -29,7 +30,7 @@ export class EventsService {
   async updateEvent(
     id: string,
     organizerId: string,
-    data: { title?: string; slug?: string; description?: string; date?: string; location?: string; venue?: string; categoryId?: number; capacityTarget?: number }
+    data: { title?: string; slug?: string; description?: string; date?: string; endDate?: string; location?: string; venue?: string; categoryId?: number; capacityTarget?: number }
   ) {
     const event = await prisma.event.findUnique({ where: { id } });
     if (!event || event.organizerId !== organizerId) {
@@ -42,6 +43,7 @@ export class EventsService {
         slug: data.slug,
         description: data.description,
         date: data.date ? new Date(data.date) : undefined,
+        endDate: data.endDate ? new Date(data.endDate) : undefined,
         location: data.location,
         venue: data.venue,
         categoryId: data.categoryId,

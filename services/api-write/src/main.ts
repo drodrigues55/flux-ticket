@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import compression from 'compression';
 import { NestFactory, HttpAdapterHost } from '@nestjs/core';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
@@ -27,6 +28,7 @@ async function bootstrap() {
   }
 
   const app = await NestFactory.create(AppModule, new ExpressAdapter(), { rawBody: true, logger: false });
+  app.use(compression({ threshold: 0 }));
 
   // CORS Hardening
   if (isProd) {

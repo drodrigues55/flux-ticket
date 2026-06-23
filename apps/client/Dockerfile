@@ -11,12 +11,10 @@ RUN npm run build --workspace=@flux/client
 
 FROM node:20-alpine AS runner
 WORKDIR /app
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/packages ./packages
-COPY --from=builder /app/apps/client ./apps/client
-COPY package*.json ./
+COPY --from=builder /app/apps/client/.next/standalone ./
+COPY --from=builder /app/apps/client/.next/static ./apps/client/.next/static
 
 ENV NODE_ENV=production
 ENV PORT=3003
 EXPOSE 3003
-CMD ["npm", "run", "start", "-w", "@flux/client"]
+CMD ["node", "apps/client/server.js"]

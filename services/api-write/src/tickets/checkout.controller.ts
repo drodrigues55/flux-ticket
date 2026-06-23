@@ -362,62 +362,63 @@ export class CheckoutController {
       }
     }
     
-    // 1. Garantir que exista um usuário guest no banco de dados para a reserva
-    let user = await prisma.user.findUnique({
-      where: { email: 'guest@flux.com' },
-    });
-    
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
+    const ticketIds: string[] = [];
+    const reservedBatchTickets: Array<{ batchId: string; ticketId: string }> = [];
+    const expiresAt = new Date(Date.now() + 180 * 1000);
+
+    const { user, reservation, reservationItemsByBatchId } = await prisma.$transaction(async (tx) => {
+      const txUser = await tx.user.upsert({
+        where: { email: 'guest@flux.com' },
+        create: {
           email: 'guest@flux.com',
           password: 'guest-password-hash-123',
           name: 'Guest Buyer',
           role: 'USER',
         },
+        update: {},
       });
-    }
-    
-    const ticketIds: string[] = [];
-    const reservedBatchTickets: Array<{ batchId: string; ticketId: string }> = [];
-    const expiresAt = new Date(Date.now() + 180 * 1000);
-    const reservation = await (prisma as any).reservation.create({
-      data: {
-        eventId,
-        buyerId: user.id,
-        status: 'ACTIVE',
-        expiresAt,
-      },
-    });
-    await prisma.outboxEvent.create({
-      data: {
-        aggregateType: 'CART_EXPIRE_ABANDONED',
-        aggregateId: reservation.id,
-        type: 'carts.expireAbandoned',
-        status: 'PENDING',
-        nextRunAt: expiresAt,
-        requestId: req.requestId ?? null,
-        payload: {
-          reservationId: reservation.id,
-          eventId,
-          buyerId: user.id,
-          expiresAt: expiresAt.toISOString(),
-        },
-      },
-    });
-    const reservationItemsByBatchId = new Map<string, any>();
 
-    for (const item of reservationItems) {
-      const reservationItem = await (prisma as any).reservationItem.create({
+      const txReservation = await (tx as any).reservation.create({
         data: {
-          reservationId: reservation.id,
-          batchId: item.batchId!,
-          quantity: item.quantity,
-          unitPrice: item.price!,
+          eventId,
+          buyerId: txUser.id,
+          status: 'ACTIVE',
+          expiresAt,
         },
       });
-      reservationItemsByBatchId.set(item.batchId!, reservationItem);
-    }
+
+      await tx.outboxEvent.create({
+        data: {
+          aggregateType: 'CART_EXPIRE_ABANDONED',
+          aggregateId: txReservation.id,
+          type: 'carts.expireAbandoned',
+          status: 'PENDING',
+          nextRunAt: expiresAt,
+          requestId: req.requestId ?? null,
+          payload: {
+            reservationId: txReservation.id,
+            eventId,
+            buyerId: txUser.id,
+            expiresAt: expiresAt.toISOString(),
+          },
+        },
+      });
+
+      const txReservationItemsByBatchId = new Map<string, any>();
+      for (const item of reservationItems) {
+        const reservationItem = await (tx as any).reservationItem.create({
+          data: {
+            reservationId: txReservation.id,
+            batchId: item.batchId!,
+            quantity: item.quantity,
+            unitPrice: item.price!,
+          },
+        });
+        txReservationItemsByBatchId.set(item.batchId!, reservationItem);
+      }
+
+      return { user: txUser, reservation: txReservation, reservationItemsByBatchId: txReservationItemsByBatchId };
+    });
     
     try {
       for (const item of reservationItems) {
@@ -435,7 +436,7 @@ export class CheckoutController {
             requestId: req.requestId,
           });
           ticketIds.push(ticket.id);
-          reservedBatchTickets.push({ batchId: item.batchId, ticketId: ticket.id });
+          reservedBatchTickets.push({ batchId: item.batchId!, ticketId: ticket.id });
           await this.auditService.record({
             actorId: user.id,
             actorRole: user.role,
@@ -462,9 +463,11 @@ export class CheckoutController {
           logger.error({ err: cleanupErr, eventId, batchId: item.batchId, ticketId: item.ticketId }, 'reservation cleanup failed');
         }
       }
-      await (prisma as any).reservation.update({
-        where: { id: reservation.id },
-        data: { status: 'CANCELLED' },
+      await prisma.$transaction(async (tx) => {
+        await (tx as any).reservation.update({
+          where: { id: reservation.id },
+          data: { status: 'CANCELLED' },
+        });
       }).catch((cleanupErr: unknown) => {
         logger.error({ err: cleanupErr, eventId, reservationId: reservation.id }, 'reservation cancellation cleanup failed');
       });
@@ -494,8 +497,8 @@ export class CheckoutController {
     const startTime = Date.now();
 
     // 1. Obter configurações
-    const checkoutLimit = await this.checkoutService.fluxEngine.getCheckoutLimit();
-    const salesPaused = await this.checkoutService.fluxEngine.isSalesPaused();
+    const checkoutLimit = await this.checkoutService.fluxEngine.getCheckoutLimitSafe();
+    const salesPaused = await this.checkoutService.fluxEngine.isSalesPausedSafe();
 
     // 2. Obter tentativas negadas e dispositivos de staff
     let deniedAttempts = 0;

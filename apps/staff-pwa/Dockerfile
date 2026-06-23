@@ -11,12 +11,11 @@ RUN npm run build --workspace=@flux/staff-pwa
 
 FROM node:20-alpine AS runner
 WORKDIR /app
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/packages ./packages
-COPY --from=builder /app/apps/staff-pwa ./apps/staff-pwa
-COPY package*.json ./
+COPY --from=builder /app/apps/staff-pwa/.next/standalone ./
+COPY --from=builder /app/apps/staff-pwa/.next/static ./apps/staff-pwa/.next/static
+COPY --from=builder /app/apps/staff-pwa/public ./apps/staff-pwa/public
 
 ENV NODE_ENV=production
 ENV PORT=3000
 EXPOSE 3000
-CMD ["npm", "run", "start", "-w", "@flux/staff-pwa"]
+CMD ["node", "apps/staff-pwa/server.js"]

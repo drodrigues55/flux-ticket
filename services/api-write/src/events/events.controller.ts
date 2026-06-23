@@ -13,7 +13,7 @@ export class EventsController {
 
   @Post()
   async create(
-    @Body() body: { title: string; slug?: string; description?: string; date: string; location: string; categoryId?: number },
+    @Body() body: { title: string; slug?: string; description?: string; date: string; endDate?: string; location: string; categoryId?: number },
     @Req() req: any
   ) {
     const { title, date, location } = body;
@@ -53,7 +53,7 @@ export class EventsController {
   @Put(':id')
   async update(
     @Param('id') id: string,
-    @Body() body: { title?: string; slug?: string; description?: string; date?: string; location?: string; venue?: string; categoryId?: number; capacityTarget?: number },
+    @Body() body: { title?: string; slug?: string; description?: string; date?: string; endDate?: string; location?: string; venue?: string; categoryId?: number; capacityTarget?: number },
     @Req() req: any
   ) {
     const organizerId = req.user.userId;

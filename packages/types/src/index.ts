@@ -83,6 +83,7 @@ export interface BatchInfo {
   sectorName: string | null;
   meiaEntrada: boolean;
   isActive: boolean;
+  status: string;
 }
 
 export interface TicketTypeInfo {
@@ -325,3 +326,5 @@ export interface ReserveResponse {
 }
 
 export * from './cpf';
+export * from './validation/common';
+export * from './validation/event';

@@ -1,4 +1,5 @@
 import express from 'express';
+import compression from 'compression';
 import { prisma } from '@flux/database';
 import rateLimit from 'express-rate-limit';
 import Redis from 'ioredis';
@@ -42,6 +43,7 @@ const limiter = rateLimit({
 });
 
 app.use(requestIdMiddleware);
+app.use(compression({ threshold: 0 }));
 
 // CORS & Security Headers Middleware (Helmet Equivalent)
 app.use((req: any, res: any, next: any) => {
@@ -99,6 +101,7 @@ function toBatchInfo(batch: any): BatchInfo {
     sectorName: batch.sectorName ?? null,
     meiaEntrada: batch.meiaEntrada,
     isActive: batch.isActive,
+    status: batch.status ?? (batch.isActive ? 'ACTIVE' : 'PAUSED'),
   };
 }
 

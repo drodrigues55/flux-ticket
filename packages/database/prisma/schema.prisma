@@ -148,6 +148,7 @@ model Event {
   title          String
   description    String?
   date           DateTime
+  endDate        DateTime?
   location       String      // full address
   venue          String?     // display name (e.g. "Arena São Paulo")
   imageUrl       String?     // cover image URL

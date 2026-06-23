@@ -353,6 +353,7 @@ export default function DashboardPage() {
   const [globalPaused, setGlobalPaused] = useState(false);
   const [operationalControlsAvailable, setOperationalControlsAvailable] = useState(false);
   const [updatingSettings, setUpdatingSettings] = useState(false);
+  const [operationalError, setOperationalError] = useState('');
   const selectedEventRef = useRef(selectedEvent);
 
   // SSR safety
@@ -459,30 +460,68 @@ export default function DashboardPage() {
   }, [data?.salesHistory, selectedPeriod]);
 
   // ── Operational handlers ─────────────────────────────────────────
+  const readSettingsError = async (response: Response) => {
+    try {
+      const payload = await response.json();
+      return payload?.message || payload?.error || 'Falha ao atualizar controles operacionais.';
+    } catch {
+      return 'Falha ao atualizar controles operacionais.';
+    }
+  };
+
   const handleUpdateThrottle = async (limit: number) => {
+    const previousLimit = localThrottle;
     try {
       setUpdatingSettings(true);
-      await fetch('/api/settings/throttle', {
+      setOperationalError('');
+      setLocalThrottle(limit);
+      const response = await fetch('/api/settings/throttle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ limit }),
       });
-    } catch { /* non-fatal */ } finally {
+      if (!response.ok) {
+        throw new Error(await readSettingsError(response));
+      }
+      const payload = await response.json();
+      if (payload?.success !== true || typeof payload.limit !== 'number') {
+        throw new Error('Resposta inesperada ao atualizar limite de checkout.');
+      }
+      setLocalThrottle(payload.limit);
+      await fetchDashboard();
+    } catch (error: any) {
+      setLocalThrottle(previousLimit);
+      setOperationalError(error?.message || 'Falha ao atualizar limite de checkout.');
+    } finally {
       setUpdatingSettings(false);
     }
   };
 
   const handleTogglePause = async () => {
+    const previousPaused = globalPaused;
+    const target = !globalPaused;
     try {
       setUpdatingSettings(true);
-      const target = !globalPaused;
-      const res = await fetch('/api/settings/pause', {
+      setOperationalError('');
+      setGlobalPaused(target);
+      const response = await fetch('/api/settings/pause', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ paused: target }),
       });
-      if (res.ok) setGlobalPaused(target);
-    } catch { /* non-fatal */ } finally {
+      if (!response.ok) {
+        throw new Error(await readSettingsError(response));
+      }
+      const payload = await response.json();
+      if (payload?.success !== true || typeof payload.paused !== 'boolean') {
+        throw new Error('Resposta inesperada ao atualizar pausa de vendas.');
+      }
+      setGlobalPaused(payload.paused);
+      await fetchDashboard();
+    } catch (error: any) {
+      setGlobalPaused(previousPaused);
+      setOperationalError(error?.message || 'Falha ao atualizar pausa de vendas.');
+    } finally {
       setUpdatingSettings(false);
     }
   };
@@ -1011,6 +1050,11 @@ export default function DashboardPage() {
                   </span>
                 </span>
               </div>
+              {operationalError && (
+                <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12px] font-medium text-red-700">
+                  {operationalError}
+                </div>
+              )}
             </div>
           </>
         )}

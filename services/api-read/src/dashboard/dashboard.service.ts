@@ -52,6 +52,7 @@ function toBatchInfo(batch: any): BatchInfo {
     sectorName: batch.sectorName ?? null,
     meiaEntrada: batch.meiaEntrada,
     isActive: batch.isActive,
+    status: batch.status ?? (batch.isActive ? 'ACTIVE' : 'PAUSED'),
   };
 }
 

@@ -4,7 +4,6 @@ import { FluxEngineService } from '../tickets/flux-engine.service';
 import { TicketCryptoService } from '../tickets/ticket-crypto.service';
 import { CheckoutPaymentDto } from './payments.dto';
 import { AuditService } from '../audit/audit.service';
-import { recordTicketStatusHistory } from '../tickets/ticket-status-history';
 import { InternalPaymentStatus, PaymentProvider, ProviderPaymentResult, TemporaryProviderFailure } from './payment-provider';
 import { PAYMENT_PROVIDER } from './payment-provider.token';
 import * as crypto from 'crypto';
@@ -463,33 +462,41 @@ export class PaymentsService {
           continue;
         }
 
-        await tx.saleLog.create({
-          data: {
-            eventId: ticket.eventId || ticket.batch?.eventId,
-            ticketId: ticket.id,
-            batchId: ticket.batchId,
-            paymentId: lockedPayment.id,
-            buyerName: input.buyerName || ticket.buyer?.name || 'Unknown',
-            buyerEmail: input.buyerEmail || ticket.buyer?.email || '',
-            holderName: ticket.holderName || null,
-            batchName: ticket.batch?.name || '',
-            eventTitle: ticket.batch?.event?.title || '',
-            price: ticket.price,
-            channel: 'ONLINE',
-            method: lockedPayment.method,
-            status: (issuedStatuses.find((status) => status.id === ticket.id)?.finalStatus || 'VALID') as any,
-          },
-        }).catch(() => undefined);
+        try {
+          await tx.saleLog.create({
+            data: {
+              eventId: ticket.eventId || ticket.batch?.eventId,
+              ticketId: ticket.id,
+              batchId: ticket.batchId,
+              paymentId: lockedPayment.id,
+              buyerName: input.buyerName || ticket.buyer?.name || 'Unknown',
+              buyerEmail: input.buyerEmail || ticket.buyer?.email || '',
+              holderName: ticket.holderName || null,
+              batchName: ticket.batch?.name || '',
+              eventTitle: ticket.batch?.event?.title || '',
+              price: ticket.price,
+              channel: 'ONLINE',
+              method: lockedPayment.method,
+              status: (issuedStatuses.find((status) => status.id === ticket.id)?.finalStatus || 'VALID') as any,
+            },
+          });
+        } catch (error) {
+          this.logger.warn('[SALE LOG] Could not create SaleLog record', error);
+        }
       }
 
       if (issuedStatuses.length > 0) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        await tx.dailySalesSnapshot.upsert({
-          where: { eventId_date: { eventId: lockedPayment.eventId, date: today } },
-          create: { eventId: lockedPayment.eventId, date: today, revenue: Number(lockedPayment.amount), ticketsSold: issuedStatuses.length },
-          update: { revenue: { increment: Number(lockedPayment.amount) }, ticketsSold: { increment: issuedStatuses.length } },
-        }).catch(() => undefined);
+        try {
+          await tx.dailySalesSnapshot.upsert({
+            where: { eventId_date: { eventId: lockedPayment.eventId, date: today } },
+            create: { eventId: lockedPayment.eventId, date: today, revenue: Number(lockedPayment.amount), ticketsSold: issuedStatuses.length },
+            update: { revenue: { increment: Number(lockedPayment.amount) }, ticketsSold: { increment: issuedStatuses.length } },
+          });
+        } catch (error) {
+          this.logger.warn('[SNAPSHOT] Could not upsert DailySalesSnapshot', error);
+        }
       }
 
       return {
@@ -502,7 +509,9 @@ export class PaymentsService {
     if (!result.alreadyApproved) {
       for (const ticket of result.tickets) {
         if (result.issuedStatuses?.some((status) => status.id === ticket.id)) {
-          await this.fluxEngine.releaseTicketLock(ticket.batchId, ticket.buyerId, ticket.id);
+          await this.fluxEngine.releaseTicketLock(ticket.batchId, ticket.buyerId, ticket.id).catch((error) => {
+            this.logger.warn(`[REDIS LOCK] Could not release approved ticket lock ${ticket.id}`, error);
+          });
         }
       }
     }
@@ -522,39 +531,60 @@ export class PaymentsService {
     requestId?: string | null;
   }) {
     const newExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
+    await prisma.$transaction(async (tx) => {
+      for (const ticket of input.tickets) {
+        await tx.ticket.update({
+          where: { id: ticket.id },
+          data: { status: 'PENDING_PAYMENT', expiresAt: newExpiresAt },
+        });
+        await (tx as any).ticketStatusHistory.create({
+          data: {
+            ticketId: ticket.id,
+            fromStatus: ticket.status,
+            toStatus: 'PENDING_PAYMENT',
+            reason: 'PAYMENT_PENDING',
+            actorId: ticket.buyerId,
+            requestId: input.requestId ?? null,
+            metadata: { paymentId: input.payment.id, providerPaymentId: input.providerResult.providerPaymentId, orderId: input.payment.orderId },
+          },
+        });
+      }
+
+      await tx.auditLog.create({
+        data: {
+          actorRole: 'SYSTEM',
+          action: 'PAYMENT_STATUS_CHANGED',
+          entityType: 'Payment',
+          entityId: input.payment.id,
+          before: undefined,
+          after: { status: 'PENDING' },
+          reason: 'PAYMENT_PENDING',
+          requestId: input.requestId ?? null,
+          metadata: {
+            orderId: input.payment.orderId,
+            providerPaymentId: input.providerResult.providerPaymentId,
+          },
+        },
+      });
+
+      await tx.outboxEvent.create({
+        data: {
+          aggregateType: 'PAYMENT_PENDING',
+          aggregateId: input.payment.id,
+          type: 'payments.recoverPending',
+          status: 'PENDING',
+          nextRunAt: new Date(Date.now() + 60 * 1000),
+          requestId: input.requestId ?? null,
+          payload: { paymentId: input.payment.id, providerPaymentId: input.providerResult.providerPaymentId },
+        },
+      });
+    });
+
     for (const ticket of input.tickets) {
-      await prisma.ticket.update({
-        where: { id: ticket.id },
-        data: { status: 'PENDING_PAYMENT', expiresAt: newExpiresAt },
+      await this.fluxEngine.extendTicketLock(ticket.buyerId, ticket.id, ticket.batchId, 900).catch((error) => {
+        this.logger.warn(`[REDIS LOCK] Could not extend pending ticket lock ${ticket.id}`, error);
       });
-      await recordTicketStatusHistory({
-        ticketId: ticket.id,
-        fromStatus: ticket.status,
-        toStatus: 'PENDING_PAYMENT',
-        reason: 'PAYMENT_PENDING',
-        actorId: ticket.buyerId,
-        requestId: input.requestId ?? undefined,
-        metadata: { paymentId: input.payment.id, providerPaymentId: input.providerResult.providerPaymentId, orderId: input.payment.orderId },
-      });
-      await this.fluxEngine.extendTicketLock(ticket.buyerId, ticket.id, ticket.batchId, 900);
     }
-
-    await this.auditPaymentTransition(input.payment.id, null, 'PENDING', 'PAYMENT_PENDING', {
-      orderId: input.payment.orderId,
-      providerPaymentId: input.providerResult.providerPaymentId,
-    });
-
-    await prisma.outboxEvent.create({
-      data: {
-        aggregateType: 'PAYMENT_PENDING',
-        aggregateId: input.payment.id,
-        type: 'payments.recoverPending',
-        status: 'PENDING',
-        nextRunAt: new Date(Date.now() + 60 * 1000),
-        requestId: input.requestId ?? null,
-        payload: { paymentId: input.payment.id, providerPaymentId: input.providerResult.providerPaymentId },
-      },
-    });
 
     return {
       status: 'pending',
@@ -572,60 +602,99 @@ export class PaymentsService {
     providerResult: ProviderPaymentResult;
     requestId?: string | null;
   }) {
-    for (const ticket of input.tickets) {
-      if (ticket.status === 'REVOKED' || ticket.status === 'VALID' || ticket.status === 'CONSUMED') {
-        continue;
+    const releasedTickets = await prisma.$transaction(async (tx) => {
+      const released: any[] = [];
+
+      for (const ticket of input.tickets) {
+        if (ticket.status === 'REVOKED' || ticket.status === 'VALID' || ticket.status === 'CONSUMED') {
+          continue;
+        }
+
+        await tx.ticketBatch.update({
+          where: { id: ticket.batchId },
+          data: { availableQuantity: { increment: 1 } },
+        });
+        await tx.ticket.update({
+          where: { id: ticket.id },
+          data: { status: 'REVOKED', expiresAt: new Date() },
+        });
+        await (tx as any).ticketStatusHistory.create({
+          data: {
+            ticketId: ticket.id,
+            fromStatus: ticket.status,
+            toStatus: 'REVOKED',
+            reason: `PAYMENT_${input.status}`,
+            actorId: ticket.buyerId,
+            requestId: input.requestId ?? null,
+            metadata: { paymentId: input.payment.id, providerPaymentId: input.providerResult.providerPaymentId, orderId: input.payment.orderId },
+          },
+        });
+        await tx.outboxEvent.create({
+          data: {
+            aggregateType: 'WAITLIST_STOCK_RETURNED',
+            aggregateId: ticket.batchId,
+            type: 'waitlist.invite',
+            status: 'PENDING',
+            nextRunAt: new Date(),
+            requestId: input.requestId ?? null,
+            payload: { batchId: ticket.batchId, eventId: ticket.eventId, source: `PAYMENT_${input.status}` },
+          },
+        });
+        released.push(ticket);
       }
 
-      await this.fluxEngine.releaseTicketLock(ticket.batchId, ticket.buyerId, ticket.id);
-      await prisma.ticketBatch.update({
-        where: { id: ticket.batchId },
-        data: { availableQuantity: { increment: 1 } },
-      });
-      await prisma.ticket.update({
-        where: { id: ticket.id },
-        data: { status: 'REVOKED', expiresAt: new Date() },
-      });
-      await recordTicketStatusHistory({
-        ticketId: ticket.id,
-        fromStatus: ticket.status,
-        toStatus: 'REVOKED',
-        reason: `PAYMENT_${input.status}`,
-        actorId: ticket.buyerId,
-        requestId: input.requestId ?? undefined,
-        metadata: { paymentId: input.payment.id, providerPaymentId: input.providerResult.providerPaymentId, orderId: input.payment.orderId },
-      }).catch(() => undefined);
-      await prisma.outboxEvent.create({
+      await tx.payment.update({
+        where: { id: input.payment.id },
         data: {
-          aggregateType: 'WAITLIST_STOCK_RETURNED',
-          aggregateId: ticket.batchId,
-          type: 'waitlist.invite',
-          status: 'PENDING',
-          nextRunAt: new Date(),
-          requestId: input.requestId ?? null,
-          payload: { batchId: ticket.batchId, eventId: ticket.eventId, source: `PAYMENT_${input.status}` },
+          status: input.status as any,
+          providerStatus: input.providerResult.providerStatus,
+          rawPayload: input.providerResult.rawPayload as any,
         },
       });
-    }
 
-    await prisma.payment.update({
-      where: { id: input.payment.id },
-      data: {
-        status: input.status as any,
-        providerStatus: input.providerResult.providerStatus,
-        rawPayload: input.providerResult.rawPayload as any,
-      },
-    });
-    await (prisma as any).order.update({ where: { id: input.payment.orderId }, data: { status: input.status === 'EXPIRED' ? 'EXPIRED' : 'FAILED' } }).catch(() => undefined);
-    const order = await (prisma as any).order.findUnique({ where: { id: input.payment.orderId } }).catch(() => null);
-    if (order?.reservationId) {
-      await (prisma as any).reservation.update({ where: { id: order.reservationId }, data: { status: input.status === 'EXPIRED' ? 'EXPIRED' : 'CANCELLED' } }).catch(() => undefined);
-    }
+      const order = await (tx as any).order.findUnique({ where: { id: input.payment.orderId } }).catch(() => null);
+      if (input.payment.orderId) {
+        await (tx as any).order.update({
+          where: { id: input.payment.orderId },
+          data: { status: input.status === 'EXPIRED' ? 'EXPIRED' : 'FAILED' },
+        }).catch((error: unknown) => {
+          this.logger.warn(`[ORDER] Could not update order ${input.payment.orderId} for payment release`, error);
+        });
+      }
+      if (order?.reservationId) {
+        await (tx as any).reservation.update({
+          where: { id: order.reservationId },
+          data: { status: input.status === 'EXPIRED' ? 'EXPIRED' : 'CANCELLED' },
+        }).catch((error: unknown) => {
+          this.logger.warn(`[RESERVATION] Could not update reservation ${order.reservationId} for payment release`, error);
+        });
+      }
 
-    await this.auditPaymentTransition(input.payment.id, input.payment.status, input.status, `PAYMENT_${input.status}`, {
-      orderId: input.payment.orderId,
-      providerPaymentId: input.providerResult.providerPaymentId,
+      await tx.auditLog.create({
+        data: {
+          actorRole: 'SYSTEM',
+          action: 'PAYMENT_STATUS_CHANGED',
+          entityType: 'Payment',
+          entityId: input.payment.id,
+          before: input.payment.status ? { status: input.payment.status } : undefined,
+          after: { status: input.status },
+          reason: `PAYMENT_${input.status}`,
+          requestId: input.requestId ?? null,
+          metadata: {
+            orderId: input.payment.orderId,
+            providerPaymentId: input.providerResult.providerPaymentId,
+          },
+        },
+      });
+
+      return released;
     });
+
+    for (const ticket of releasedTickets) {
+      await this.fluxEngine.releaseTicketLock(ticket.batchId, ticket.buyerId, ticket.id).catch((error) => {
+        this.logger.warn(`[REDIS LOCK] Could not release revoked ticket lock ${ticket.id}`, error);
+      });
+    }
   }
 
   private async recordSales(input: { payment: any; tickets: any[]; buyerName?: string; buyerEmail?: string }, finalStatuses: Array<{ id: string; finalStatus: string }>) {
