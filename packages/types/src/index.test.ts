@@ -52,3 +52,16 @@ test('FinancialExportQuerySchema rejects invalid export scope filters', () => {
   assert.equal(FinancialExportQuerySchema.safeParse({ limit: 0 }).success, false);
   assert.equal(FinancialExportQuerySchema.safeParse({ dateFrom: '2026-07-02T00:00:00.000Z', dateTo: '2026-07-01T00:00:00.000Z' }).success, false);
 });
+
+import { InviteOrganizationMemberInputSchema, UpdateOrganizationProfileInputSchema } from './organization';
+
+test('InviteOrganizationMemberInputSchema rejects invalid email and role', () => {
+  assert.equal(InviteOrganizationMemberInputSchema.safeParse({ email: 'bademail', role: 'EVENT_MANAGER' }).success, false);
+  assert.equal(InviteOrganizationMemberInputSchema.safeParse({ email: 'test@org.com', role: 'SUPER_ADMIN' }).success, false);
+  assert.equal(InviteOrganizationMemberInputSchema.safeParse({ email: 'test@org.com', role: 'ADMIN' }).success, true);
+});
+
+test('UpdateOrganizationProfileInputSchema rejects name shorter than 2 chars', () => {
+  assert.equal(UpdateOrganizationProfileInputSchema.safeParse({ name: 'A' }).success, false);
+  assert.equal(UpdateOrganizationProfileInputSchema.safeParse({ name: 'My Organization' }).success, true);
+});

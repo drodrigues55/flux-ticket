@@ -9,6 +9,6 @@ export interface UseZodFormProps<T extends FieldValues> extends Omit<UseFormProp
 export function useZodForm<T extends FieldValues>({ schema, ...formProps }: UseZodFormProps<T>) {
   return useForm<T>({
     ...formProps,
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema as any),
   });
 }

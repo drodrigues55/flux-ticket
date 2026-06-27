@@ -147,6 +147,7 @@ model User {
   reservations Reservation[]
   orders Order[]
   waitlistEntries WaitlistEntry[]
+  memberships     OrganizationMember[]
 }
 
 model Event {
@@ -596,4 +597,46 @@ model OutboxEvent {
   @@index([type])
   @@index([status, nextRunAt])
   @@index([requestId])
+}
+
+model Organization {
+  id          String   @id @default(uuid())
+  name        String
+  legalName   String?
+  cnpj        String?
+  email       String?
+  phone       String?
+  timezone    String   @default("UTC")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members     OrganizationMember[]
+  invites     OrganizationInvite[]
+}
+
+model OrganizationMember {
+  id             String       @id @default(uuid())
+  organizationId String
+  userId         String
+  role           String       // OWNER, ADMIN, FINANCE, EVENT_MANAGER, STAFF_MANAGER, ANALYST
+  status         String       // ACTIVE, INVITED, REMOVED
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+}
+
+model OrganizationInvite {
+  id             String       @id @default(uuid())
+  organizationId String
+  email          String
+  role           String
+  token          String       @unique
+  expiresAt      DateTime
+  createdAt      DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 }

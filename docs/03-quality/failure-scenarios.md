@@ -20,3 +20,7 @@ This document analyzes high-risk failure modes, their mitigation, and reproducti
 ## QA-2 Updates: Frontend Error Handlers
 - **Dashboard & client requestIds**: Error modals are guaranteed to extract and present `meta.requestId` to simplify troubleshooting.
 - **Stale/Expired Reservations**: Clients receive real-time warnings when reservation session countdowns expire.
+
+## QA-3 Updates: Hardening Verification
+- **Double-submit Idempotency**: Checkout requests verify client-generated idempotency keys to reject duplicate processing.
+- **RBAC Privilege Escalation**: Server-side role checks reject event management modifications from read-only users and demotion of the only active owner.

@@ -32,6 +32,7 @@ const navItems = [
   { name: 'Marketing', href: '/marketing', icon: Megaphone },
   { name: 'Financeiro', href: '/finance', icon: Wallet },
   { name: 'Relatórios', href: '/reports', icon: BarChart3 },
+  { name: 'Organização', href: '/organization/profile', icon: Users },
   { name: 'Configurações', href: '/settings', icon: Settings },
 ];
 

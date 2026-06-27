@@ -6,48 +6,56 @@
 
    Linting and checking validity of types ...
    Creating an optimized production build ...
- ⚠ Found lockfile missing swc dependencies, patching...
- ⚠ Found lockfile missing swc dependencies, patching...
- ⚠ Found lockfile missing swc dependencies, patching...
- ✓ Compiled successfully in 3.6s
+ ✓ Compiled successfully in 1985ms
    Collecting page data ...
- ⚠ Found lockfile missing swc dependencies, patching...
-   Generating static pages (0/6) ...
-   Generating static pages (1/6) 
-   Generating static pages (2/6) 
-   Generating static pages (4/6) 
- ✓ Generating static pages (6/6)
+   Generating static pages (0/12) ...
+   Generating static pages (3/12) 
+   Generating static pages (6/12) 
+   Generating static pages (9/12) 
+ ✓ Generating static pages (12/12)
    Finalizing page optimization ...
    Collecting build traces ...
- ⚠ Lockfile was successfully patched, please run "npm install" to ensure @next/swc dependencies are downloaded
 
-Route (pages)                                Size  First Load JS
-┌ ○ /                                     3.84 kB        95.8 kB
-├   /_app                                     0 B        81.7 kB
-├ ○ /404                                  2.29 kB          84 kB
-├ ƒ /api/auth/logout                          0 B        81.7 kB
-├ ƒ /api/auth/magic-link                      0 B        81.7 kB
-├ ƒ /api/events/[id]                          0 B        81.7 kB
-├ ƒ /api/payments/checkout                    0 B        81.7 kB
-├ ƒ /api/read/events                          0 B        81.7 kB
-├ ƒ /api/tickets/[ticketId]/googlepay         0 B        81.7 kB
-├ ƒ /api/tickets/[ticketId]/pkpass            0 B        81.7 kB
-├ ƒ /api/tickets/renew-lock                   0 B        81.7 kB
-├ ƒ /api/tickets/reserve                      0 B        81.7 kB
-├ ƒ /api/tickets/transfer                     0 B        81.7 kB
-├ ƒ /api/tickets/user                         0 B        81.7 kB
-├ ƒ /api/tickets/validate                     0 B        81.7 kB
-├ ○ /checkout/[eventId]                   9.89 kB        98.5 kB
-├ ƒ /checkout/success                     2.24 kB        94.2 kB
-├ ○ /event/[id]                           4.58 kB        96.6 kB
-├ ○ /profile                              5.86 kB        97.8 kB
-├ ƒ /profile/validate/[ticketId]          2.65 kB        94.6 kB
-├ ƒ /ticket/[ticketId]                    5.37 kB          94 kB
-└ ƒ /ticket/[ticketId]/pdf                3.11 kB        84.8 kB
-+ First Load JS shared by all             90.8 kB
-  ├ chunks/framework-d8f01f7e25201916.js  44.8 kB
-  ├ chunks/main-4fa1802e42229f25.js       34.7 kB
-  └ other shared chunks (total)           11.3 kB
+Route (pages)                                       Size  First Load JS
+┌ ○ /                                            6.53 kB        95.4 kB
+├   /_app                                            0 B        81.7 kB
+├ ○ /404                                         2.29 kB          84 kB
+├ ƒ /api/auth/logout                                 0 B        81.7 kB
+├ ƒ /api/auth/magic-link                             0 B        81.7 kB
+├ ƒ /api/events/[id]                                 0 B        81.7 kB
+├ ƒ /api/payments/checkout                           0 B        81.7 kB
+├ ƒ /api/public/events                               0 B        81.7 kB
+├ ƒ /api/public/events/[slug]                        0 B        81.7 kB
+├ ƒ /api/public/events/[slug]/tickets                0 B        81.7 kB
+├ ƒ /api/public/orders/[orderId]/confirmation        0 B        81.7 kB
+├ ƒ /api/public/orders/[orderId]/resend-tickets      0 B        81.7 kB
+├ ƒ /api/public/tickets/[ticketId]                   0 B        81.7 kB
+├ ƒ /api/read/events                                 0 B        81.7 kB
+├ ƒ /api/tickets/[ticketId]/googlepay                0 B        81.7 kB
+├ ƒ /api/tickets/[ticketId]/pkpass                   0 B        81.7 kB
+├ ƒ /api/tickets/renew-lock                          0 B        81.7 kB
+├ ƒ /api/tickets/reserve                             0 B        81.7 kB
+├ ƒ /api/tickets/transfer                            0 B        81.7 kB
+├ ƒ /api/tickets/user                                0 B        81.7 kB
+├ ƒ /api/tickets/validate                            0 B        81.7 kB
+├ ○ /checkout/[eventId]                          27.1 kB         116 kB
+├ ƒ /checkout/success                            5.16 kB          94 kB
+├ ○ /event/[id]                                  7.25 kB        96.1 kB
+├ ○ /events                                      3.74 kB        95.8 kB
+├ ○ /events/[slug]                                  5 kB        93.9 kB
+├ ○ /events/[slug]/checkout                       5.1 kB        97.2 kB
+├ ƒ /orders/[orderId]/confirmation               3.81 kB        95.9 kB
+├ ○ /orders/[orderId]/tickets                      416 B        82.1 kB
+├ ○ /profile                                     8.46 kB        97.3 kB
+├ ƒ /profile/validate/[ticketId]                 5.53 kB        94.4 kB
+├ ƒ /ticket/[ticketId]                           5.37 kB        94.2 kB
+├ ƒ /ticket/[ticketId]/pdf                       3.11 kB        84.8 kB
+├ ○ /tickets/[ticketId]                            401 B        82.1 kB
+└ ○ /tickets/[ticketId]/download                   413 B        82.1 kB
++ First Load JS shared by all                    91.1 kB
+  ├ chunks/framework-d8f01f7e25201916.js         44.8 kB
+  ├ chunks/main-4fa1802e42229f25.js              34.7 kB
+  └ other shared chunks (total)                  11.5 kB
 
 ○  (Static)   prerendered as static content
 ƒ  (Dynamic)  server-rendered on demand

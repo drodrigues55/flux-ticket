@@ -11,6 +11,7 @@ import { requestIdMiddleware, RequestWithId } from './request-id-middleware';
 import { dashboardRouter } from './dashboard/dashboard.controller';
 import { organizerEventsRouter } from './organizer-events/organizer-events.controller';
 import { organizerFinanceRouter } from './organizer-finance/organizer-finance.controller';
+import { orgRouter } from './org/org.controller';
 import { buildPaymentDebugReadModel } from './payments/payment-debug';
 import { getQueueStats, getServiceVersion, renderMetrics } from './observability';
 import { captureException, initSentry } from './sentry';
@@ -80,6 +81,7 @@ app.use(express.json());
 app.use('/dashboard', dashboardRouter);
 app.use('/organizer/events', organizerEventsRouter);
 app.use('/organizer/finance', organizerFinanceRouter);
+app.use('/organization', orgRouter);
 
 // ─────────────────────────────────────────────
 // HELPERS

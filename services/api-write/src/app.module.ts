@@ -7,6 +7,7 @@ import { PaymentsModule } from './payments/payments.module';
 import { AuditModule } from './audit/audit.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
 import { HealthModule } from './health/health.module';
+import { OrgWriteModule } from './org/org-write.module';
 
 @Module({
   imports: [
@@ -42,7 +43,8 @@ import { HealthModule } from './health/health.module';
     PaymentsModule,
     AuditModule,
     MonitoringModule,
-    HealthModule
+    HealthModule,
+    OrgWriteModule
   ],
   providers: [
     {

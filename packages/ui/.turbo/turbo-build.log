@@ -2,21 +2,3 @@
 > @flux/ui@1.0.0 build
 > tsc
 
-src/fields/NumberField.tsx(28,38): error TS2339: Property 'value' does not exist on type 'EventTarget & HTMLInputElement'.
-src/fields/SelectField.tsx(32,101): error TS2339: Property 'className' does not exist on type '{ autoComplete?: string | undefined; disabled?: boolean | undefined; form?: string | undefined; multiple?: boolean | undefined; required?: boolean | undefined; size?: number | undefined; ... 263 more ...; onTransitionEndCapture?: TransitionEventHandler<...> | undefined; }'.
-src/fields/TextareaField.tsx(29,225): error TS2339: Property 'className' does not exist on type '{ autoComplete?: string | undefined; cols?: number | undefined; dirName?: string | undefined; disabled?: boolean | undefined; form?: string | undefined; maxLength?: number | undefined; ... 269 more ...; onTransitionEndCapture?: TransitionEventHandler<...> | undefined; }'.
-src/hooks/useZodForm.ts(12,27): error TS2769: No overload matches this call.
-  Overload 1 of 4, '(schema: Zod3Type<T, T>, schemaOptions?: ParseParams | undefined, resolverOptions?: NonRawResolverOptions | undefined): Resolver<...>', gave the following error.
-    Argument of type 'ZodType<T, ZodTypeDef, T>' is not assignable to parameter of type 'Zod3Type<T, T>'.
-      Types of property '_def' are incompatible.
-        Property 'typeName' is missing in type 'ZodTypeDef' but required in type '{ typeName: string; }'.
-  Overload 2 of 4, '(schema: $ZodType<unknown, FieldValues, $ZodTypeInternals<unknown, FieldValues>>, schemaOptions?: ParseContext<$ZodIssue> | undefined, resolverOptions?: NonRawResolverOptions | undefined): Resolver<...>', gave the following error.
-    Argument of type 'ZodType<T, ZodTypeDef, T>' is not assignable to parameter of type '$ZodType<unknown, FieldValues, $ZodTypeInternals<unknown, FieldValues>>'.
-      Property '_zod' is missing in type 'ZodType<T, ZodTypeDef, T>' but required in type '$ZodType<unknown, FieldValues, $ZodTypeInternals<unknown, FieldValues>>'.
-npm error Lifecycle script `build` failed with error:
-npm error code 2
-npm error path C:\Users\DRODRIGUES\Documents\flux-ticket\packages\ui
-npm error workspace @flux/ui@1.0.0
-npm error location C:\Users\DRODRIGUES\Documents\flux-ticket\packages\ui
-npm error command failed
-npm error command cmd.exe /d /s /c tsc

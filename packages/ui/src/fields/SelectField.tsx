@@ -29,7 +29,7 @@ export function SelectField({ name, label, description, options, className, ...p
                 <select
                   {...field}
                   {...props}
-                  className={`${baseStyle} ${fieldState.error ? errorBorder : normalBorder} ${props.className || ''}`}
+                  className={`${baseStyle} ${fieldState.error ? errorBorder : normalBorder} ${className || ''}`}
                 >
                   <option value="" disabled hidden>
                     Selecione uma opção

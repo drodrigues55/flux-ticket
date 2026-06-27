@@ -1,13 +1,31 @@
 
 > @flux/api-read@1.0.0 test
-> jest
+> tsx --test src/**/*.test.ts
 
-'jest' n�o � reconhecido como um comando interno
-ou externo, um programa oper�vel ou um arquivo em lotes.
-npm error Lifecycle script `test` failed with error:
-npm error code 1
-npm error path C:\Users\DRODRIGUES\Documents\flux-ticket\services\api-read
-npm error workspace @flux/api-read@1.0.0
-npm error location C:\Users\DRODRIGUES\Documents\flux-ticket\services\api-read
-npm error command failed
-npm error command C:\WINDOWS\system32\cmd.exe /d /s /c jest
+✔ priority ranking engine: draft events are ranked for setup completion, not sales (1.1312ms)
+✔ priority ranking engine: critical issues increase score for published events (0.1961ms)
+✔ organizer event list boundary filters out foreign organizer events (0.9391ms)
+✔ public catalog lists only published events (1.0326ms)
+✔ staff offline bundle sanitization removes sensitive billing data (0.2177ms)
+✔ returns recommended warnings without blocking optional polish fields (3.1473ms)
+✔ returns blockers for missing minimal ticket configuration (54.3452ms)
+✔ returns blockers for invalid ticket quantity and price (0.2884ms)
+✔ parses organizer event list search filter sort and pagination query (2.1951ms)
+✔ defaults organizer event list query to updated desc first page (0.4608ms)
+✔ derives ARCHIVED status when archivedAt is set (0.2232ms)
+✔ derives COMPLETED status when salesEnd is in the past (0.1883ms)
+✔ derives PENDING status when salesStart is in the future (0.4476ms)
+✔ derives PAUSED status when isActive is false (0.1846ms)
+✔ derives ACTIVE status when active and within sales window (0.2852ms)
+✔ financial fee estimate calculates gross fee and net values (23.5223ms)
+✔ financial status helpers classify approved pending and failed expired totals (22.1608ms)
+✔ CSV export escapes values and excludes raw sensitive fields by construction (0.3775ms)
+✔ payment debug read model redacts raw payload values and keeps request ids (2.8328ms)
+ℹ tests 19
+ℹ suites 0
+ℹ pass 19
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 550.8715

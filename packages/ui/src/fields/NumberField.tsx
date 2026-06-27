@@ -25,7 +25,7 @@ export function NumberField({ name, label, description, className, ...props }: N
               {...field}
               value={value ?? ''}
               onChange={(e) => {
-                const val = e.target.value;
+                const val = (e.target as HTMLInputElement).value;
                 onChange(val === '' ? undefined : Number(val));
               }}
               {...props} 

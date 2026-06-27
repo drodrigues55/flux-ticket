@@ -35,3 +35,8 @@ This document outlines the testing strategy, automated test coverage matrix, and
 - **Worker Idempotency Tests**: Added retryability and duplicate email checks inside `@flux/ticket-worker`.
 - **Frontend Error Handlers**: Mock components and error bounds tests added to `dashboard`, `client`, and `staff-pwa`.
 - **Integration Smoke Tests**: Added full checkout E2E loops and offline conflict simulations to `@flux/api-write`.
+
+## QA-3 Updates: Integrated Validation Suite (Phases 11-15)
+- **E2E Smoke Tests**: Full organizer-to-gate regression loop validation in `qa-3-smoke.test.ts`.
+- **Role Permissions**: Confirms Finance, Event Manager, and Analyst role bounds.
+- **Hardening Checks**: Verifies rate limit structures and duplicate checkout prevention.

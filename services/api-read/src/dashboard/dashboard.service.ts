@@ -57,6 +57,7 @@ function toBatchInfo(batch: any): BatchInfo {
 }
 
 function computePriorityScore(params: {
+  status: string;
   daysRemaining: number;
   occupancyPct: number;
   capacityTarget: number;
@@ -64,19 +65,36 @@ function computePriorityScore(params: {
   criticalAlerts: number;
   warningAlerts: number;
   salesTrend7d: number;
+  paymentFailures: number;
+  pendingPayments: number;
+  failedDeliveries: number;
+  offlineSyncConflicts: number;
 }) {
   let score = 0;
+
+  // Draft / Setup stage events are scored for setup completion
+  if (params.status === 'DRAFT' || params.status === 'READY_FOR_VALIDATION') {
+    score += 15; // base priority for draft setup
+    if (params.batches.length === 0) score += 30; // missing tickets
+    return score;
+  }
+
+  // Published upcoming events ranked for sales/operations
   if (params.daysRemaining <= 7) score += 50;
   if (params.daysRemaining <= 3) score += 30;
   if (params.occupancyPct < params.capacityTarget) score += 20;
   if (params.occupancyPct >= 80) score += 25;
-  if (params.batches.some((batch) => batch.totalQuantity > 0 && batch.availableQuantity / batch.totalQuantity < 0.1)) {
-    score += 30;
-  }
+  
   if (params.criticalAlerts > 0) score += 40;
   if (params.warningAlerts > 0) score += 20;
   if (params.salesTrend7d < -20) score += 25;
-  if (params.salesTrend7d > 50) score += 10;
+
+  // Add points for active issues
+  if (params.paymentFailures > 0) score += 15;
+  if (params.pendingPayments > 0) score += 10;
+  if (params.failedDeliveries > 0) score += 20;
+  if (params.offlineSyncConflicts > 0) score += 25;
+
   return score;
 }
 
@@ -103,17 +121,18 @@ export class DashboardService {
     const context = await this.loadContext(organizerId);
     const classified = await this.buildEventMetrics(context);
 
-    const heroMetric = classified[0] ?? null;
+    const activeClassified = classified.filter(e => e.status !== 'ARCHIVED');
+    const heroMetric = activeClassified[0] ?? null;
     const heroEvent = heroMetric && heroMetric.priorityScore >= 70 ? this.toPriorityEvent(heroMetric) : null;
-    const attentionEvents = classified
+    const attentionEvents = activeClassified
       .filter((event) => event.eventId !== heroEvent?.eventId && event.priorityScore >= 30)
       .slice(0, 4)
       .map((event) => this.toAttentionEvent(event));
-    const healthyEvents = classified
+    const healthyEvents = activeClassified
       .filter((event) => event.eventId !== heroEvent?.eventId && event.priorityScore < 30)
       .map((event) => this.toHealthyEvent(event));
 
-    const totals = this.getTotals(classified);
+    const totals = this.getTotals(activeClassified);
     const salesHistory = await this.getSalesHistory(context.eventIds);
     const recentSalesSummary = await this.getRecentSales(context.eventIds);
 
@@ -153,14 +172,17 @@ export class DashboardService {
 
   async getPriorityEvent(organizerId?: string): Promise<DashboardPriorityEvent | null> {
     const context = await this.loadContext(organizerId);
-    const [top] = await this.buildEventMetrics(context);
+    const metrics = await this.buildEventMetrics(context);
+    const active = metrics.filter(e => e.status !== 'ARCHIVED');
+    const top = active[0] ?? null;
     return top ? this.toPriorityEvent(top) : null;
   }
 
   async getEventsPriority(organizerId?: string): Promise<DashboardEventPriority[]> {
     const context = await this.loadContext(organizerId);
     const metrics = await this.buildEventMetrics(context);
-    return metrics.map((event, index) => {
+    const active = metrics.filter(e => e.status !== 'ARCHIVED');
+    return active.map((event, index) => {
       if (index === 0 || event.priorityScore >= 70) return this.toPriorityEvent(event);
       if (event.priorityScore >= 30) return this.toAttentionEvent(event);
       return this.toHealthyEvent(event);
@@ -234,11 +256,10 @@ export class DashboardService {
     const eventIds = events.map((event) => event.id);
     // TODO(Phase 5 scale): replace broad relation loading with database-side
     // grouped aggregations once dashboard volume and SLO targets are defined.
-    const [payments, checkins, history, auditLogs, activeCheckoutLocks] = await Promise.all([
+    const [payments, checkins, history, auditLogs, activeCheckoutLocks, failedDeliveries] = await Promise.all([
       prisma.payment.findMany({
         where: {
           eventId: { in: eventIds },
-          status: 'APPROVED',
         },
         include: {
           buyer: { select: { name: true, email: true } },
@@ -286,9 +307,15 @@ export class DashboardService {
           expiresAt: { gt: new Date() },
         },
       }),
+      prisma.outboxEvent.findMany({
+        where: {
+          type: 'tickets.delivery',
+          status: 'FAILED',
+        },
+      }),
     ]);
 
-    return { events, eventIds, payments, checkins, history, auditLogs, activeCheckoutLocks };
+    return { events, eventIds, payments, checkins, history, auditLogs, activeCheckoutLocks, failedDeliveries };
   }
 
   private async buildEventMetrics(context: Awaited<ReturnType<DashboardService['loadContext']>>): Promise<DashboardEventMetrics[]> {
@@ -324,21 +351,40 @@ export class DashboardService {
       historyByEvent.set(eventId, list);
     }
 
+    const orderToEventMap = new Map<string, string>();
+    for (const payment of context.payments) {
+      if (payment.orderId) {
+        orderToEventMap.set(payment.orderId, payment.eventId);
+      }
+    }
+
+    const failedDeliveriesByEvent = new Map<string, number>();
+    for (const outbox of context.failedDeliveries || []) {
+      const payload = outbox.payload as any;
+      const eventId = payload?.eventId || (payload?.orderId ? orderToEventMap.get(payload.orderId) : null);
+      if (eventId) {
+        failedDeliveriesByEvent.set(eventId, (failedDeliveriesByEvent.get(eventId) ?? 0) + 1);
+      }
+    }
+
     return context.events
       .map((event) => {
         const batches = event.batches.map(toBatchInfo);
         const totalCapacity = batches.reduce((sum, batch) => sum + batch.totalQuantity, 0);
         const ticketsSold = batches.reduce((sum, batch) => sum + batch.soldQuantity, 0);
-        const grossRevenue = (paymentsByEvent.get(event.id) ?? []).reduce((sum, payment) => sum + Number(payment.amount), 0);
+        
+        const eventPayments = paymentsByEvent.get(event.id) ?? [];
+        const grossRevenue = eventPayments.filter(p => p.status === 'APPROVED').reduce((sum, payment) => sum + Number(payment.amount), 0);
         const checkIns = (checkinsByEvent.get(event.id) ?? []).filter((checkin) => checkin.status === 'ACCEPTED').length;
         const occupancyPct = pct(ticketsSold, totalCapacity);
-        const salesTrend7d = this.getSalesTrend(paymentsByEvent.get(event.id) ?? [], now);
+        const salesTrend7d = this.getSalesTrend(eventPayments.filter(p => p.status === 'APPROVED'), now);
+        
         const activeAlerts = this.deriveAlerts({
           event,
           batches,
           occupancyPct,
           checkins: checkinsByEvent.get(event.id) ?? [],
-          payments: paymentsByEvent.get(event.id) ?? [],
+          payments: eventPayments,
           auditLogs: auditLogsByEvent.get(event.id) ?? [],
           history: historyByEvent.get(event.id) ?? [],
           now,
@@ -346,7 +392,14 @@ export class DashboardService {
         const criticalAlerts = activeAlerts.filter((alert) => alert.severity === 'CRITICAL').length;
         const warningAlerts = activeAlerts.filter((alert) => alert.severity === 'WARNING').length;
         const daysRemaining = daysUntil(event.date, now);
+
+        const paymentFailures = eventPayments.filter(p => p.status === 'REJECTED').length;
+        const pendingPayments = eventPayments.filter(p => p.status === 'PENDING').length;
+        const failedDeliveries = failedDeliveriesByEvent.get(event.id) ?? 0;
+        const offlineSyncConflicts = (checkinsByEvent.get(event.id) ?? []).filter(c => c.status === 'CONFLICT' || c.status === 'DUPLICATE').length;
+
         const priorityScore = computePriorityScore({
+          status: event.status,
           daysRemaining,
           occupancyPct,
           capacityTarget: event.capacityTarget ?? 80,
@@ -354,6 +407,10 @@ export class DashboardService {
           criticalAlerts,
           warningAlerts,
           salesTrend7d,
+          paymentFailures,
+          pendingPayments,
+          failedDeliveries,
+          offlineSyncConflicts,
         });
 
         return {

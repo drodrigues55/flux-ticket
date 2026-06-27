@@ -26,7 +26,7 @@ export function TextareaField({ name, label, description, className, ...props }:
               <textarea
                 {...field}
                 {...props}
-                className={`w-full bg-[#FAFAFA] border rounded-2xl p-4 text-sm text-neutral-800 placeholder-neutral-400 focus:outline-none transition-all duration-200 ${fieldState.error ? errorBorder : normalBorder} ${props.className || ''}`}
+                className={`w-full bg-[#FAFAFA] border rounded-2xl p-4 text-sm text-neutral-800 placeholder-neutral-400 focus:outline-none transition-all duration-200 ${fieldState.error ? errorBorder : normalBorder} ${className || ''}`}
               />
             </FormControl>
             {description && !fieldState.error && (
