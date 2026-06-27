@@ -55,6 +55,21 @@ Feature status definitions:
 
 ---
 
+# Consumer Portal
+
+| Feature                  | Status |
+| ------------------------ | :----: |
+| Public Event List        |   📋   |
+| Public Event Detail Page |   📋   |
+| Public Ticket Selector   |   📋   |
+| Public Event Search      |   📋   |
+| Cart / Reservation Entry |   📋   |
+| Checkout Page UX         |   🚧   |
+| Order Confirmation Page  |   📋   |
+| Event Recommendations    |   💡   |
+
+---
+
 # Organizer Dashboard
 
 | Feature             | Status |
@@ -75,14 +90,14 @@ Feature status definitions:
 
 | Feature            | Status |
 | ------------------ | :----: |
-| Event List         |   📋   |
-| Event Search       |   📋   |
-| Event Filters      |   📋   |
-| Event Detail Shell |   📋   |
-| Draft Management   |   📋   |
-| Duplicate Event    |   📋   |
-| Archive Event      |   📋   |
-| Delete Draft Event |   📋   |
+| Event List         |   ✅   |
+| Event Search       |   ✅   |
+| Event Filters      |   ✅   |
+| Event Detail Shell |   ✅   |
+| Draft Management   |   ✅   |
+| Duplicate Event    |   ✅   |
+| Archive Event      |   ✅   |
+| Delete Draft Event |   ✅   |
 
 ---
 
@@ -109,11 +124,25 @@ Feature status definitions:
 | Publishing Entry Point         |   ✅   |
 | Publish Event                  |   📋   |
 | Publishing Validation Workflow |   📋   |
-| Archive Event                  |   📋   |
+| Archive Event                  |   ✅   |
 | Cancel Event                   |   📋   |
 | Event Banner                   |   📋   |
 | Event Categories               |   📋   |
 | Event Tags                     |   💡   |
+
+---
+
+# Publishing Workflow
+
+| Feature                | Status |
+| ---------------------- | :----: |
+| Publishing Checklist   |   📋   |
+| Publishing Validation  |   📋   |
+| Blockers and Warnings  |   📋   |
+| Public Preview         |   📋   |
+| Publish Action         |   📋   |
+| Unpublish Action       |   📋   |
+| Published Event State  |   📋   |
 
 ---
 
@@ -362,7 +391,7 @@ Current implementation focuses on delivering a complete MVP centered around:
 * Background processing
 * Observability
 
-The current product stage is mid-MVP: the platform foundation and transaction engine are strong, while organizer management, publishing validation, ticket workspace, public consumer experience, delivery, and financial tooling remain under active planning or future implementation.
+The current product stage is mid-MVP: the platform foundation, transaction engine, event creation, and organizer portal are strong. The remaining critical gaps are ticket workspace, batch management UI, publishing validation, public consumer experience, delivery, and financial tooling.
 
 ---
 
@@ -370,15 +399,15 @@ The current product stage is mid-MVP: the platform foundation and transaction en
 
 The next major milestones are:
 
-1. Organizer Portal
-2. Ticket Workspace
-3. Batch Management UI
-4. Publishing Validation Workflow
-5. Consumer Portal improvements
-6. Staff Portal expansion
-7. Financial Center
-8. Organization Management
-9. Integrations
-10. Growth and marketing tools
+1. Ticket Workspace
+2. Batch Management UI
+3. Publishing Validation Workflow
+4. Consumer Portal improvements
+5. Staff Portal expansion
+6. Financial Center
+7. Organization Management
+8. Integrations
+9. Growth and marketing tools
+10. White Label / Enterprise capabilities
 
 Future development expands the platform while preserving the existing architecture, CQRS boundaries, shared contracts, and business rules.

@@ -317,6 +317,16 @@ export class CheckoutController {
     if (!eventId) {
       throw new BadRequestException('eventId é obrigatório.');
     }
+
+    const event = await prisma.event.findUnique({
+      where: { id: eventId }
+    });
+    if (!event) {
+      throw new NotFoundException('Event not found.');
+    }
+    if (event.status !== 'PUBLISHED') {
+      throw new BadRequestException('O evento não está publicado.');
+    }
     
     // Normaliza para uma lista uniforme de itens a serem reservados
     let reservationItems: Array<{ batchId?: string; ticketTypeId?: string; price?: number; isHalfPrice: boolean; quantity: number }> = [];
@@ -359,6 +369,31 @@ export class CheckoutController {
       }
       if (!item.batchId || item.price === undefined) {
         throw new BadRequestException('Não foi possível resolver o lote ou preço do item.');
+      }
+
+      // Perform Phase 8 validations
+      const batch = await prisma.ticketBatch.findFirst({
+        where: { id: item.batchId, archivedAt: null, isActive: true }
+      });
+      if (!batch) {
+        throw new BadRequestException('Lote inválido, inativo ou arquivado.');
+      }
+      const now = new Date();
+      if (batch.salesStart && batch.salesStart > now) {
+        throw new BadRequestException('Vendas do lote ainda não iniciadas.');
+      }
+      if (batch.salesEnd && batch.salesEnd < now) {
+        throw new BadRequestException('Vendas do lote já encerradas.');
+      }
+
+      const tt = await prisma.ticketType.findFirst({
+        where: { id: batch.ticketTypeId!, archivedAt: null, isActive: true, visibility: true }
+      });
+      if (!tt) {
+        throw new BadRequestException('Tipo de ingresso associado é inválido, inativo ou arquivado.');
+      }
+      if (item.quantity > tt.purchaseLimit) {
+        throw new BadRequestException(`A quantidade desejada excede o limite de compra de ${tt.purchaseLimit} ingressos por transação.`);
       }
     }
     

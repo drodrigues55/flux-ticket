@@ -319,6 +319,172 @@ app.get('/events/:id', async (req, res) => {
   }
 });
 
+app.get('/public/events', async (req, res) => {
+  try {
+    const { categoryId } = req.query;
+    const where: any = { status: 'PUBLISHED' };
+    if (categoryId) {
+      where.categoryId = Number(categoryId);
+    }
+    const events = await prisma.event.findMany({
+      where,
+      include: { ticketTypes: { where: { archivedAt: null, visibility: true, isActive: true }, include: { batches: { where: { archivedAt: null, isActive: true } } } } },
+      orderBy: { date: 'asc' },
+    });
+
+    const result = events.map((event) => {
+      const ticketTypes = event.ticketTypes.map(tt => ({
+        id: tt.id,
+        name: tt.name,
+        description: tt.description,
+        capacity: tt.capacity,
+        batches: tt.batches.map(toBatchInfo),
+      }));
+      const allBatches = ticketTypes.flatMap(tt => tt.batches);
+      const agg = computeEventAggregates(allBatches);
+      
+      const startingPrice = allBatches.length > 0 
+        ? Math.min(...allBatches.map(b => b.price)) 
+        : null;
+
+      return {
+        id: event.id,
+        title: event.title,
+        slug: event.slug ?? null,
+        description: event.description ?? null,
+        date: event.date.toISOString(),
+        location: event.location,
+        venue: event.venue ?? null,
+        imageUrl: event.imageUrl ?? null,
+        organizerId: event.organizerId,
+        categoryId: event.categoryId ?? null,
+        startingPrice,
+        ...agg,
+      };
+    });
+
+    res.json(result);
+  } catch (error) {
+    logger.error({ requestId: (req as RequestWithId).requestId, err: error }, 'GET /public/events failed');
+    res.status(500).json(fail({
+      code: 'PUBLIC_EVENTS_ERROR',
+      message: 'Failed to retrieve public events catalog',
+      statusCode: 500,
+      requestId: (req as RequestWithId).requestId || 'req_unknown',
+    }));
+  }
+});
+
+app.get('/public/events/:slug', async (req, res) => {
+  try {
+    const event = await prisma.event.findFirst({
+      where: { slug: req.params.slug, status: 'PUBLISHED' },
+      include: {
+        ticketTypes: {
+          where: { archivedAt: null, visibility: true, isActive: true },
+          include: {
+            batches: {
+              where: { archivedAt: null, isActive: true },
+              orderBy: { displayOrder: 'asc' }
+            }
+          }
+        }
+      },
+    });
+
+    if (!event) {
+      return res.status(404).json(fail({
+        code: 'EVENT_NOT_FOUND',
+        message: 'Event not found or not published',
+        statusCode: 404,
+        requestId: (req as RequestWithId).requestId || 'req_unknown',
+      }));
+    }
+
+    const ticketTypes = event.ticketTypes.map(tt => ({
+      id: tt.id,
+      name: tt.name,
+      description: tt.description,
+      capacity: tt.capacity,
+      purchaseLimit: tt.purchaseLimit,
+      batches: tt.batches.map(toBatchInfo),
+    }));
+    const allBatches = ticketTypes.flatMap(tt => tt.batches);
+    const agg = computeEventAggregates(allBatches);
+
+    const result = {
+      id: event.id,
+      title: event.title,
+      slug: event.slug ?? null,
+      description: event.description ?? null,
+      date: event.date.toISOString(),
+      location: event.location,
+      venue: event.venue ?? null,
+      imageUrl: event.imageUrl ?? null,
+      organizerId: event.organizerId,
+      categoryId: event.categoryId ?? null,
+      ticketTypes,
+      ...agg,
+    };
+
+    res.json(result);
+  } catch (error) {
+    logger.error({ requestId: (req as RequestWithId).requestId, err: error, slug: req.params.slug }, 'GET /public/events/:slug failed');
+    res.status(500).json(fail({
+      code: 'PUBLIC_EVENT_DETAIL_ERROR',
+      message: 'Failed to retrieve event details',
+      statusCode: 500,
+      requestId: (req as RequestWithId).requestId || 'req_unknown',
+    }));
+  }
+});
+
+app.get('/public/events/:slug/tickets', async (req, res) => {
+  try {
+    const event = await prisma.event.findFirst({
+      where: { slug: req.params.slug, status: 'PUBLISHED' },
+      include: {
+        ticketTypes: {
+          where: { archivedAt: null, visibility: true, isActive: true },
+          include: {
+            batches: {
+              where: { archivedAt: null, isActive: true },
+              orderBy: { displayOrder: 'asc' }
+            }
+          }
+        }
+      },
+    });
+
+    if (!event) {
+      return res.status(404).json(fail({
+        code: 'EVENT_NOT_FOUND',
+        message: 'Event not found or not published',
+        statusCode: 404,
+        requestId: (req as RequestWithId).requestId || 'req_unknown',
+      }));
+    }
+
+    const ticketTypes = event.ticketTypes.map(tt => ({
+      id: tt.id,
+      name: tt.name,
+      description: tt.description,
+      capacity: tt.capacity,
+      purchaseLimit: tt.purchaseLimit,
+      batches: tt.batches.map(toBatchInfo),
+    }));
+
+    res.json(ticketTypes);
+  } catch (error) {
+    res.status(500).json(fail({
+      code: 'PUBLIC_EVENT_TICKETS_ERROR',
+      message: 'Failed to retrieve event tickets',
+      statusCode: 500,
+      requestId: (req as RequestWithId).requestId || 'req_unknown',
+    }));
+  }
+});
+
 import { authMiddleware } from './auth-middleware';
 
 function parseSectorFilter(value: unknown): number[] {
