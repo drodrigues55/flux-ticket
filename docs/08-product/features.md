@@ -34,10 +34,27 @@ Feature status definitions:
 | Phase 6 — Batch Management UI                             |   ✅   |
 | Phase 7 — Publishing Workflow                             |   ✅   |
 | Phase 8 — Consumer Portal / Public Sales Flow             |   ✅   |
-| Phase 9 — Staff Portal / Gate Operations                  |   📋   |
-| Phase 10 — Ticket Delivery MVP                            |   📋   |
+| Phase 9 — Staff Portal / Gate Operations                  |   ✅   |
+| Phase 10 — Ticket Delivery MVP                            |   ✅   |
 | Phase 11 — Payment Readiness & Mock-to-Real Gateway Adapter |   ✅   |
-| Phase 12 — Financial Center MVP                           |   📋   |
+| Phase 12 — Financial Center MVP                           |   ✅   |
+| Phase 13 — Organizer Dashboard 2.0                        |   ✅   |
+| Phase 14 — Organization Management MVP                    |   ✅   |
+| Phase 15 — Production Hardening & Release Readiness       |   ✅   |
+
+# Release Status
+
+| Milestone | Status |
+| --------- | :----: |
+| MVP Core Product Loop | ✅ |
+| QA-1 Backend Failure Coverage | ✅ |
+| QA-2 Cross-Package Validation | ✅ |
+| QA-3 Phases 11–15 Validation | ✅ |
+| RC1 Documentation Pack | ✅ |
+| RC1 Manual QA | 📋 |
+| RC1 Demo Data | 📋 |
+| RC1 Deployment Prep | 📋 |
+| Production Release | 📋 |
 
 ---
 
