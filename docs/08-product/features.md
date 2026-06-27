@@ -51,9 +51,10 @@ Feature status definitions:
 | QA-2 Cross-Package Validation | ✅ |
 | QA-3 Phases 11–15 Validation | ✅ |
 | RC1 Documentation Pack | ✅ |
-| RC1 Manual QA | 📋 |
-| RC1 Demo Data | 📋 |
-| RC1 Deployment Prep | 📋 |
+| RC1 Manual QA | ✅ |
+| RC1 Smoke Test | ✅ |
+| RC1 Deployment Prep | ✅ |
+| RC1 Approval | ✅ |
 | Production Release | 📋 |
 
 ---
