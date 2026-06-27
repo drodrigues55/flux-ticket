@@ -1,3 +1,5 @@
+import type { PaymentStatus } from './payment';
+
 /**
  * @flux/types — Canonical domain dictionary for the Flux Tickets platform.
  *
@@ -37,15 +39,6 @@ export type EventLocationType = 'PHYSICAL' | 'ONLINE' | 'HYBRID';
 export type SalesChannel = 'ONLINE' | 'POS' | 'COMPLIMENTARY';
 
 export type PaymentMethod = 'PIX' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'BANK_TRANSFER';
-
-export type PaymentStatus =
-  | 'PENDING'
-  | 'APPROVED'
-  | 'REJECTED'
-  | 'EXPIRED'
-  | 'REFUNDED'
-  | 'CANCELLED'
-  | 'FAILED';
 
 export type WaitlistStatus = 'WAITING' | 'INVITED' | 'RESERVED' | 'EXPIRED' | 'CANCELLED';
 
@@ -487,8 +480,7 @@ export interface PublishingPreview {
 }
 
 export * from './cpf';
+export * from './financial';
+export * from './payment';
 export * from './validation/common';
 export * from './validation/event';
-
-
-

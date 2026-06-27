@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Header } from '../../../components/header';
 import { FaClock, FaTicket, FaCreditCard, FaLock, FaPix } from 'react-icons/fa6';
+import { formatPaymentError } from '../../../lib/payment-errors';
 
 interface ApiError {
   message: string;
@@ -111,7 +112,7 @@ export default function EventCheckoutPage() {
         body: JSON.stringify(payload),
       });
       const json = await res.json();
-      if (!res.ok) throw json.error || { message: 'Erro ao processar o pagamento.' };
+      if (!res.ok) throw { message: formatPaymentError(json, 'Erro ao processar o pagamento.') };
 
       setOrderId(json.orderId);
       if (paymentMethod === 'pix') {

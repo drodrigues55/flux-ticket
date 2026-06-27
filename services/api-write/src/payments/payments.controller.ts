@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Headers, Req, Query, BadRequestException, UnauthorizedException, HttpCode, Param, NotFoundException } from '@nestjs/common';
+import { Controller, Post, Get, Body, Headers, Req, Query, BadRequestException, UnauthorizedException, HttpCode, Param, NotFoundException } from '@nestjs/common';
 import { RawBodyRequest } from '@nestjs/common';
 import { Request } from 'express';
 import { Throttle } from '@nestjs/throttler';
@@ -6,6 +6,11 @@ import { PaymentsService } from './payments.service';
 import { CheckoutPaymentSchema } from './payments.dto';
 import { InvalidCpfException } from '../domain-exceptions';
 import { prisma } from '@flux/database';
+import { ok } from '../api-response';
+
+function requestId(req: any) {
+  return req.requestId || req.headers?.['x-request-id'] || 'req_unknown';
+}
 
 @Controller('payments')
 export class PaymentsController {
@@ -25,6 +30,23 @@ export class PaymentsController {
       throw new BadRequestException(`Erro de validação: ${errorMsg}`);
     }
     return this.paymentsService.processCheckout(parseResult.data);
+  }
+
+  @Post('reconciliation')
+  @HttpCode(200)
+  async reconcile(@Body() body: any, @Req() req: any) {
+    const result = await this.paymentsService.reconcilePayments({
+      paymentId: body?.paymentId,
+      providerPaymentId: body?.providerPaymentId,
+      requestId: requestId(req),
+    });
+    return ok(result, requestId(req));
+  }
+
+  @Get('provider-capabilities')
+  @HttpCode(200)
+  async providerCapabilities(@Req() req: any) {
+    return ok(this.paymentsService.getProviderCapabilities(), requestId(req));
   }
 
   @Post('public/orders/:orderId/resend-tickets')

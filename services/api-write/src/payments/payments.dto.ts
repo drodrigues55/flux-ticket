@@ -1,8 +1,9 @@
 import { z } from 'zod';
-import { isValidCpf } from '@flux/types';
+import { isValidCpf, MockPaymentScenarios } from '@flux/types';
 
 export const PaymentMethodPixSchema = z.object({
   method: z.literal('pix'),
+  scenario: z.enum(MockPaymentScenarios as [string, ...string[]]).optional(),
 });
 
 export const PaymentMethodCardSchema = z.object({
@@ -11,6 +12,7 @@ export const PaymentMethodCardSchema = z.object({
   installments: z.number().int().positive('Parcelas devem ser maiores que zero'),
   issuerId: z.string().min(1, 'Issuer ID é obrigatório'),
   email: z.string().email('E-mail inválido'),
+  scenario: z.enum(MockPaymentScenarios as [string, ...string[]]).optional(),
 });
 
 export const CheckoutPaymentSchema = z.object({

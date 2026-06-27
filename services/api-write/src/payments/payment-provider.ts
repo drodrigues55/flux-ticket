@@ -1,11 +1,7 @@
+import type { MockPaymentScenario, PaymentProviderEvent, PaymentProviderName, PaymentStatus } from '@flux/types';
+
 export type InternalPaymentStatus =
-  | 'PENDING'
-  | 'APPROVED'
-  | 'REJECTED'
-  | 'EXPIRED'
-  | 'CANCELLED'
-  | 'REFUNDED'
-  | 'FAILED';
+  PaymentStatus;
 
 export interface ProviderOrder {
   id: string;
@@ -22,12 +18,12 @@ export interface PaymentInput {
   installments?: number;
   issuerId?: string;
   email?: string;
-  scenario?: string;
+  scenario?: MockPaymentScenario | string;
   idempotencyKey?: string;
 }
 
 export interface ProviderPaymentResult {
-  provider: string;
+  provider: PaymentProviderName;
   providerPaymentId: string;
   providerStatus: string;
   status: InternalPaymentStatus;
@@ -39,21 +35,23 @@ export interface ProviderPaymentResult {
 }
 
 export interface ProviderWebhookEvent {
-  provider: string;
+  provider: PaymentProviderName;
   providerPaymentId: string;
   providerStatus: string;
   status: InternalPaymentStatus;
-  providerEventId: string;
+  providerEventId: string | null;
   rawPayload: unknown;
 }
 
 export interface PaymentProvider {
-  readonly name: string;
+  readonly name: PaymentProviderName;
   createPayment(order: ProviderOrder, paymentInput: PaymentInput): Promise<ProviderPaymentResult>;
   getPaymentStatus(providerPaymentId: string): Promise<ProviderPaymentResult>;
   refundPayment(providerPaymentId: string, amount?: number): Promise<ProviderPaymentResult>;
   parseWebhook(payload: unknown, headers: Record<string, unknown>): Promise<ProviderWebhookEvent>;
 }
+
+export type { PaymentProviderEvent };
 
 export class TemporaryProviderFailure extends Error {
   constructor(message = 'Temporary payment provider failure') {

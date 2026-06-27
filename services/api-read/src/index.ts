@@ -10,6 +10,8 @@ import { logger } from './logger';
 import { requestIdMiddleware, RequestWithId } from './request-id-middleware';
 import { dashboardRouter } from './dashboard/dashboard.controller';
 import { organizerEventsRouter } from './organizer-events/organizer-events.controller';
+import { organizerFinanceRouter } from './organizer-finance/organizer-finance.controller';
+import { buildPaymentDebugReadModel } from './payments/payment-debug';
 import { getQueueStats, getServiceVersion, renderMetrics } from './observability';
 import { captureException, initSentry } from './sentry';
 
@@ -77,6 +79,7 @@ app.use(limiter);
 app.use(express.json());
 app.use('/dashboard', dashboardRouter);
 app.use('/organizer/events', organizerEventsRouter);
+app.use('/organizer/finance', organizerFinanceRouter);
 
 // ─────────────────────────────────────────────
 // HELPERS
@@ -597,6 +600,49 @@ app.get('/public/tickets/:ticketId', async (req, res) => {
 });
 
 import { authMiddleware } from './auth-middleware';
+
+app.get('/payments/:paymentId/debug', authMiddleware, async (req, res) => {
+  try {
+    const payment = await prisma.payment.findUnique({
+      where: { id: req.params.paymentId },
+      include: { order: true, tickets: true },
+    });
+
+    if (!payment) {
+      return res.status(404).json(fail({
+        code: 'PAYMENT_NOT_FOUND',
+        message: 'Payment not found',
+        statusCode: 404,
+        requestId: (req as RequestWithId).requestId || 'req_unknown',
+      }));
+    }
+
+    const aggregateIds = [payment.id, payment.providerPaymentId, payment.providerEventId, payment.orderId]
+      .filter((value): value is string => typeof value === 'string' && value.length > 0);
+
+    const outbox = await prisma.outboxEvent.findMany({
+      where: {
+        OR: [
+          { aggregateId: { in: aggregateIds } },
+          { payload: { path: ['paymentId'], equals: payment.id } as any },
+          ...(payment.providerPaymentId ? [{ payload: { path: ['providerPaymentId'], equals: payment.providerPaymentId } as any }] : []),
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 25,
+    });
+
+    res.json(ok(buildPaymentDebugReadModel(payment, outbox), (req as RequestWithId).requestId || 'req_unknown'));
+  } catch (error) {
+    logger.error({ requestId: (req as RequestWithId).requestId, err: error, paymentId: req.params.paymentId }, 'GET /payments/:paymentId/debug failed');
+    res.status(500).json(fail({
+      code: 'PAYMENT_DEBUG_ERROR',
+      message: 'Failed to retrieve payment debug model',
+      statusCode: 500,
+      requestId: (req as RequestWithId).requestId || 'req_unknown',
+    }));
+  }
+});
 
 function parseSectorFilter(value: unknown): number[] {
   if (!value || typeof value !== 'string') return [];

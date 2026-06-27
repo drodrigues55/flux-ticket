@@ -9,9 +9,10 @@ import { captureException } from './sentry';
 import { InternalPaymentStatus } from './payment-provider';
 import { getPaymentProvider } from './payment-provider-registry';
 import { BatchProgressionService } from './batch-progression';
+import { normalizeProviderStatus } from './payment-status';
 
 const connection = createRedisConnection();
-const FINAL_PAYMENT_STATUSES: InternalPaymentStatus[] = ['APPROVED', 'REJECTED', 'EXPIRED', 'CANCELLED', 'REFUNDED'];
+const FINAL_PAYMENT_STATUSES: InternalPaymentStatus[] = ['APPROVED', 'REJECTED', 'EXPIRED', 'CANCELLED', 'REFUNDED', 'FAILED'];
 const batchProgressionService = new BatchProgressionService();
 
 function generateSignature(ticketId: string, version: number = 1): string {
@@ -324,13 +325,7 @@ async function handlePaymentsWebhook(job: Job) {
   }
 
   const providerStatus = payload.providerStatus?.toString() || payload.status?.toString() || 'pending';
-  const normalized = providerStatus === 'approved'
-    ? 'APPROVED'
-    : providerStatus === 'rejected'
-      ? 'REJECTED'
-      : providerStatus === 'expired'
-        ? 'EXPIRED'
-        : 'PENDING';
+  const normalized = normalizeProviderStatus(providerStatus);
 
   await prisma.payment.update({
     where: { id: payment.id },
@@ -346,7 +341,7 @@ async function handlePaymentsWebhook(job: Job) {
 
   if (normalized === 'APPROVED') {
     await issueTicketsForPayment(payment, providerStatus, job.data?.requestId);
-  } else if (normalized === 'REJECTED' || normalized === 'EXPIRED') {
+  } else if (normalized === 'REJECTED' || normalized === 'EXPIRED' || normalized === 'CANCELLED' || normalized === 'FAILED') {
     await releaseTicketsForPayment(payment, normalized, providerStatus, job.data?.requestId);
   }
 }

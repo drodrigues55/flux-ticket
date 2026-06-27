@@ -3,7 +3,7 @@ import { PaymentProvider, TemporaryProviderFailure } from './payment-provider';
 
 export function getPaymentProvider(provider: string): PaymentProvider {
   if (provider !== 'MOCK') {
-    throw new TemporaryProviderFailure(`Provider ${provider} is not available in Phase 6A`);
+    throw new TemporaryProviderFailure(`Provider ${provider} is not available in Phase 11`);
   }
   return new MockPaymentProvider();
 }

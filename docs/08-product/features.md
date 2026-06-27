@@ -1,6 +1,6 @@
 # Features
 
-> Version: 2.1
+> Version: 2.2
 > Last Updated: June 2026
 
 ---
@@ -22,18 +22,22 @@ Feature status definitions:
 
 ---
 
-# Completed Product Phases
+# Product Phase Status
 
-| Phase                                             | Status |
-| ------------------------------------------------- | :----: |
-| Phase 1 — Core Infrastructure & Architecture      |    ✅   |
-| Phase 2 — Foundation, QA, Forms & Wizard Patterns |    ✅   |
-| Phase 3 — Event Creation Flow                     |    ✅   |
-| Phase 4 — Organizer Portal                        |    ✅   |
-| Phase 5 — Ticket Workspace                        |    ✅   |
-| Phase 6 — Batch Management UI                     |    ✅   |
-| Phase 7 — Publishing Workflow                     |    ✅   |
-| Phase 8 — Consumer Portal / Public Sales Flow     |    ✅   |
+| Phase                                                     | Status |
+| --------------------------------------------------------- | :----: |
+| Phase 1 — Core Infrastructure & Architecture              |   ✅   |
+| Phase 2 — Foundation, QA, Forms & Wizard Patterns         |   ✅   |
+| Phase 3 — Event Creation Flow                             |   ✅   |
+| Phase 4 — Organizer Portal                                |   ✅   |
+| Phase 5 — Ticket Workspace                                |   ✅   |
+| Phase 6 — Batch Management UI                             |   ✅   |
+| Phase 7 — Publishing Workflow                             |   ✅   |
+| Phase 8 — Consumer Portal / Public Sales Flow             |   ✅   |
+| Phase 9 — Staff Portal / Gate Operations                  |   📋   |
+| Phase 10 — Ticket Delivery MVP                            |   📋   |
+| Phase 11 — Payment Readiness & Mock-to-Real Gateway Adapter |   ✅   |
+| Phase 12 — Financial Center MVP                           |   📋   |
 
 ---
 
@@ -216,20 +220,41 @@ Feature status definitions:
 
 # Payment Engine
 
-| Feature                   | Status |
-| ------------------------- | :----: |
-| PaymentProvider Interface |    ✅   |
-| Mock Payment Provider     |    ✅   |
-| Pending Payments          |    ✅   |
-| Approved Payments         |    ✅   |
-| Failed Payments           |    ✅   |
-| Expired Payments          |    ✅   |
-| Payment Recovery Worker   |    ✅   |
-| Mercado Pago              |   📋   |
-| Stripe                    |   💡   |
-| Asaas                     |   💡   |
-| Refunds                   |   📋   |
-| Chargebacks               |   📋   |
+| Feature | Status |
+| ------- | :----: |
+| PaymentProvider Interface | ✅ |
+| Mock Payment Provider | ✅ |
+| Provider Capability Model | ✅ |
+| Payment Lifecycle State Machine | ✅ |
+| Mock Payment Failure Simulation | ✅ |
+| Webhook Adapter Skeleton | ✅ |
+| Payment Idempotency Handling | ✅ |
+| Payment Reconciliation Placeholder | ✅ |
+| Payment Debug Read Model | ✅ |
+| Pending Payments | ✅ |
+| Approved Payments | ✅ |
+| Failed Payments | ✅ |
+| Expired Payments | ✅ |
+| Payment Recovery Worker | ✅ |
+| Mercado Pago | 📋 |
+| Stripe | 💡 |
+| Asaas | 💡 |
+| Refunds | 📋 |
+| Chargebacks | 📋 |
+
+---
+
+# Phase 11 Payment Readiness Limitations
+
+| Limitation | Status |
+| ---------- | :----: |
+| Real gateway integration | 📋 |
+| External API calls, credentials, or real signature verification | 📋 |
+| Real refund workflow | 📋 |
+| Settlement/reconciliation engine beyond placeholder status checks | 📋 |
+| Chargeback handling | 📋 |
+| Checkout provider UI redesign | 📋 |
+| Publishing, coupons, seating, analytics, or dashboard expansion | 📋 |
 
 ---
 
@@ -379,8 +404,10 @@ Feature status definitions:
 
 Planned platform capabilities include:
 
-* Financial Center
+* Financial Center MVP
+* Organizer Dashboard 2.0
 * Staff Portal expansion
+* Ticket Delivery MVP
 * Organization Management
 * Coupon Engine
 * Promotional Codes
@@ -399,7 +426,7 @@ Planned platform capabilities include:
 
 # Current MVP Focus
 
-Current implementation has completed the first eight product phases, covering:
+Current implementation has completed the core ticketing loop and Phase 11 payment readiness work, covering:
 
 * Core platform architecture
 * Event creation
@@ -409,14 +436,18 @@ Current implementation has completed the first eight product phases, covering:
 * Publishing validation
 * Consumer event discovery
 * Public checkout and confirmation
-* Payments foundation
+* Payment provider abstraction
+* Mock-to-real gateway adapter readiness
+* Payment lifecycle and idempotency hardening
+* Webhook adapter skeleton
+* Payment reconciliation placeholder
 * Ticket issuance foundation
 * Offline validation foundation
 * Organizer dashboard foundation
 * Background processing
 * Observability
 
-The current product stage is late-MVP: the platform now supports the core ticketing loop from organizer event creation through publishing and consumer checkout. Remaining gaps are mostly operational depth, financial tooling, delivery channels, staff workflows, enterprise controls, growth tooling, and production hardening.
+The current product stage is late-MVP: the platform now supports the core ticketing loop from organizer event creation through publishing and consumer checkout, and the payment layer is prepared for a future real gateway. Remaining gaps are mostly real gateway integration, financial tooling, ticket delivery channels, staff workflows, enterprise controls, growth tooling, and production hardening.
 
 ---
 
@@ -424,15 +455,16 @@ The current product stage is late-MVP: the platform now supports the core ticket
 
 The next major milestones are:
 
-1. Organizer Dashboard 2.0
-2. Staff Portal expansion
-3. Financial Center
-4. Organization Management
-5. Integrations
-6. Growth and marketing tools
-7. Wallets and ticket delivery
-8. Refunds and chargebacks
-9. Reserved seating
-10. White Label / Enterprise capabilities
+1. Phase 12 — Financial Center MVP
+2. Phase 13 — Organizer Dashboard 2.0
+3. Phase 14 — Organization Management MVP
+4. Phase 15 — Production Hardening & Release Readiness
+5. Staff Portal expansion
+6. Ticket Delivery MVP
+7. Integrations
+8. Growth and marketing tools
+9. Refunds and chargebacks
+10. Reserved seating
+11. White Label / Enterprise capabilities
 
 Future development expands the platform while preserving the existing architecture, CQRS boundaries, shared contracts, and business rules.

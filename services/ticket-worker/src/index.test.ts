@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { normalizeProviderStatus } from './payment-status';
 
 // Worker business logic simulation for idempotency and retryability
 class MockEmailProvider {
@@ -73,4 +74,11 @@ test('idempotent ticket generation prevents duplicate rows', () => {
 
   assert.equal(generateTicketsForOrder('o-1'), 1);
   assert.equal(generateTicketsForOrder('o-1'), 0); // Duplicate call yields 0 new tickets
+});
+
+test('payment recovery normalizes Phase 11 provider statuses', () => {
+  assert.equal(normalizeProviderStatus('approved'), 'APPROVED');
+  assert.equal(normalizeProviderStatus('cancelled'), 'CANCELLED');
+  assert.equal(normalizeProviderStatus('failed'), 'FAILED');
+  assert.equal(normalizeProviderStatus('unknown'), 'PENDING');
 });

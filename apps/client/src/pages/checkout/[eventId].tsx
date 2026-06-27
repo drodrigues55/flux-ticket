@@ -3,6 +3,7 @@ import { useTicketLock } from '../../hooks/useTicketLock';
 import { useState, useEffect, useMemo } from 'react';
 import Script from 'next/script';
 import { isValidCpf } from '@flux/types';
+import { formatPaymentError } from '../../lib/payment-errors';
 import {
   FaCreditCard,
   FaShieldHalved,
@@ -434,7 +435,7 @@ export default function CheckoutPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Falha ao processar o pagamento.');
+        throw new Error(formatPaymentError(data));
       }
 
       if (data.status === 'approved') {

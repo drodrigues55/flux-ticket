@@ -1,14 +1,15 @@
 import { BadRequestException, Inject, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { prisma } from '@flux/database';
+import type { PaymentProviderCapability, PaymentReconciliationResult } from '@flux/types';
+import { MockPaymentProviderCapability } from '@flux/types';
 import { FluxEngineService } from '../tickets/flux-engine.service';
 import { TicketCryptoService } from '../tickets/ticket-crypto.service';
 import { CheckoutPaymentDto } from './payments.dto';
 import { AuditService } from '../audit/audit.service';
 import { InternalPaymentStatus, PaymentProvider, ProviderPaymentResult, TemporaryProviderFailure } from './payment-provider';
 import { PAYMENT_PROVIDER } from './payment-provider.token';
+import { assertMockScenarioAllowed, getPaymentTransition, getPaymentWebhookDedupeKey, isReleasePaymentStatus } from './payment-lifecycle';
 import * as crypto from 'crypto';
-
-const FINAL_RELEASE_STATUSES: InternalPaymentStatus[] = ['REJECTED', 'EXPIRED', 'CANCELLED', 'FAILED'];
 
 @Injectable()
 export class PaymentsService {
@@ -23,6 +24,10 @@ export class PaymentsService {
 
   verifySignature(): boolean {
     return true;
+  }
+
+  getProviderCapabilities(): PaymentProviderCapability[] {
+    return [MockPaymentProviderCapability];
   }
 
   async receiveMercadoPagoWebhook(options: {
@@ -51,7 +56,7 @@ export class PaymentsService {
       throw new BadRequestException('Webhook sem providerPaymentId.');
     }
 
-    const aggregateId = parsed.providerEventId || parsed.providerPaymentId;
+    const aggregateId = getPaymentWebhookDedupeKey(parsed);
     const existing = await prisma.outboxEvent.findFirst({
       where: {
         type: 'payments.webhook',
@@ -62,7 +67,16 @@ export class PaymentsService {
     });
 
     if (existing) {
-      return { received: true, valid: true, duplicate: true, outboxEventId: existing.id };
+      return {
+        received: true,
+        valid: true,
+        duplicate: true,
+        provider: parsed.provider,
+        providerPaymentId: parsed.providerPaymentId,
+        providerEventId: parsed.providerEventId,
+        status: parsed.status,
+        outboxEventId: existing.id,
+      };
     }
 
     const outboxEvent = await prisma.outboxEvent.create({
@@ -87,7 +101,16 @@ export class PaymentsService {
       },
     });
 
-    return { received: true, valid: true, duplicate: false, outboxEventId: outboxEvent.id };
+    return {
+      received: true,
+      valid: true,
+      duplicate: false,
+      provider: parsed.provider,
+      providerPaymentId: parsed.providerPaymentId,
+      providerEventId: parsed.providerEventId,
+      status: parsed.status,
+      outboxEventId: outboxEvent.id,
+    };
   }
 
   async processCheckout(dto: CheckoutPaymentDto): Promise<any> {
@@ -105,12 +128,23 @@ export class PaymentsService {
     const order = await this.createOrUpdateOrder(dto, refreshedTickets, user.id, amount, eventId);
     const idempotencyKey = crypto.randomUUID();
     const paymentMethod = dto.paymentMethod.method === 'pix' ? 'PIX' : 'CREDIT_CARD';
+    const mockScenario = dto.paymentMethod.scenario;
+    try {
+      assertMockScenarioAllowed({
+        scenario: mockScenario,
+        nodeEnv: process.env.NODE_ENV,
+        appEnv: process.env.APP_ENV,
+      });
+    } catch (error: any) {
+      throw new BadRequestException(error.message);
+    }
     const paymentInput = {
       method: dto.paymentMethod.method,
       token: dto.paymentMethod.method === 'credit_card' ? dto.paymentMethod.token : undefined,
       installments: dto.paymentMethod.method === 'credit_card' ? dto.paymentMethod.installments : 1,
       issuerId: dto.paymentMethod.method === 'credit_card' ? dto.paymentMethod.issuerId : undefined,
       email: dto.paymentMethod.method === 'credit_card' ? dto.paymentMethod.email : dto.email,
+      scenario: mockScenario,
       idempotencyKey,
     } as const;
 
@@ -306,6 +340,21 @@ export class PaymentsService {
     buyerEmail?: string;
     requestId?: string | null;
   }) {
+    const transition = getPaymentTransition((input.payment.status ?? null) as InternalPaymentStatus | null, input.status);
+    const shouldApplyInitialPending =
+      transition.action === 'NOOP' &&
+      input.status === 'PENDING' &&
+      input.tickets.some((ticket) => ticket.status !== 'PENDING_PAYMENT');
+
+    if (!transition.allowed || (transition.action === 'NOOP' && !shouldApplyInitialPending)) {
+      return {
+        status: String(input.payment.status ?? input.status).toLowerCase(),
+        paymentId: input.providerResult.providerPaymentId,
+        ignored: true,
+        reason: transition.reason,
+      };
+    }
+
     if (input.status === 'APPROVED') {
       return this.approvePayment(input);
     }
@@ -314,7 +363,7 @@ export class PaymentsService {
       return this.markPaymentPending(input);
     }
 
-    if (FINAL_RELEASE_STATUSES.includes(input.status)) {
+    if (isReleasePaymentStatus(input.status)) {
       await this.releasePayment(input);
       throw new BadRequestException(input.status === 'EXPIRED' ? 'O pagamento expirou.' : 'O pagamento foi recusado pela instituição financeira ou cancelado.');
     }
@@ -763,5 +812,78 @@ export class PaymentsService {
     }).catch((error) => {
       if (providerResult.status !== 'REJECTED' && providerResult.status !== 'EXPIRED') throw error;
     });
+  }
+
+  async reconcilePayments(input: {
+    paymentId?: string;
+    providerPaymentId?: string;
+    requestId?: string | null;
+  } = {}): Promise<PaymentReconciliationResult> {
+    const payments = await prisma.payment.findMany({
+      where: input.paymentId
+        ? { id: input.paymentId }
+        : input.providerPaymentId
+          ? { providerPaymentId: input.providerPaymentId }
+          : { status: { in: ['PENDING', 'FAILED'] as any }, provider: this.paymentProvider.name, providerPaymentId: { not: null } },
+      take: input.paymentId || input.providerPaymentId ? undefined : 50,
+      orderBy: { createdAt: 'asc' },
+      include: { tickets: { include: { batch: { include: { event: true } }, buyer: true } }, order: true },
+    });
+
+    const result: PaymentReconciliationResult = {
+      provider: this.paymentProvider.name,
+      checked: 0,
+      updated: 0,
+      approved: 0,
+      released: 0,
+      pending: 0,
+      failed: 0,
+      unsupported: false,
+    };
+
+    for (const payment of payments) {
+      result.checked++;
+      try {
+        const providerResult = await this.paymentProvider.getPaymentStatus(payment.providerPaymentId || '');
+        await prisma.payment.update({
+          where: { id: payment.id },
+          data: {
+            providerStatus: providerResult.providerStatus,
+            providerEventId: providerResult.providerEventId ?? payment.providerEventId,
+            rawPayload: providerResult.rawPayload as any,
+            rawResponse: providerResult as any,
+          },
+        });
+        result.updated++;
+
+        if (providerResult.status === 'PENDING') {
+          result.pending++;
+          continue;
+        }
+
+        try {
+          await this.applyPaymentStatus({
+            payment,
+            tickets: payment.tickets,
+            status: providerResult.status,
+            providerResult,
+            requestId: input.requestId,
+          });
+          if (providerResult.status === 'APPROVED') result.approved++;
+          if (isReleasePaymentStatus(providerResult.status)) result.released++;
+        } catch (error) {
+          if (isReleasePaymentStatus(providerResult.status)) {
+            result.released++;
+            continue;
+          }
+          throw error;
+        }
+      } catch (error) {
+        result.failed++;
+        this.logger.warn(`[PAYMENTS RECONCILIATION] Could not reconcile payment ${payment.id}`, error);
+      }
+    }
+
+    return result;
   }
 }

@@ -30,7 +30,7 @@ const navItems = [
   { name: 'Check-in', href: '/checkin', icon: ScanLine },
   { name: 'Participantes', href: '/participants', icon: Users },
   { name: 'Marketing', href: '/marketing', icon: Megaphone },
-  { name: 'Financeiro', href: '/financial', icon: Wallet },
+  { name: 'Financeiro', href: '/finance', icon: Wallet },
   { name: 'Relatórios', href: '/reports', icon: BarChart3 },
   { name: 'Configurações', href: '/settings', icon: Settings },
 ];

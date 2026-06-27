@@ -8,6 +8,7 @@ import {
   ProviderWebhookEvent,
   TemporaryProviderFailure,
 } from './payment-provider';
+import type { MockPaymentScenario } from '@flux/types';
 
 const PIX_QR_CODE = '00020126580014br.gov.bcb.pix2536pix.example.com/qr/v2/mock-code-12345';
 const PIX_QR_CODE_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
@@ -25,8 +26,11 @@ function normalizeMockStatus(providerStatus: string): InternalPaymentStatus {
 
 function scenarioFromInput(input: PaymentInput): string {
   const raw = `${input.scenario ?? ''} ${input.token ?? ''}`.toLowerCase();
-  if (raw.includes('provider_error') || raw.includes('temporary_error') || raw.includes('mock-error')) return 'provider_error';
+  if (raw.includes('provider_error') || raw.includes('temporary_error') || raw.includes('temporary_failure') || raw.includes('mock-error')) return 'temporary_failure';
+  if (raw.includes('cancelled') || raw.includes('canceled')) return 'cancelled';
+  if (raw.includes('refunded')) return 'refunded';
   if (raw.includes('expired')) return 'expired';
+  if (raw.includes('failed') || raw.includes('error')) return 'failed';
   if (raw.includes('rejected') || raw.includes('reject') || raw.includes('fail')) return 'rejected';
   if (raw.includes('pending') || raw.includes('process')) return 'pending';
   if (input.method === 'pix') return 'pending';
@@ -34,9 +38,7 @@ function scenarioFromInput(input: PaymentInput): string {
 }
 
 function providerStatusFromScenario(scenario: string): string {
-  if (scenario === 'approved') return 'approved';
-  if (scenario === 'rejected') return 'rejected';
-  if (scenario === 'expired') return 'expired';
+  if (['approved', 'rejected', 'expired', 'cancelled', 'refunded', 'failed'].includes(scenario)) return scenario;
   return 'pending';
 }
 
@@ -44,8 +46,8 @@ export class MockPaymentProvider implements PaymentProvider {
   readonly name = 'MOCK';
 
   async createPayment(order: ProviderOrder, paymentInput: PaymentInput): Promise<ProviderPaymentResult> {
-    const scenario = scenarioFromInput(paymentInput);
-    if (scenario === 'provider_error') {
+    const scenario = scenarioFromInput(paymentInput) as MockPaymentScenario;
+    if (scenario === 'temporary_failure') {
       throw new TemporaryProviderFailure('Mock provider temporary failure');
     }
 

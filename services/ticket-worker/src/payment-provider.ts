@@ -1,11 +1,7 @@
+import type { PaymentProviderName, PaymentStatus } from '@flux/types';
+
 export type InternalPaymentStatus =
-  | 'PENDING'
-  | 'APPROVED'
-  | 'REJECTED'
-  | 'EXPIRED'
-  | 'CANCELLED'
-  | 'REFUNDED'
-  | 'FAILED';
+  PaymentStatus;
 
 export class TemporaryProviderFailure extends Error {
   constructor(message = 'Temporary payment provider failure') {
@@ -15,7 +11,7 @@ export class TemporaryProviderFailure extends Error {
 }
 
 export interface ProviderPaymentResult {
-  provider: string;
+  provider: PaymentProviderName;
   providerPaymentId: string;
   providerStatus: string;
   status: InternalPaymentStatus;
@@ -25,6 +21,6 @@ export interface ProviderPaymentResult {
 }
 
 export interface PaymentProvider {
-  readonly name: string;
+  readonly name: PaymentProviderName;
   getPaymentStatus(providerPaymentId: string): Promise<ProviderPaymentResult>;
 }
