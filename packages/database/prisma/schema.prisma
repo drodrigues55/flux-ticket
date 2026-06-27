@@ -24,12 +24,19 @@ enum TicketStatus {
 
 enum EventStatus {
   DRAFT
+  READY_FOR_VALIDATION
   PUBLISHED
   SALES_OPEN
   LIVE
   FINISHED
   ARCHIVED
   CANCELLED
+}
+
+enum EventLocationType {
+  PHYSICAL
+  ONLINE
+  HYBRID
 }
 
 enum TicketBatchStatus {
@@ -146,11 +153,21 @@ model Event {
   id             String      @id @default(uuid())
   slug           String?
   title          String
+  shortDescription String?
   description    String?
   date           DateTime
   endDate        DateTime?
+  timezone       String?
+  locationType   EventLocationType @default(PHYSICAL)
   location       String      // full address
   venue          String?     // display name (e.g. "Arena São Paulo")
+  addressLine1   String?
+  addressLine2   String?
+  city           String?
+  state          String?
+  postalCode     String?
+  country        String?
+  onlineUrl      String?
   imageUrl       String?     // cover image URL
   categoryId     Int?
   capacityTarget Int?        // target occupancy % for alerts (default: 80)

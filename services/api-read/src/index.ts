@@ -9,6 +9,7 @@ import { validateRuntimeEnv } from './env.validation';
 import { logger } from './logger';
 import { requestIdMiddleware, RequestWithId } from './request-id-middleware';
 import { dashboardRouter } from './dashboard/dashboard.controller';
+import { organizerEventsRouter } from './organizer-events/organizer-events.controller';
 import { getQueueStats, getServiceVersion, renderMetrics } from './observability';
 import { captureException, initSentry } from './sentry';
 
@@ -75,6 +76,7 @@ app.use((req: any, res: any, next: any) => {
 app.use(limiter);
 app.use(express.json());
 app.use('/dashboard', dashboardRouter);
+app.use('/organizer/events', organizerEventsRouter);
 
 // ─────────────────────────────────────────────
 // HELPERS

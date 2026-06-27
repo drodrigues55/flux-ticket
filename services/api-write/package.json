@@ -5,7 +5,7 @@
   "scripts": {
     "build": "nest build",
     "dev": "cross-env PORT=4000 nest start --watch",
-    "test": "jest"
+    "test": "tsx --test src/**/*.test.ts"
   },
   "dependencies": {
     "@flux/database": "*",

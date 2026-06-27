@@ -30,7 +30,9 @@ export type TicketStatus =
   | 'REVOKED'
   | 'CONSUMED';
 
-export type EventStatus = 'DRAFT' | 'PUBLISHED' | 'SALES_OPEN' | 'LIVE' | 'FINISHED' | 'ARCHIVED' | 'CANCELLED';
+export type EventStatus = 'DRAFT' | 'READY_FOR_VALIDATION' | 'PUBLISHED' | 'SALES_OPEN' | 'LIVE' | 'FINISHED' | 'ARCHIVED' | 'CANCELLED';
+
+export type EventLocationType = 'PHYSICAL' | 'ONLINE' | 'HYBRID';
 
 export type SalesChannel = 'ONLINE' | 'POS' | 'COMPLIMENTARY';
 

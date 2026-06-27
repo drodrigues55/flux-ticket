@@ -1,0 +1,21 @@
+-- Phase 3 event creation flow support.
+
+ALTER TYPE "EventStatus" ADD VALUE IF NOT EXISTS 'READY_FOR_VALIDATION';
+
+DO $$ BEGIN
+  CREATE TYPE "EventLocationType" AS ENUM ('PHYSICAL', 'ONLINE', 'HYBRID');
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
+ALTER TABLE "Event"
+  ADD COLUMN IF NOT EXISTS "shortDescription" TEXT,
+  ADD COLUMN IF NOT EXISTS "timezone" TEXT,
+  ADD COLUMN IF NOT EXISTS "locationType" "EventLocationType" NOT NULL DEFAULT 'PHYSICAL',
+  ADD COLUMN IF NOT EXISTS "addressLine1" TEXT,
+  ADD COLUMN IF NOT EXISTS "addressLine2" TEXT,
+  ADD COLUMN IF NOT EXISTS "city" TEXT,
+  ADD COLUMN IF NOT EXISTS "state" TEXT,
+  ADD COLUMN IF NOT EXISTS "postalCode" TEXT,
+  ADD COLUMN IF NOT EXISTS "country" TEXT,
+  ADD COLUMN IF NOT EXISTS "onlineUrl" TEXT;

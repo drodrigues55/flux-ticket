@@ -1,13 +1,117 @@
 import { Injectable, InternalServerErrorException, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { prisma } from '@flux/database';
 import { FluxEngineService } from '../tickets/flux-engine.service';
-import { TicketBatchStatus, BatchProgressionRule } from '@prisma/client';
+import { EventStatus, TicketBatchStatus, BatchProgressionRule } from '@prisma/client';
+import { MinimalTicketTypeInput, MinimalTicketTypeInputSchema } from '@flux/types';
+import { validateTicketConfiguration } from './event-creation-validation';
 
 @Injectable()
 export class TicketTypesService {
   private readonly logger = new Logger(TicketTypesService.name);
 
   constructor(private readonly fluxEngine: FluxEngineService) {}
+
+  private parseMinimalTicketInput(data: unknown): MinimalTicketTypeInput {
+    const parsed = MinimalTicketTypeInputSchema.safeParse(data);
+    if (!parsed.success) {
+      throw new BadRequestException({
+        code: 'TICKET_TYPE_VALIDATION_ERROR',
+        message: 'Invalid ticket type input.',
+        details: parsed.error.flatten(),
+      });
+    }
+    return parsed.data;
+  }
+
+  private validateMinimalTicketDates(input: MinimalTicketTypeInput, event: { date: Date; endDate: Date | null }) {
+    validateTicketConfiguration(input, event);
+  }
+
+  async upsertMinimalTicketType(eventId: string, organizerId: string, data: unknown, ticketTypeId?: string) {
+    const input = this.parseMinimalTicketInput(data);
+    const event = await prisma.event.findUnique({
+      where: { id: eventId },
+      include: { ticketTypes: { where: { archivedAt: null }, include: { batches: { where: { archivedAt: null }, orderBy: { displayOrder: 'asc' } } } } },
+    });
+    if (!event || event.organizerId !== organizerId) throw new NotFoundException('Event not found');
+    if (event.status !== EventStatus.DRAFT && event.status !== EventStatus.READY_FOR_VALIDATION) {
+      throw new BadRequestException({
+        code: 'EVENT_STATUS_LOCKED',
+        message: 'Only draft or ready-for-validation events can be edited in Phase 3.',
+        details: { status: event.status },
+      });
+    }
+
+    this.validateMinimalTicketDates(input, event);
+
+    const existingTicketType = ticketTypeId
+      ? event.ticketTypes.find((type) => type.id === ticketTypeId)
+      : event.ticketTypes[0];
+
+    if (ticketTypeId && !existingTicketType) throw new NotFoundException('TicketType not found');
+
+    const ticketType = existingTicketType
+      ? await prisma.ticketType.update({
+          where: { id: existingTicketType.id },
+          data: {
+            name: input.name,
+            description: input.description,
+            capacity: input.quantity,
+            visibility: true,
+            transferable: true,
+            refundable: true,
+            purchaseLimit: 5,
+            isActive: true,
+          },
+        })
+      : await prisma.ticketType.create({
+          data: {
+            eventId,
+            name: input.name,
+            description: input.description,
+            capacity: input.quantity,
+            visibility: true,
+            transferable: true,
+            refundable: true,
+            purchaseLimit: 5,
+            isActive: true,
+          },
+        });
+
+    const existingBatch = existingTicketType?.batches[0] ?? null;
+    const batchData = {
+      eventId,
+      ticketTypeId: ticketType.id,
+      name: `${input.name} - Default`,
+      price: input.basePrice,
+      totalQuantity: input.quantity,
+      availableQuantity: input.quantity,
+      salesStart: input.salesStart ? new Date(input.salesStart) : null,
+      salesEnd: input.salesEnd ? new Date(input.salesEnd) : null,
+      purchaseLimit: 5,
+      progressionRule: BatchProgressionRule.MANUAL,
+      displayOrder: 0,
+      status: TicketBatchStatus.ACTIVE,
+      isActive: true,
+    };
+
+    const batch = existingBatch
+      ? await prisma.ticketBatch.update({
+          where: { id: existingBatch.id },
+          data: batchData,
+        })
+      : await prisma.ticketBatch.create({ data: batchData });
+
+    try {
+      await this.fluxEngine.setBatchStock(batch.id, input.quantity);
+    } catch (error) {
+      if (!existingBatch) await prisma.ticketBatch.delete({ where: { id: batch.id } });
+      if (!existingTicketType) await prisma.ticketType.delete({ where: { id: ticketType.id } });
+      throw new InternalServerErrorException('Failed to initialize stock in Redis');
+    }
+
+    return { ticketType, batch };
+  }
 
   async createTicketType(eventId: string, data: any) {
     return prisma.ticketType.create({

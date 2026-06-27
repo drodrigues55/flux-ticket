@@ -1,11 +1,198 @@
 import { Injectable, InternalServerErrorException, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { prisma } from '@flux/database';
-import { EventStatus } from '@prisma/client';
+import { EventLocationType, EventStatus } from '@prisma/client';
 import { randomUUID } from 'crypto';
+import {
+  CreateEventInput,
+  CreateEventInputSchema,
+  UpdateEventBasicInfoInput,
+  UpdateEventBasicInfoInputSchema,
+} from '@flux/types';
+import { validateEventDateRange } from './event-creation-validation';
 
 @Injectable()
 export class EventsService {
   private readonly logger = new Logger(EventsService.name);
+
+  private parseCreateInput(data: unknown): CreateEventInput {
+    const parsed = CreateEventInputSchema.safeParse(data);
+    if (!parsed.success) {
+      throw new BadRequestException({
+        code: 'EVENT_VALIDATION_ERROR',
+        message: 'Invalid event input.',
+        details: parsed.error.flatten(),
+      });
+    }
+    this.validateEventDates(parsed.data.startAt, parsed.data.endAt);
+    return parsed.data;
+  }
+
+  private parseUpdateInput(data: unknown): UpdateEventBasicInfoInput {
+    const parsed = UpdateEventBasicInfoInputSchema.safeParse(data);
+    if (!parsed.success) {
+      throw new BadRequestException({
+        code: 'EVENT_VALIDATION_ERROR',
+        message: 'Invalid event input.',
+        details: parsed.error.flatten(),
+      });
+    }
+    return parsed.data;
+  }
+
+  private validateEventDates(startAt?: string, endAt?: string) {
+    validateEventDateRange(startAt, endAt);
+  }
+
+  private toEventData(input: CreateEventInput | UpdateEventBasicInfoInput) {
+    return {
+      title: input.name,
+      slug: input.slug,
+      shortDescription: input.shortDescription,
+      description: input.description,
+      categoryId: input.categoryId,
+      date: input.startAt ? new Date(input.startAt) : undefined,
+      endDate: input.endAt ? new Date(input.endAt) : undefined,
+      timezone: input.timezone,
+      locationType: input.locationType as EventLocationType | undefined,
+      venue: input.venueName,
+      location: this.composeLocation(input),
+      addressLine1: input.addressLine1,
+      addressLine2: input.addressLine2,
+      city: input.city,
+      state: input.state,
+      postalCode: input.postalCode,
+      country: input.country,
+      onlineUrl: input.onlineUrl,
+      imageUrl: input.bannerImageUrl,
+      capacityTarget: input.capacityTarget,
+    };
+  }
+
+  private composeLocation(input: CreateEventInput | UpdateEventBasicInfoInput) {
+    const parts = [
+      input.venueName,
+      input.addressLine1,
+      input.addressLine2,
+      input.city,
+      input.state,
+      input.postalCode,
+      input.country,
+      input.onlineUrl,
+    ].filter(Boolean);
+    return parts.length ? parts.join(', ') : undefined;
+  }
+
+  private async assertSlugAvailable(organizerId: string, slug: string, exceptEventId?: string) {
+    const duplicate = await prisma.event.findFirst({
+      where: {
+        organizerId,
+        slug,
+        ...(exceptEventId ? { id: { not: exceptEventId } } : {}),
+      },
+      select: { id: true },
+    });
+
+    if (duplicate) {
+      throw new BadRequestException({
+        code: 'EVENT_SLUG_DUPLICATE',
+        message: 'Slug is already used by another event for this organizer.',
+        details: { field: 'slug', slug },
+      });
+    }
+  }
+
+  async createOrganizerDraft(data: unknown, organizerId: string) {
+    const input = this.parseCreateInput(data);
+    await this.assertSlugAvailable(organizerId, input.slug);
+
+    return prisma.event.create({
+      data: {
+        ...this.toEventData(input),
+        title: input.name,
+        slug: input.slug,
+        date: new Date(input.startAt),
+        location: this.composeLocation(input) || 'Online',
+        organizerId,
+        status: EventStatus.DRAFT,
+      },
+    });
+  }
+
+  async updateOrganizerEvent(id: string, organizerId: string, data: unknown) {
+    const event = await prisma.event.findUnique({ where: { id } });
+    if (!event || event.organizerId !== organizerId) {
+      throw new NotFoundException('Event not found');
+    }
+    if (event.status !== EventStatus.DRAFT && event.status !== EventStatus.READY_FOR_VALIDATION) {
+      throw new BadRequestException({
+        code: 'EVENT_STATUS_LOCKED',
+        message: 'Only draft or ready-for-validation events can be edited in Phase 3.',
+        details: { status: event.status },
+      });
+    }
+
+    const input = this.parseUpdateInput(data);
+    if (input.slug) {
+      await this.assertSlugAvailable(organizerId, input.slug, id);
+    }
+    if (input.startAt || input.endAt) {
+      this.validateEventDates(
+        input.startAt ?? event.date.toISOString(),
+        input.endAt ?? event.endDate?.toISOString()
+      );
+    }
+
+    return prisma.event.update({
+      where: { id },
+      data: this.toEventData(input),
+    });
+  }
+
+  async markReady(id: string, organizerId: string) {
+    const event = await prisma.event.findUnique({
+      where: { id },
+      include: { ticketTypes: { where: { archivedAt: null }, include: { batches: { where: { archivedAt: null } } } } },
+    });
+    if (!event || event.organizerId !== organizerId) {
+      throw new NotFoundException('Event not found');
+    }
+    if (event.status !== EventStatus.DRAFT && event.status !== EventStatus.READY_FOR_VALIDATION) {
+      throw new BadRequestException({
+        code: 'EVENT_INVALID_STATUS_TRANSITION',
+        message: 'Only DRAFT events can be marked ready for validation.',
+        details: { status: event.status },
+      });
+    }
+
+    const blockers: string[] = [];
+    if (!event.title?.trim()) blockers.push('Event name is required.');
+    if (!event.slug?.trim()) blockers.push('Unique slug is required.');
+    if (!event.date) blockers.push('startAt is required.');
+    if (!['PHYSICAL', 'ONLINE', 'HYBRID'].includes(event.locationType)) blockers.push('Valid location type is required.');
+    if (event.slug) await this.assertSlugAvailable(organizerId, event.slug, id);
+
+    const ticketType = event.ticketTypes[0];
+    const batch = ticketType?.batches[0];
+    if (!ticketType) blockers.push('At least one minimal ticket type is required.');
+    if (!batch) blockers.push('At least one default ticket configuration is required.');
+    if (ticketType && ticketType.capacity <= 0) blockers.push('Ticket quantity must be greater than zero.');
+    if (batch && Number(batch.price) < 0) blockers.push('Ticket price must be zero or greater.');
+
+    if (blockers.length > 0) {
+      throw new BadRequestException({
+        code: 'EVENT_READY_REQUIREMENTS_MISSING',
+        message: 'Event is missing required data for validation.',
+        details: { blockers },
+      });
+    }
+
+    if (event.status === EventStatus.READY_FOR_VALIDATION) return event;
+
+    return prisma.event.update({
+      where: { id },
+      data: { status: EventStatus.READY_FOR_VALIDATION },
+    });
+  }
 
   async createEvent(
     data: { title: string; slug?: string; description?: string; date: string; endDate?: string; location: string; categoryId?: number },
