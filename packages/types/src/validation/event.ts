@@ -62,10 +62,36 @@ export const MinimalTicketTypeInputSchema = z.object({
   salesEnd: z.string().datetime('O fim das vendas é inválido.').optional(),
 });
 
+export const OrganizerEventListQuerySchema = z.object({
+  search: optionalText,
+  status: z.enum(['DRAFT', 'READY_FOR_VALIDATION', 'PUBLISHED', 'SALES_OPEN', 'LIVE', 'FINISHED', 'ARCHIVED', 'CANCELLED']).optional(),
+  sort: z.enum(['updatedAt', 'startAt', 'name']).default('updatedAt'),
+  direction: z.enum(['asc', 'desc']).default('desc'),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().min(1).max(50).default(10),
+  startFrom: z.string().datetime().optional(),
+  startTo: z.string().datetime().optional(),
+});
+
+export const UpdateEventGeneralInputSchema = UpdateEventBasicInfoInputSchema;
+
+export const ArchiveEventInputSchema = z.object({
+  reason: optionalText,
+});
+
+export const DuplicateEventInputSchema = z.object({
+  name: optionalText,
+  slug: z.string().trim().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Use apenas letras minúsculas, números e hífens.').optional(),
+});
+
 export type EventCreationStep = z.infer<typeof EventCreationStepSchema>;
 export type CreateEventInput = z.infer<typeof CreateEventInputSchema>;
 export type UpdateEventBasicInfoInput = z.infer<typeof UpdateEventBasicInfoInputSchema>;
 export type MinimalTicketTypeInput = z.infer<typeof MinimalTicketTypeInputSchema>;
+export type OrganizerEventListQuery = z.infer<typeof OrganizerEventListQuerySchema>;
+export type UpdateEventGeneralInput = z.infer<typeof UpdateEventGeneralInputSchema>;
+export type ArchiveEventInput = z.infer<typeof ArchiveEventInputSchema>;
+export type DuplicateEventInput = z.infer<typeof DuplicateEventInputSchema>;
 
 export interface EventCreationDraft {
   event: {
@@ -107,4 +133,53 @@ export interface EventCreationDraft {
 export interface EventCreationReview extends EventCreationDraft {
   blockers: string[];
   warnings: string[];
+}
+
+export interface OrganizerEventListItem {
+  id: string;
+  name: string;
+  slug: string | null;
+  thumbnailUrl: string | null;
+  status: 'DRAFT' | 'READY_FOR_VALIDATION' | 'PUBLISHED' | 'SALES_OPEN' | 'LIVE' | 'FINISHED' | 'ARCHIVED' | 'CANCELLED';
+  startAt: string;
+  locationSummary: string;
+  ticketSummary: string;
+  occupancyPct: number | null;
+  revenue: number | null;
+  updatedAt: string;
+  nextAction: 'Continue setup' | 'Review publishing' | 'Manage event' | 'View archive';
+}
+
+export interface OrganizerEventListResponse {
+  items: OrganizerEventListItem[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export type OrganizerEventGeneral = EventCreationDraft['event'] & {
+  updatedAt: string;
+  createdAt: string;
+};
+
+export interface OrganizerEventOverview {
+  event: OrganizerEventGeneral;
+  ticketSummary: {
+    ticketTypeCount: number;
+    totalCapacity: number;
+    totalSold: number;
+    occupancyPct: number | null;
+    grossRevenue: number;
+  };
+  warnings: string[];
+  blockers: string[];
+}
+
+export interface OrganizerEventDetail {
+  event: OrganizerEventGeneral;
+  overview: OrganizerEventOverview;
+  canDelete: boolean;
+  canArchive: boolean;
+  canDuplicate: boolean;
 }

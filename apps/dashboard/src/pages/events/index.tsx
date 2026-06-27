@@ -1,149 +1,190 @@
-import { useEffect, useState } from 'react';
-import Layout from '../../components/Layout';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, Button } from '@flux/ui';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { Search, SlidersHorizontal } from 'lucide-react';
+import Layout from '../../components/Layout';
+import { Button, Card, CardContent, CardHeader, CardTitle, Input } from '@flux/ui';
+import type { OrganizerEventListItem, OrganizerEventListResponse } from '@flux/types';
 
-interface EventData {
-  id: string;
-  title: string;
-  description?: string;
-  date: string;
-  location: string;
+type ApiError = { message: string; requestId?: string };
+
+export async function readEnvelope<T>(response: Response): Promise<T> {
+  const json = await response.json();
+  if (!response.ok) {
+    const error = json.error || {};
+    throw { message: error.message || 'Request failed.', requestId: error.requestId || json.requestId } satisfies ApiError;
+  }
+  return json.data as T;
+}
+
+export function buildEventListQuery(params: {
+  search: string;
+  status: string;
+  sort: string;
+  direction: string;
+  page: number;
+  limit: number;
+}) {
+  const query = new URLSearchParams();
+  if (params.search.trim()) query.set('search', params.search.trim());
+  if (params.status) query.set('status', params.status);
+  query.set('sort', params.sort);
+  query.set('direction', params.direction);
+  query.set('page', String(params.page));
+  query.set('limit', String(params.limit));
+  return query.toString();
+}
+
+function statusLabel(status: OrganizerEventListItem['status']) {
+  const labels: Record<string, string> = {
+    DRAFT: 'Draft',
+    READY_FOR_VALIDATION: 'Ready',
+    PUBLISHED: 'Published',
+    SALES_OPEN: 'Sales open',
+    LIVE: 'Live',
+    FINISHED: 'Finished',
+    ARCHIVED: 'Archived',
+    CANCELLED: 'Cancelled',
+  };
+  return labels[status] || status;
+}
+
+function currency(value: number | null) {
+  if (value === null) return '-';
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
 export default function EventsListPage() {
-  const [events, setEvents] = useState<EventData[]>([]);
+  const [data, setData] = useState<OrganizerEventListResponse | null>(null);
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState('');
+  const [sort, setSort] = useState('updatedAt');
+  const [direction, setDirection] = useState('desc');
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<ApiError | null>(null);
+  const limit = 10;
 
-  const fetchEvents = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch('/api/events');
-      if (!response.ok) {
-        throw new Error('Falha ao recuperar eventos do servidor.');
-      }
-      const data = await response.json();
-      setEvents(data);
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || 'Erro inesperado ao carregar dados.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const query = useMemo(() => buildEventListQuery({ search, status, sort, direction, page, limit }), [search, status, sort, direction, page]);
 
   useEffect(() => {
-    fetchEvents();
-  }, []);
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const result = await readEnvelope<OrganizerEventListResponse>(await fetch(`/api/organizer/events?${query}`));
+        setData(result);
+      } catch (err: any) {
+        setError(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [query]);
 
-  const getStatusBadge = (dateString: string) => {
-    const eventDate = new Date(dateString);
-    const today = new Date();
-
-    if (eventDate > today) {
-      return (
-        <span className="bg-[#FF3200]/10 border border-[#FF3200]/30 text-[#FF3200] text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider">
-          Agendado
-        </span>
-      );
-    }
-    return (
-      <span className="bg-neutral-100 border border-neutral-300 text-neutral-500 text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider">
-        Encerrado
-      </span>
-    );
-  };
+  const hasFilters = !!search.trim() || !!status;
+  const events = data?.items ?? [];
 
   return (
     <Layout>
-      <div className="space-y-8 bg-[#FAFAFA]">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="space-y-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="text-3xl font-black text-neutral-900 tracking-normal">Eventos</h1>
-            <p className="text-sm text-neutral-500 mt-2 leading-relaxed">Crie, publique e acompanhe seus eventos.</p>
+            <h1 className="text-3xl font-black tracking-normal text-neutral-950">Events</h1>
+            <p className="mt-2 text-sm text-neutral-500">View, search, and manage organizer events after creation.</p>
           </div>
-
           <Link href="/events/new" legacyBehavior>
-            <Button className="bg-[#FF3200] hover:bg-[#E62D00] text-white font-bold py-2 px-5 rounded-full border-none transition-all cursor-pointer">Novo Evento</Button>
+            <Button>Create your first event</Button>
           </Link>
         </div>
 
+        <Card className="rounded-lg border-[#EAEAEA] bg-white shadow-sm">
+          <CardContent className="grid grid-cols-1 gap-3 p-4 md:grid-cols-[1fr_170px_150px_120px]">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+              <Input aria-label="Search events" className="pl-9" placeholder="Search by event name" value={search} onChange={(e) => { setPage(1); setSearch(e.target.value); }} />
+            </div>
+            <select aria-label="Filter by status" value={status} onChange={(e) => { setPage(1); setStatus(e.target.value); }} className="h-12 rounded-lg border border-neutral-300 px-3 text-sm">
+              <option value="">All statuses</option>
+              <option value="DRAFT">Draft</option>
+              <option value="READY_FOR_VALIDATION">Ready</option>
+              <option value="PUBLISHED">Published</option>
+              <option value="ARCHIVED">Archived</option>
+            </select>
+            <select aria-label="Sort events" value={sort} onChange={(e) => setSort(e.target.value)} className="h-12 rounded-lg border border-neutral-300 px-3 text-sm">
+              <option value="updatedAt">Updated</option>
+              <option value="startAt">Start date</option>
+              <option value="name">Name</option>
+            </select>
+            <button type="button" onClick={() => setDirection((value) => value === 'asc' ? 'desc' : 'asc')} className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-bold">
+              <SlidersHorizontal className="h-4 w-4" /> {direction === 'asc' ? 'Asc' : 'Desc'}
+            </button>
+          </CardContent>
+        </Card>
+
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-500 text-sm p-4 rounded-lg">
-            {error}
+          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <p className="font-semibold">{error.message}</p>
+            {error.requestId && <p className="mt-1 text-xs">Request ID: {error.requestId}</p>}
           </div>
         )}
 
-        <Card className="border-[#EAEAEA] bg-white overflow-hidden rounded-xl shadow-sm">
-          <CardHeader className="border-b border-[#EAEAEA] pb-5 px-6 pt-6">
-            <CardTitle className="text-neutral-950 font-bold text-xl tracking-normal mb-1">Catálogo de Shows</CardTitle>
-            <CardDescription className="text-neutral-500 text-sm leading-relaxed">Lista de eventos criados e vinculados à sua conta de organizador.</CardDescription>
+        <Card className="overflow-hidden rounded-lg border-[#EAEAEA] bg-white shadow-sm">
+          <CardHeader className="border-b border-[#EAEAEA] px-6 py-5">
+            <CardTitle>Organizer Events</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             {loading ? (
-              <div className="p-12 text-center text-neutral-500 flex flex-col items-center space-y-3 bg-white">
-                <svg className="animate-spin h-8 w-8 text-[#FF3200]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <span className="text-sm">Carregando eventos...</span>
+              <div className="p-12 text-center text-sm text-neutral-500">Loading events...</div>
+            ) : events.length === 0 && !hasFilters ? (
+              <div className="p-16 text-center">
+                <h2 className="text-lg font-bold text-neutral-900">No events yet</h2>
+                <p className="mx-auto mt-2 max-w-md text-sm text-neutral-500">Create your first event to start setup, ticket configuration, and publishing preparation.</p>
+                <Link href="/events/new" legacyBehavior><Button className="mt-6">Create your first event</Button></Link>
               </div>
             ) : events.length === 0 ? (
-              <div className="p-16 text-center text-neutral-500 flex flex-col items-center justify-center bg-white rounded-lg">
-                <p className="text-lg font-bold text-neutral-800 tracking-normal mb-3">Nenhum evento cadastrado para a sua conta.</p>
-                <p className="text-sm text-neutral-500 max-w-md mx-auto leading-relaxed mb-8">
-                  Comece a cadastrar seus shows agora mesmo para habilitar a venda de ingressos com alta concorrência.
-                </p>
-                <Link href="/events/new" legacyBehavior>
-                  <Button className="bg-[#FF3200] hover:bg-[#E62D00] text-white font-bold py-3 px-8 rounded-full border-none transition-all cursor-pointer shadow-sm">
-                    Criar Primeiro Evento
-                  </Button>
-                </Link>
-              </div>
+              <div className="p-12 text-center text-sm text-neutral-500">No events match the current search or filters.</div>
             ) : (
-              <div className="overflow-x-auto border-none">
-                <table className="w-full text-left border-collapse bg-white">
-                  <thead>
-                    <tr className="border-b border-[#EAEAEA] text-xs font-bold uppercase tracking-wider text-neutral-500 bg-neutral-50/50">
-                      <th className="px-6 py-4">Nome do Evento</th>
-                      <th className="px-6 py-4">Data</th>
-                      <th className="px-6 py-4">Localização</th>
-                      <th className="px-6 py-4">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#EAEAEA] font-medium text-sm text-neutral-700">
-                    {events.map((event) => (
-                      <tr key={event.id} className="hover:bg-neutral-50/50 transition-all duration-150">
-                        <td className="px-6 py-4">
-                          <Link href={`/events/${event.id}`} legacyBehavior>
-                            <a className="text-[#FF3200] hover:text-[#E62D00] font-bold text-base transition-colors cursor-pointer">
-                              {event.title}
-                            </a>
-                          </Link>
-                          {event.description && (
-                            <div className="text-neutral-450 text-xs mt-0.5 line-clamp-1">{event.description}</div>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-neutral-600 font-mono">
-                          {new Date(event.date).toLocaleDateString('pt-BR', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </td>
-                        <td className="px-6 py-4 text-neutral-600">{event.location}</td>
-                        <td className="px-6 py-4">{getStatusBadge(event.date)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="divide-y divide-neutral-100">
+                {events.map((event) => (
+                  <Link key={event.id} href={`/events/${event.id}`} legacyBehavior>
+                    <a className={`grid grid-cols-1 gap-4 p-5 no-underline transition-colors hover:bg-neutral-50 md:grid-cols-[72px_1fr_150px_150px] ${event.status === 'ARCHIVED' ? 'opacity-60' : ''}`}>
+                      <div className="h-16 w-16 overflow-hidden rounded-lg bg-neutral-100">
+                        {event.thumbnailUrl ? <img src={event.thumbnailUrl} alt="" className="h-full w-full object-cover" /> : <div className="h-full w-full bg-[#FF3200]/10" />}
+                      </div>
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h2 className="text-base font-bold text-neutral-950">{event.name}</h2>
+                          <span className="rounded-full border border-neutral-200 px-2 py-0.5 text-[11px] font-bold text-neutral-600">{statusLabel(event.status)}</span>
+                        </div>
+                        <p className="mt-1 text-sm text-neutral-500">{new Date(event.startAt).toLocaleString()} · {event.locationSummary}</p>
+                        <p className="mt-1 text-xs text-neutral-400">{event.ticketSummary}</p>
+                      </div>
+                      <div className="text-sm">
+                        <div className="font-bold text-neutral-900">{event.occupancyPct === null ? '-' : `${event.occupancyPct}%`}</div>
+                        <div className="text-xs text-neutral-400">Occupancy</div>
+                        <div className="mt-2 font-bold text-neutral-900">{currency(event.revenue)}</div>
+                        <div className="text-xs text-neutral-400">Revenue</div>
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold text-[#FF3200]">{event.nextAction}</div>
+                        <div className="mt-1 text-xs text-neutral-400">Updated {new Date(event.updatedAt).toLocaleDateString()}</div>
+                      </div>
+                    </a>
+                  </Link>
+                ))}
               </div>
             )}
           </CardContent>
         </Card>
+
+        {data && data.totalPages > 1 && (
+          <div className="flex items-center justify-end gap-3">
+            <Button variant="secondary" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>Previous</Button>
+            <span className="text-sm text-neutral-500">Page {data.page} of {data.totalPages}</span>
+            <Button variant="secondary" disabled={page >= data.totalPages} onClick={() => setPage((value) => value + 1)}>Next</Button>
+          </div>
+        )}
       </div>
     </Layout>
   );

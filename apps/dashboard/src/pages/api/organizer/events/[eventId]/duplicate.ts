@@ -8,19 +8,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       error: { code: 'EVENT_ID_REQUIRED', message: 'eventId is required', statusCode: 400, requestId: 'req_event_creation_proxy' },
     });
   }
-
-  if (req.method !== 'GET' && req.method !== 'PATCH' && req.method !== 'DELETE') {
-    res.setHeader('Allow', ['GET', 'PATCH', 'DELETE']);
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', ['POST']);
     return res.status(405).json({
       error: { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed', statusCode: 405, requestId: 'req_event_creation_proxy' },
     });
   }
-
-  if (req.method === 'GET') {
-    const apiReadUrl = process.env.API_READ_URL || 'http://localhost:3002';
-    return proxyJson(req, res, `${apiReadUrl}/organizer/events/${eventId}`, 'GET');
-  }
-
   const apiWriteUrl = process.env.API_WRITE_URL || 'http://localhost:4000';
-  return proxyJson(req, res, `${apiWriteUrl}/organizer/events/${eventId}`, req.method);
+  return proxyJson(req, res, `${apiWriteUrl}/organizer/events/${eventId}/duplicate`, 'POST');
 }

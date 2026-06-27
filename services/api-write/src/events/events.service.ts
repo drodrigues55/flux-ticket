@@ -7,8 +7,11 @@ import {
   CreateEventInputSchema,
   UpdateEventBasicInfoInput,
   UpdateEventBasicInfoInputSchema,
+  ArchiveEventInputSchema,
+  DuplicateEventInputSchema,
 } from '@flux/types';
 import { validateEventDateRange } from './event-creation-validation';
+import { canDeleteEvent } from './event-management-rules';
 
 @Injectable()
 export class EventsService {
@@ -192,6 +195,166 @@ export class EventsService {
       where: { id },
       data: { status: EventStatus.READY_FOR_VALIDATION },
     });
+  }
+
+  async updateOrganizerGeneral(id: string, organizerId: string, data: unknown) {
+    return this.updateOrganizerEvent(id, organizerId, data);
+  }
+
+  async archiveOrganizerEvent(id: string, organizerId: string, data: unknown = {}) {
+    const parsed = ArchiveEventInputSchema.safeParse(data);
+    if (!parsed.success) {
+      throw new BadRequestException({
+        code: 'EVENT_ARCHIVE_VALIDATION_ERROR',
+        message: 'Invalid archive input.',
+        details: parsed.error.flatten(),
+      });
+    }
+    const event = await prisma.event.findUnique({ where: { id } });
+    if (!event || event.organizerId !== organizerId) throw new NotFoundException('Event not found');
+    if (event.status === EventStatus.ARCHIVED) return event;
+    if (event.status === EventStatus.CANCELLED) {
+      throw new BadRequestException({
+        code: 'EVENT_ARCHIVE_INVALID_STATUS',
+        message: 'Cancelled events cannot be archived.',
+        details: { status: event.status },
+      });
+    }
+    return prisma.event.update({ where: { id }, data: { status: EventStatus.ARCHIVED } });
+  }
+
+  async duplicateOrganizerEvent(id: string, organizerId: string, data: unknown = {}) {
+    const parsed = DuplicateEventInputSchema.safeParse(data);
+    if (!parsed.success) {
+      throw new BadRequestException({
+        code: 'EVENT_DUPLICATE_VALIDATION_ERROR',
+        message: 'Invalid duplicate input.',
+        details: parsed.error.flatten(),
+      });
+    }
+    const original = await prisma.event.findUnique({
+      where: { id },
+      include: { ticketTypes: { where: { archivedAt: null }, include: { batches: { where: { archivedAt: null }, orderBy: { displayOrder: 'asc' } } } } },
+    });
+    if (!original || original.organizerId !== organizerId) throw new NotFoundException('Event not found');
+
+    const title = parsed.data.name || `${original.title} Copy`;
+    const baseSlug = parsed.data.slug || `${original.slug || original.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-copy`;
+    let slug = baseSlug.replace(/^-+|-+$/g, '') || `event-copy-${randomUUID().slice(0, 8)}`;
+    for (let index = 0; index < 20; index += 1) {
+      const candidate = index === 0 ? slug : `${slug}-${index + 1}`;
+      const existing = await prisma.event.findFirst({ where: { organizerId, slug: candidate }, select: { id: true } });
+      if (!existing) {
+        slug = candidate;
+        break;
+      }
+    }
+
+    return prisma.$transaction(async (tx) => {
+      const event = await tx.event.create({
+        data: {
+          slug,
+          title,
+          shortDescription: original.shortDescription,
+          description: original.description,
+          date: original.date,
+          endDate: original.endDate,
+          timezone: original.timezone,
+          locationType: original.locationType,
+          location: original.location,
+          venue: original.venue,
+          addressLine1: original.addressLine1,
+          addressLine2: original.addressLine2,
+          city: original.city,
+          state: original.state,
+          postalCode: original.postalCode,
+          country: original.country,
+          onlineUrl: original.onlineUrl,
+          imageUrl: original.imageUrl,
+          categoryId: original.categoryId,
+          capacityTarget: original.capacityTarget,
+          tags: original.tags,
+          organizerId,
+          status: EventStatus.DRAFT,
+        },
+      });
+
+      for (const originalType of original.ticketTypes) {
+        const ticketType = await tx.ticketType.create({
+          data: {
+            eventId: event.id,
+            name: originalType.name,
+            description: originalType.description,
+            sectorId: originalType.sectorId,
+            sectorName: originalType.sectorName,
+            capacity: originalType.capacity,
+            visibility: originalType.visibility,
+            transferable: originalType.transferable,
+            refundable: originalType.refundable,
+            purchaseLimit: originalType.purchaseLimit,
+            isActive: originalType.isActive,
+          },
+        });
+        for (const originalBatch of originalType.batches) {
+          await tx.ticketBatch.create({
+            data: {
+              eventId: event.id,
+              ticketTypeId: ticketType.id,
+              name: originalBatch.name,
+              price: originalBatch.price,
+              totalQuantity: originalBatch.totalQuantity,
+              availableQuantity: originalBatch.totalQuantity,
+              sectorId: originalBatch.sectorId,
+              sectorName: originalBatch.sectorName,
+              meiaEntrada: originalBatch.meiaEntrada,
+              isActive: originalBatch.isActive,
+              salesStart: originalBatch.salesStart,
+              salesEnd: originalBatch.salesEnd,
+              purchaseLimit: originalBatch.purchaseLimit,
+              status: originalBatch.status,
+              progressionRule: originalBatch.progressionRule,
+              displayOrder: originalBatch.displayOrder,
+            },
+          });
+        }
+      }
+      return event;
+    });
+  }
+
+  async deleteOrganizerEvent(id: string, organizerId: string) {
+    const event = await prisma.event.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: {
+            tickets: true,
+            payments: true,
+            reservations: true,
+            orders: true,
+            checkins: true,
+            alerts: true,
+          },
+        },
+      },
+    });
+    if (!event || event.organizerId !== organizerId) throw new NotFoundException('Event not found');
+    if (event.status !== EventStatus.DRAFT) {
+      throw new BadRequestException({
+        code: 'EVENT_DELETE_INVALID_STATUS',
+        message: 'Only safe draft events can be deleted.',
+        details: { status: event.status },
+      });
+    }
+    if (!canDeleteEvent({ status: event.status, counts: event._count })) {
+      throw new BadRequestException({
+        code: 'EVENT_DELETE_UNSAFE',
+        message: 'Draft event cannot be deleted after transactional or operational records exist.',
+        details: event._count,
+      });
+    }
+    await prisma.event.delete({ where: { id } });
+    return { id, deleted: true };
   }
 
   async createEvent(

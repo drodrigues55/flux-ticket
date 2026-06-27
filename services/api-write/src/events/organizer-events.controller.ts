@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Patch, Post, Req, UseGuards, BadRequestException } from '@nestjs/common';
+import { Body, Controller, Delete, Param, Patch, Post, Req, UseGuards, BadRequestException } from '@nestjs/common';
 import { EventsService } from './events.service';
 import { TicketTypesService } from './ticket-types.service';
 import { StaffGuard } from '../tickets/staff-guard';
@@ -42,6 +42,24 @@ export class OrganizerEventsController {
     return ok(event, requestId(req));
   }
 
+  @Patch(':eventId/general')
+  async updateGeneral(@Param('eventId') eventId: string, @Body() body: unknown, @Req() req: any) {
+    const actorId = organizerId(req);
+    const event = await this.eventsService.updateOrganizerGeneral(eventId, actorId, body);
+    await this.auditService.record({
+      actorId,
+      actorRole: req.user.role,
+      action: 'EVENT_GENERAL_UPDATED',
+      entityType: 'Event',
+      entityId: event.id,
+      after: event,
+      requestId: requestId(req),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+    return ok(event, requestId(req));
+  }
+
   @Patch(':eventId')
   async updateDraft(@Param('eventId') eventId: string, @Body() body: unknown, @Req() req: any) {
     const actorId = organizerId(req);
@@ -58,6 +76,54 @@ export class OrganizerEventsController {
       userAgent: req.headers['user-agent'],
     });
     return ok(event, requestId(req));
+  }
+
+  @Post(':eventId/archive')
+  async archive(@Param('eventId') eventId: string, @Body() body: unknown, @Req() req: any) {
+    const actorId = organizerId(req);
+    const event = await this.eventsService.archiveOrganizerEvent(eventId, actorId, body);
+    await this.auditService.record({
+      actorId,
+      actorRole: req.user.role,
+      action: 'EVENT_ARCHIVED',
+      entityType: 'Event',
+      entityId: event.id,
+      after: event,
+      requestId: requestId(req),
+    });
+    return ok(event, requestId(req));
+  }
+
+  @Post(':eventId/duplicate')
+  async duplicate(@Param('eventId') eventId: string, @Body() body: unknown, @Req() req: any) {
+    const actorId = organizerId(req);
+    const event = await this.eventsService.duplicateOrganizerEvent(eventId, actorId, body);
+    await this.auditService.record({
+      actorId,
+      actorRole: req.user.role,
+      action: 'EVENT_DUPLICATED',
+      entityType: 'Event',
+      entityId: event.id,
+      after: event,
+      requestId: requestId(req),
+    });
+    return ok(event, requestId(req));
+  }
+
+  @Delete(':eventId')
+  async deleteEvent(@Param('eventId') eventId: string, @Req() req: any) {
+    const actorId = organizerId(req);
+    const result = await this.eventsService.deleteOrganizerEvent(eventId, actorId);
+    await this.auditService.record({
+      actorId,
+      actorRole: req.user.role,
+      action: 'EVENT_DELETED',
+      entityType: 'Event',
+      entityId: eventId,
+      after: result,
+      requestId: requestId(req),
+    });
+    return ok(result, requestId(req));
   }
 
   @Post(':eventId/ticket-types')

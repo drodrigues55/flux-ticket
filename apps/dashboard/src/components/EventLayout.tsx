@@ -13,13 +13,16 @@ interface EventLayoutProps {
 export default function EventLayout({ children, eventId, eventName }: EventLayoutProps) {
   const router = useRouter();
 
-  const tabs = [
-    { name: 'Visão Geral', href: `/events/${eventId}` },
-    { name: 'Editar Evento', href: `/events/${eventId}/edit` },
-    { name: 'Tipos de Ingresso', href: `/events/${eventId}/ticket-types` },
-  ];
+  const tabs = eventId ? [
+    { name: 'Overview', href: `/events/${eventId}` },
+    { name: 'General', href: `/events/${eventId}/general` },
+    { name: 'Tickets', href: `/events/${eventId}/tickets` },
+    { name: 'Publishing', href: `/events/${eventId}/publishing` },
+    { name: 'Advanced', href: `/events/${eventId}/advanced` },
+  ] : [];
 
   const isActive = (href: string) => {
+    if (href === `/events/${eventId}`) return router.asPath === href || router.asPath === `/events/${eventId}/overview`;
     return router.asPath === href;
   };
 
@@ -37,7 +40,7 @@ export default function EventLayout({ children, eventId, eventName }: EventLayou
         </div>
 
         {/* Horizontal Tabs */}
-        <div className="border-b border-[#EAEAEA]">
+        {tabs.length > 0 && <div className="border-b border-[#EAEAEA]">
           <nav className="flex gap-6">
             {tabs.map((tab) => {
               const active = isActive(tab.href);
@@ -56,7 +59,7 @@ export default function EventLayout({ children, eventId, eventName }: EventLayou
               );
             })}
           </nav>
-        </div>
+        </div>}
 
         {/* Tab Content */}
         <div>

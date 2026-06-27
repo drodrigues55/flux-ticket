@@ -26,6 +26,45 @@ function sendError(res: any, req: RequestWithId, statusCode: number, code: strin
 
 organizerEventsRouter.use(authMiddleware);
 
+organizerEventsRouter.get('/', async (req: AuthenticatedRequest & RequestWithId, res) => {
+  try {
+    const data = await organizerEventsReadService.listEvents(req.query, organizerId(req));
+    res.json(ok(data, requestId(req)));
+  } catch (error) {
+    sendError(res, req, 400, 'EVENT_LIST_QUERY_INVALID', 'Failed to load organizer events.', error instanceof Error ? error.message : undefined);
+  }
+});
+
+organizerEventsRouter.get('/:eventId', async (req: AuthenticatedRequest & RequestWithId, res) => {
+  try {
+    const detail = await organizerEventsReadService.getDetail(req.params.eventId, organizerId(req));
+    if (!detail) return sendError(res, req, 404, 'EVENT_NOT_FOUND', 'Event not found.', { eventId: req.params.eventId });
+    res.json(ok(detail, requestId(req)));
+  } catch (error) {
+    sendError(res, req, 500, 'EVENT_DETAIL_READ_ERROR', 'Failed to load event detail.', error instanceof Error ? error.message : undefined);
+  }
+});
+
+organizerEventsRouter.get('/:eventId/overview', async (req: AuthenticatedRequest & RequestWithId, res) => {
+  try {
+    const overview = await organizerEventsReadService.getOverview(req.params.eventId, organizerId(req));
+    if (!overview) return sendError(res, req, 404, 'EVENT_NOT_FOUND', 'Event not found.', { eventId: req.params.eventId });
+    res.json(ok(overview, requestId(req)));
+  } catch (error) {
+    sendError(res, req, 500, 'EVENT_OVERVIEW_READ_ERROR', 'Failed to load event overview.', error instanceof Error ? error.message : undefined);
+  }
+});
+
+organizerEventsRouter.get('/:eventId/general', async (req: AuthenticatedRequest & RequestWithId, res) => {
+  try {
+    const general = await organizerEventsReadService.getGeneral(req.params.eventId, organizerId(req));
+    if (!general) return sendError(res, req, 404, 'EVENT_NOT_FOUND', 'Event not found.', { eventId: req.params.eventId });
+    res.json(ok(general, requestId(req)));
+  } catch (error) {
+    sendError(res, req, 500, 'EVENT_GENERAL_READ_ERROR', 'Failed to load event general info.', error instanceof Error ? error.message : undefined);
+  }
+});
+
 organizerEventsRouter.get('/:eventId/edit', async (req: AuthenticatedRequest & RequestWithId, res) => {
   try {
     const draft = await organizerEventsReadService.getEditDraft(req.params.eventId, organizerId(req));

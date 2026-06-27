@@ -1,5 +1,17 @@
 import { prisma } from '@flux/database';
-import type { EventCreationDraft, EventCreationReview, EventCreationStep } from '@flux/types';
+import {
+  OrganizerEventListQuerySchema,
+  type EventCreationDraft,
+  type EventCreationReview,
+  type EventCreationStep,
+  type OrganizerEventDetail,
+  type OrganizerEventGeneral,
+  type OrganizerEventListItem,
+  type OrganizerEventListResponse,
+  type OrganizerEventOverview,
+} from '@flux/types';
+
+const SOLD_STATUSES = ['VALID', 'CONSUMED'];
 
 function toTicketSummary(ticketType: any) {
   if (!ticketType) return null;
@@ -52,6 +64,14 @@ function toDraft(event: any): EventCreationDraft {
   };
 }
 
+function toGeneral(event: any): OrganizerEventGeneral {
+  return {
+    ...toDraft(event).event,
+    updatedAt: event.updatedAt.toISOString(),
+    createdAt: event.createdAt.toISOString(),
+  };
+}
+
 export function reviewMessages(draft: EventCreationDraft) {
   const blockers: string[] = [];
   const warnings: string[] = [];
@@ -77,7 +97,106 @@ export function reviewMessages(draft: EventCreationDraft) {
   return { blockers, warnings };
 }
 
+function nextAction(status: string): OrganizerEventListItem['nextAction'] {
+  if (status === 'DRAFT') return 'Continue setup';
+  if (status === 'READY_FOR_VALIDATION') return 'Review publishing';
+  if (status === 'ARCHIVED') return 'View archive';
+  return 'Manage event';
+}
+
+function ticketStats(event: any) {
+  const batches = event.ticketTypes?.flatMap((type: any) => type.batches ?? []) ?? [];
+  const totalCapacity = batches.reduce((sum: number, batch: any) => sum + batch.totalQuantity, 0);
+  const totalSold = batches.reduce((sum: number, batch: any) => {
+    if (Array.isArray(batch.tickets)) return sum + batch.tickets.filter((ticket: any) => SOLD_STATUSES.includes(ticket.status)).length;
+    return sum + Math.max(0, batch.totalQuantity - batch.availableQuantity);
+  }, 0);
+  const grossRevenue = batches.reduce((sum: number, batch: any) => {
+    if (!Array.isArray(batch.tickets)) return sum;
+    return sum + batch.tickets
+      .filter((ticket: any) => SOLD_STATUSES.includes(ticket.status))
+      .reduce((ticketSum: number, ticket: any) => ticketSum + Number(ticket.price ?? batch.price ?? 0), 0);
+  }, 0);
+  return {
+    ticketTypeCount: event.ticketTypes?.length ?? 0,
+    totalCapacity,
+    totalSold,
+    occupancyPct: totalCapacity > 0 ? Math.round((totalSold / totalCapacity) * 100) : null,
+    grossRevenue,
+  };
+}
+
+function toListItem(event: any): OrganizerEventListItem {
+  const stats = ticketStats(event);
+  const ticketSummary = stats.ticketTypeCount
+    ? `${stats.ticketTypeCount} type${stats.ticketTypeCount === 1 ? '' : 's'} / ${stats.totalCapacity} capacity`
+    : 'No tickets configured';
+  return {
+    id: event.id,
+    name: event.title,
+    slug: event.slug ?? null,
+    thumbnailUrl: event.imageUrl ?? null,
+    status: event.status,
+    startAt: event.date.toISOString(),
+    locationSummary: event.venue || event.location || event.onlineUrl || 'Location pending',
+    ticketSummary,
+    occupancyPct: stats.occupancyPct,
+    revenue: stats.grossRevenue,
+    updatedAt: event.updatedAt.toISOString(),
+    nextAction: nextAction(event.status),
+  };
+}
+
+function includeForSummary() {
+  return {
+    ticketTypes: {
+      where: { archivedAt: null },
+      include: { batches: { where: { archivedAt: null }, include: { tickets: true }, orderBy: { displayOrder: 'asc' as const } } },
+      orderBy: { createdAt: 'asc' as const },
+    },
+  };
+}
+
 export class OrganizerEventsReadService {
+  async listEvents(queryInput: unknown, organizerId?: string): Promise<OrganizerEventListResponse> {
+    const query = OrganizerEventListQuerySchema.parse(queryInput ?? {});
+    const where: any = {
+      ...(organizerId ? { organizerId } : {}),
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.search ? { title: { contains: query.search, mode: 'insensitive' } } : {}),
+      ...((query.startFrom || query.startTo) ? {
+        date: {
+          ...(query.startFrom ? { gte: new Date(query.startFrom) } : {}),
+          ...(query.startTo ? { lte: new Date(query.startTo) } : {}),
+        },
+      } : {}),
+    };
+    const orderBy = query.sort === 'name'
+      ? { title: query.direction }
+      : query.sort === 'startAt'
+        ? { date: query.direction }
+        : { updatedAt: query.direction };
+    const skip = (query.page - 1) * query.limit;
+    const [total, events] = await Promise.all([
+      prisma.event.count({ where }),
+      prisma.event.findMany({
+        where,
+        include: includeForSummary(),
+        orderBy,
+        skip,
+        take: query.limit,
+      }),
+    ]);
+
+    return {
+      items: events.map(toListItem),
+      page: query.page,
+      limit: query.limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / query.limit)),
+    };
+  }
+
   async getEditDraft(eventId: string, organizerId?: string): Promise<EventCreationDraft | null> {
     const event = await prisma.event.findFirst({
       where: { id: eventId, ...(organizerId ? { organizerId } : {}) },
@@ -92,10 +211,47 @@ export class OrganizerEventsReadService {
     return event ? toDraft(event) : null;
   }
 
+  async getGeneral(eventId: string, organizerId?: string): Promise<OrganizerEventGeneral | null> {
+    const event = await prisma.event.findFirst({
+      where: { id: eventId, ...(organizerId ? { organizerId } : {}) },
+      include: { ticketTypes: { where: { archivedAt: null }, include: { batches: { where: { archivedAt: null }, orderBy: { displayOrder: 'asc' } } } } },
+    });
+    return event ? toGeneral(event) : null;
+  }
+
   async getReview(eventId: string, organizerId?: string): Promise<EventCreationReview | null> {
     const draft = await this.getEditDraft(eventId, organizerId);
     if (!draft) return null;
     return { ...draft, ...reviewMessages(draft) };
+  }
+
+  async getOverview(eventId: string, organizerId?: string): Promise<OrganizerEventOverview | null> {
+    const event = await prisma.event.findFirst({
+      where: { id: eventId, ...(organizerId ? { organizerId } : {}) },
+      include: includeForSummary(),
+    });
+    if (!event) return null;
+    const general = toGeneral(event);
+    const messages = reviewMessages({ event: general, ticketType: toTicketSummary(event.ticketTypes?.[0]), currentStep: currentStep(event) });
+    return {
+      event: general,
+      ticketSummary: ticketStats(event),
+      warnings: messages.warnings,
+      blockers: messages.blockers,
+    };
+  }
+
+  async getDetail(eventId: string, organizerId?: string): Promise<OrganizerEventDetail | null> {
+    const overview = await this.getOverview(eventId, organizerId);
+    if (!overview) return null;
+    const canDelete = overview.event.status === 'DRAFT' && overview.ticketSummary.totalSold === 0;
+    return {
+      event: overview.event,
+      overview,
+      canDelete,
+      canArchive: overview.event.status !== 'ARCHIVED' && overview.event.status !== 'CANCELLED',
+      canDuplicate: true,
+    };
   }
 }
 
