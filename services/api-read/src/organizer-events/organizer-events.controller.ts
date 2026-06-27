@@ -84,3 +84,91 @@ organizerEventsRouter.get('/:eventId/review', async (req: AuthenticatedRequest &
     sendError(res, req, 500, 'EVENT_REVIEW_READ_ERROR', 'Failed to load event review.', error instanceof Error ? error.message : undefined);
   }
 });
+
+organizerEventsRouter.get('/:eventId/ticket-types', async (req: AuthenticatedRequest & RequestWithId, res) => {
+  try {
+    const data = await organizerEventsReadService.listTicketTypes(req.params.eventId, organizerId(req));
+    res.json(ok(data, requestId(req)));
+  } catch (error) {
+    sendError(res, req, 500, 'TICKET_TYPES_READ_ERROR', 'Failed to load ticket types.', error instanceof Error ? error.message : undefined);
+  }
+});
+
+organizerEventsRouter.get('/:eventId/ticket-types/:ticketTypeId', async (req: AuthenticatedRequest & RequestWithId, res) => {
+  try {
+    const data = await organizerEventsReadService.getTicketTypeDetail(req.params.eventId, req.params.ticketTypeId, organizerId(req));
+    if (!data) return sendError(res, req, 404, 'TICKET_TYPE_NOT_FOUND', 'Ticket type not found.', { ticketTypeId: req.params.ticketTypeId });
+    res.json(ok(data, requestId(req)));
+  } catch (error) {
+    sendError(res, req, 500, 'TICKET_TYPE_DETAIL_READ_ERROR', 'Failed to load ticket type detail.', error instanceof Error ? error.message : undefined);
+  }
+});
+
+organizerEventsRouter.get('/:eventId/ticket-types/:ticketTypeId/information', async (req: AuthenticatedRequest & RequestWithId, res) => {
+  try {
+    const data = await organizerEventsReadService.getTicketTypeInformation(req.params.eventId, req.params.ticketTypeId, organizerId(req));
+    if (!data) return sendError(res, req, 404, 'TICKET_TYPE_NOT_FOUND', 'Ticket type not found.', { ticketTypeId: req.params.ticketTypeId });
+    res.json(ok(data, requestId(req)));
+  } catch (error) {
+    sendError(res, req, 500, 'TICKET_TYPE_INFO_READ_ERROR', 'Failed to load ticket type information.', error instanceof Error ? error.message : undefined);
+  }
+});
+
+organizerEventsRouter.get('/:eventId/ticket-types/:ticketTypeId/batches', async (req: AuthenticatedRequest & RequestWithId, res) => {
+  try {
+    const data = await organizerEventsReadService.getTicketTypeBatches(req.params.eventId, req.params.ticketTypeId, organizerId(req));
+    if (!data) return sendError(res, req, 404, 'TICKET_TYPE_NOT_FOUND', 'Ticket type not found.', { ticketTypeId: req.params.ticketTypeId });
+    res.json(ok(data, requestId(req)));
+  } catch (error) {
+    sendError(res, req, 500, 'TICKET_TYPE_BATCHES_READ_ERROR', 'Failed to load ticket type batches.', error instanceof Error ? error.message : undefined);
+  }
+});
+
+organizerEventsRouter.get('/:eventId/ticket-types/:ticketTypeId/rules', async (req: AuthenticatedRequest & RequestWithId, res) => {
+  try {
+    const data = await organizerEventsReadService.getTicketTypeRules(req.params.eventId, req.params.ticketTypeId, organizerId(req));
+    if (!data) return sendError(res, req, 404, 'TICKET_TYPE_NOT_FOUND', 'Ticket type not found.', { ticketTypeId: req.params.ticketTypeId });
+    res.json(ok(data, requestId(req)));
+  } catch (error) {
+    sendError(res, req, 500, 'TICKET_TYPE_RULES_READ_ERROR', 'Failed to load ticket type rules.', error instanceof Error ? error.message : undefined);
+  }
+});
+
+organizerEventsRouter.get('/:eventId/ticket-types/:ticketTypeId/batches/validation', async (req: AuthenticatedRequest & RequestWithId, res) => {
+  try {
+    const data = await organizerEventsReadService.validateTicketBatches(req.params.eventId, req.params.ticketTypeId, organizerId(req));
+    res.json(ok(data, requestId(req)));
+  } catch (error) {
+    sendError(res, req, 500, 'BATCHES_VALIDATION_ERROR', 'Failed to validate ticket batches.', error instanceof Error ? error.message : undefined);
+  }
+});
+
+organizerEventsRouter.get('/:eventId/ticket-types/:ticketTypeId/batches', async (req: AuthenticatedRequest & RequestWithId, res) => {
+  try {
+    const data = await organizerEventsReadService.listTicketBatches(req.params.eventId, req.params.ticketTypeId, organizerId(req));
+    res.json(ok(data, requestId(req)));
+  } catch (error) {
+    sendError(res, req, 500, 'BATCHES_READ_ERROR', 'Failed to load ticket batches.', error instanceof Error ? error.message : undefined);
+  }
+});
+
+organizerEventsRouter.get('/:eventId/ticket-types/:ticketTypeId/batches/:batchId/preview', async (req: AuthenticatedRequest & RequestWithId, res) => {
+  try {
+    const data = await organizerEventsReadService.getTicketBatchPreview(req.params.eventId, req.params.ticketTypeId, req.params.batchId, organizerId(req));
+    if (!data) return sendError(res, req, 404, 'BATCH_NOT_FOUND', 'Batch not found.', { batchId: req.params.batchId });
+    res.json(ok(data, requestId(req)));
+  } catch (error) {
+    sendError(res, req, 500, 'BATCH_PREVIEW_READ_ERROR', 'Failed to load batch preview.', error instanceof Error ? error.message : undefined);
+  }
+});
+
+organizerEventsRouter.get('/:eventId/ticket-types/:ticketTypeId/batches/:batchId', async (req: AuthenticatedRequest & RequestWithId, res) => {
+  try {
+    const data = await organizerEventsReadService.getTicketBatchDetail(req.params.eventId, req.params.ticketTypeId, req.params.batchId, organizerId(req));
+    if (!data) return sendError(res, req, 404, 'BATCH_NOT_FOUND', 'Batch not found.', { batchId: req.params.batchId });
+    res.json(ok(data, requestId(req)));
+  } catch (error) {
+    sendError(res, req, 500, 'BATCH_DETAIL_READ_ERROR', 'Failed to load batch detail.', error instanceof Error ? error.message : undefined);
+  }
+});
+

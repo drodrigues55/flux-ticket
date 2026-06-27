@@ -327,6 +327,114 @@ export interface ReserveResponse {
   userId: string;
 }
 
+// ─────────────────────────────────────────────
+// TICKET WORKSPACE TYPES (Phase 5)
+// ─────────────────────────────────────────────
+
+export type TicketTypeStatus = 'ACTIVE' | 'HIDDEN' | 'ARCHIVED';
+
+export interface TicketTypeBatchSummary {
+  id: string;
+  name: string;
+  price: number;
+  totalQuantity: number;
+  availableQuantity: number;
+  soldQuantity: number;
+  status: string;
+}
+
+export interface TicketTypeListItem {
+  id: string;
+  name: string;
+  status: TicketTypeStatus;
+  capacity: number;
+  soldQuantity: number;
+  reservedQuantity: number;
+  availableQuantity: number;
+  lockedQuantity: number;
+  basePrice: number;
+  batches: TicketTypeBatchSummary[];
+  refundable: boolean;
+  transferable: boolean;
+  purchaseLimit: number;
+  warnings: string[];
+  nextAction: string;
+}
+
+export interface TicketTypeInformation {
+  name: string;
+  description: string | null;
+  capacity: number;
+  status: TicketTypeStatus;
+  visibility: boolean;
+  isActive: boolean;
+}
+
+export interface TicketTypeRules {
+  purchaseLimit: number;
+  purchaseMin: number; // fixed at 1
+  refundable: boolean;
+  transferable: boolean;
+  visibility: boolean;
+}
+
+export interface TicketTypeDetail {
+  id: string;
+  eventId: string;
+  information: TicketTypeInformation;
+  rules: TicketTypeRules;
+  batches: TicketTypeBatchSummary[];
+}
+
+export interface TicketBatchListItem {
+  id: string;
+  name: string;
+  price: number;
+  totalQuantity: number;
+  availableQuantity: number;
+  soldQuantity: number;
+  salesStart: string | null;
+  salesEnd: string | null;
+  visibility: boolean;
+  displayOrder: number;
+  status: string;
+}
+
+export interface TicketBatchDetail {
+  id: string;
+  eventId: string;
+  ticketTypeId: string | null;
+  name: string;
+  price: number;
+  totalQuantity: number;
+  availableQuantity: number;
+  salesStart: string | null;
+  salesEnd: string | null;
+  purchaseLimit: number | null;
+  visibility: boolean;
+  status: string;
+  displayOrder: number;
+}
+
+export interface TicketBatchPreview {
+  ticketTypeName: string;
+  batchName: string;
+  price: number;
+  availability: string;
+  salesWindow: string;
+  visibility: boolean;
+  currentSellableState: boolean;
+  blockingReasons: string[];
+}
+
+export interface TicketBatchValidationResult {
+  isValid: boolean;
+  errors: string[];
+  warnings: string[];
+}
+
 export * from './cpf';
 export * from './validation/common';
 export * from './validation/event';
+
+

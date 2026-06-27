@@ -1,11 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { proxyJson } from '../../../../../../server/organizerProxy';
+import { proxyJson } from '../../../../../../../../server/organizerProxy';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const { eventId } = req.query;
-  if (!eventId || typeof eventId !== 'string') {
+  const { eventId, ticketTypeId } = req.query;
+  if (!eventId || typeof eventId !== 'string' || !ticketTypeId || typeof ticketTypeId !== 'string') {
     return res.status(400).json({
-      error: { code: 'EVENT_ID_REQUIRED', message: 'eventId is required', statusCode: 400, requestId: 'req_event_creation_proxy' },
+      error: { code: 'BATCHES_PATH_REQUIRED', message: 'eventId and ticketTypeId are required', statusCode: 400, requestId: 'req_event_creation_proxy' },
     });
   }
 
@@ -18,9 +18,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (req.method === 'GET') {
     const apiReadUrl = process.env.API_READ_URL || 'http://localhost:3002';
-    return proxyJson(req, res, `${apiReadUrl}/organizer/events/${eventId}/ticket-types`, 'GET');
+    return proxyJson(req, res, `${apiReadUrl}/organizer/events/${eventId}/ticket-types/${ticketTypeId}/batches`, 'GET');
   }
 
   const apiWriteUrl = process.env.API_WRITE_URL || 'http://localhost:4000';
-  return proxyJson(req, res, `${apiWriteUrl}/organizer/events/${eventId}/ticket-types`, 'POST');
+  return proxyJson(req, res, `${apiWriteUrl}/organizer/events/${eventId}/ticket-types/${ticketTypeId}/batches`, 'POST');
 }

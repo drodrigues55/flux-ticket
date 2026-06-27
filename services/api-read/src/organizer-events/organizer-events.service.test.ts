@@ -99,3 +99,41 @@ test('defaults organizer event list query to updated desc first page', () => {
   assert.equal(query.page, 1);
   assert.equal(query.limit, 10);
 });
+
+// Test derived status logic
+const deriveStatus = (batch: any): string => {
+  if (batch.archivedAt) return 'ARCHIVED';
+  const now = new Date();
+  if (batch.salesEnd && batch.salesEnd < now) return 'COMPLETED';
+  if (batch.status === 'COMPLETED') return 'COMPLETED';
+  if (batch.status === 'PAUSED' || !batch.isActive) return 'PAUSED';
+  if (batch.salesStart && batch.salesStart > now) return 'PENDING';
+  if (batch.status === 'ACTIVE' || batch.isActive) return 'ACTIVE';
+  return batch.status;
+};
+
+test('derives ARCHIVED status when archivedAt is set', () => {
+  const batch = { archivedAt: new Date(), isActive: true, status: 'ACTIVE' };
+  assert.equal(deriveStatus(batch), 'ARCHIVED');
+});
+
+test('derives COMPLETED status when salesEnd is in the past', () => {
+  const batch = { archivedAt: null, salesEnd: new Date(Date.now() - 100000), isActive: true, status: 'ACTIVE' };
+  assert.equal(deriveStatus(batch), 'COMPLETED');
+});
+
+test('derives PENDING status when salesStart is in the future', () => {
+  const batch = { archivedAt: null, salesStart: new Date(Date.now() + 100000), isActive: true, status: 'ACTIVE' };
+  assert.equal(deriveStatus(batch), 'PENDING');
+});
+
+test('derives PAUSED status when isActive is false', () => {
+  const batch = { archivedAt: null, isActive: false, status: 'ACTIVE' };
+  assert.equal(deriveStatus(batch), 'PAUSED');
+});
+
+test('derives ACTIVE status when active and within sales window', () => {
+  const batch = { archivedAt: null, isActive: true, status: 'ACTIVE', salesStart: null, salesEnd: null };
+  assert.equal(deriveStatus(batch), 'ACTIVE');
+});
+

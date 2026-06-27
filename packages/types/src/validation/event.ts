@@ -183,3 +183,55 @@ export interface OrganizerEventDetail {
   canArchive: boolean;
   canDuplicate: boolean;
 }
+
+export const CreateTicketTypeInputSchema = z.object({
+  name: z.string().trim().min(1, 'O nome do ingresso é obrigatório.'),
+  capacity: z.coerce.number().int().positive('A quantidade deve ser maior que zero.'),
+});
+
+export const UpdateTicketTypeInformationInputSchema = z.object({
+  name: z.string().trim().min(1, 'O nome do ingresso é obrigatório.').optional(),
+  description: optionalText,
+  capacity: z.coerce.number().int().positive('A quantidade deve ser maior que zero.').optional(),
+  visibility: z.boolean().optional(),
+  isActive: z.boolean().optional(),
+  basePrice: z.coerce.number().min(0, 'O preço não pode ser negativo.').optional(),
+});
+
+export const UpdateTicketTypeRulesInputSchema = z.object({
+  purchaseLimit: z.coerce.number().int().positive('O limite de compra deve ser maior que zero.'),
+  refundable: z.boolean(),
+  transferable: z.boolean(),
+  visibility: z.boolean(),
+});
+
+export const DuplicateTicketTypeInputSchema = z.object({});
+export const ArchiveTicketTypeInputSchema = z.object({});
+
+export type CreateTicketTypeInput = z.infer<typeof CreateTicketTypeInputSchema>;
+export type UpdateTicketTypeInformationInput = z.infer<typeof UpdateTicketTypeInformationInputSchema>;
+export type UpdateTicketTypeRulesInput = z.infer<typeof UpdateTicketTypeRulesInputSchema>;
+export type DuplicateTicketTypeInput = z.infer<typeof DuplicateTicketTypeInputSchema>;
+export type ArchiveTicketTypeInput = z.infer<typeof ArchiveTicketTypeInputSchema>;
+
+export const CreateTicketBatchInputSchema = z.object({
+  name: z.string().trim().min(1, 'O nome do lote é obrigatório.'),
+  price: z.coerce.number().min(0, 'O preço não pode ser negativo.'),
+  totalQuantity: z.coerce.number().int().positive('A quantidade deve ser maior que zero.'),
+  salesStart: z.string().datetime('A data de início das vendas é inválida.').optional().nullable(),
+  salesEnd: z.string().datetime('A data de término das vendas é inválida.').optional().nullable(),
+  purchaseLimit: z.coerce.number().int().positive('O limite de compra deve ser maior que zero.').optional().nullable(),
+  visibility: z.boolean().optional(),
+});
+
+export const UpdateTicketBatchInputSchema = CreateTicketBatchInputSchema.partial();
+
+export const ReorderTicketBatchesInputSchema = z.object({
+  batchIds: z.array(z.string().uuid('ID de lote inválido.')),
+});
+
+export type CreateTicketBatchInput = z.infer<typeof CreateTicketBatchInputSchema>;
+export type UpdateTicketBatchInput = z.infer<typeof UpdateTicketBatchInputSchema>;
+export type ReorderTicketBatchesInput = z.infer<typeof ReorderTicketBatchesInputSchema>;
+
+

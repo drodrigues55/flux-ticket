@@ -253,6 +253,358 @@ export class OrganizerEventsReadService {
       canDuplicate: true,
     };
   }
+
+  private async checkEventOwnership(eventId: string, organizerId?: string) {
+    const event = await prisma.event.findFirst({
+      where: { id: eventId, ...(organizerId ? { organizerId } : {}) },
+    });
+    if (!event) throw new Error('Event not found');
+    return event;
+  }
+
+  async listTicketTypes(eventId: string, organizerId?: string): Promise<any[]> {
+    await this.checkEventOwnership(eventId, organizerId);
+
+    const ticketTypes = await prisma.ticketType.findMany({
+      where: { eventId },
+      include: {
+        batches: {
+          where: { archivedAt: null },
+          orderBy: { displayOrder: 'asc' },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const results = [];
+    for (const tt of ticketTypes) {
+      const batchIds = tt.batches.map(b => b.id);
+
+      const sold = await prisma.ticket.count({
+        where: {
+          batchId: { in: batchIds },
+          status: { in: ['VALID', 'CONSUMED'] },
+        },
+      });
+
+      const now = new Date();
+      const reservationItems = await prisma.reservationItem.findMany({
+        where: {
+          batchId: { in: batchIds },
+          reservation: {
+            status: 'ACTIVE',
+            expiresAt: { gt: now },
+          },
+        },
+        select: { quantity: true },
+      });
+      const reserved = reservationItems.reduce((sum, item) => sum + item.quantity, 0);
+      const locked = sold + reserved;
+
+      // Status derivation
+      let status: 'ACTIVE' | 'HIDDEN' | 'ARCHIVED' = 'ACTIVE';
+      if (tt.archivedAt) status = 'ARCHIVED';
+      else if (!tt.visibility || !tt.isActive) status = 'HIDDEN';
+
+      const warnings: string[] = [];
+      if (tt.capacity === 0) warnings.push('Capacity is zero.');
+      if (tt.batches.length === 0) warnings.push('No active batches.');
+
+      const nextAction = tt.archivedAt ? 'Archived' : 'Edit';
+
+      results.push({
+        id: tt.id,
+        name: tt.name,
+        status,
+        capacity: tt.capacity,
+        soldQuantity: sold,
+        reservedQuantity: reserved,
+        availableQuantity: Math.max(0, tt.capacity - locked),
+        lockedQuantity: locked,
+        basePrice: tt.batches[0] ? Number(tt.batches[0].price) : 0,
+        batches: tt.batches.map(b => ({
+          id: b.id,
+          name: b.name,
+          price: Number(b.price),
+          totalQuantity: b.totalQuantity,
+          availableQuantity: b.availableQuantity,
+          soldQuantity: Math.max(0, b.totalQuantity - b.availableQuantity),
+          status: b.status,
+        })),
+        refundable: tt.refundable,
+        transferable: tt.transferable,
+        purchaseLimit: tt.purchaseLimit,
+        warnings,
+        nextAction,
+      });
+    }
+    return results;
+  }
+
+  async getTicketTypeDetail(eventId: string, ticketTypeId: string, organizerId?: string): Promise<any | null> {
+    await this.checkEventOwnership(eventId, organizerId);
+    const tt = await prisma.ticketType.findFirst({
+      where: { id: ticketTypeId, eventId },
+      include: {
+        batches: {
+          where: { archivedAt: null },
+          orderBy: { displayOrder: 'asc' },
+        },
+      },
+    });
+    if (!tt) return null;
+
+    const batchIds = tt.batches.map(b => b.id);
+    const sold = await prisma.ticket.count({
+      where: {
+        batchId: { in: batchIds },
+        status: { in: ['VALID', 'CONSUMED'] },
+      },
+    });
+
+    const now = new Date();
+    const reservationItems = await prisma.reservationItem.findMany({
+      where: {
+        batchId: { in: batchIds },
+        reservation: {
+          status: 'ACTIVE',
+          expiresAt: { gt: now },
+        },
+      },
+      select: { quantity: true },
+    });
+    const reserved = reservationItems.reduce((sum, item) => sum + item.quantity, 0);
+
+    // Status derivation
+    let status: 'ACTIVE' | 'HIDDEN' | 'ARCHIVED' = 'ACTIVE';
+    if (tt.archivedAt) status = 'ARCHIVED';
+    else if (!tt.visibility || !tt.isActive) status = 'HIDDEN';
+
+    return {
+      id: tt.id,
+      eventId: tt.eventId,
+      information: {
+        name: tt.name,
+        description: tt.description ?? null,
+        capacity: tt.capacity,
+        status,
+        visibility: tt.visibility,
+        isActive: tt.isActive,
+      },
+      rules: {
+        purchaseLimit: tt.purchaseLimit,
+        purchaseMin: 1, // Fixed to 1 in Phase 5
+        refundable: tt.refundable,
+        transferable: tt.transferable,
+        visibility: tt.visibility,
+      },
+      batches: tt.batches.map(b => ({
+        id: b.id,
+        name: b.name,
+        price: Number(b.price),
+        totalQuantity: b.totalQuantity,
+        availableQuantity: b.availableQuantity,
+        soldQuantity: Math.max(0, b.totalQuantity - b.availableQuantity),
+        status: b.status,
+      })),
+    };
+  }
+
+  async getTicketTypeInformation(eventId: string, ticketTypeId: string, organizerId?: string) {
+    const detail = await this.getTicketTypeDetail(eventId, ticketTypeId, organizerId);
+    return detail ? detail.information : null;
+  }
+
+  async getTicketTypeBatches(eventId: string, ticketTypeId: string, organizerId?: string) {
+    const detail = await this.getTicketTypeDetail(eventId, ticketTypeId, organizerId);
+    return detail ? detail.batches : null;
+  }
+
+  async getTicketTypeRules(eventId: string, ticketTypeId: string, organizerId?: string) {
+    const detail = await this.getTicketTypeDetail(eventId, ticketTypeId, organizerId);
+    return detail ? detail.rules : null;
+  }
+
+  async listTicketBatches(eventId: string, ticketTypeId: string, organizerId?: string): Promise<any[]> {
+    await this.checkEventOwnership(eventId, organizerId);
+
+    const batches = await prisma.ticketBatch.findMany({
+      where: { ticketTypeId, eventId, archivedAt: null },
+      orderBy: { displayOrder: 'asc' },
+    });
+
+    const deriveStatus = (batch: any): string => {
+      if (batch.archivedAt) return 'ARCHIVED';
+      const now = new Date();
+      if (batch.salesEnd && batch.salesEnd < now) return 'COMPLETED';
+      if (batch.status === 'COMPLETED') return 'COMPLETED';
+      if (batch.status === 'PAUSED' || !batch.isActive) return 'PAUSED';
+      if (batch.salesStart && batch.salesStart > now) return 'PENDING';
+      if (batch.status === 'ACTIVE' || batch.isActive) return 'ACTIVE';
+      return batch.status;
+    };
+
+    return batches.map(b => ({
+      id: b.id,
+      name: b.name,
+      price: Number(b.price),
+      totalQuantity: b.totalQuantity,
+      availableQuantity: b.availableQuantity,
+      soldQuantity: Math.max(0, b.totalQuantity - b.availableQuantity),
+      salesStart: b.salesStart ? b.salesStart.toISOString() : null,
+      salesEnd: b.salesEnd ? b.salesEnd.toISOString() : null,
+      visibility: b.isActive,
+      displayOrder: b.displayOrder,
+      status: deriveStatus(b),
+    }));
+  }
+
+  async getTicketBatchDetail(eventId: string, ticketTypeId: string, batchId: string, organizerId?: string) {
+    await this.checkEventOwnership(eventId, organizerId);
+    const b = await prisma.ticketBatch.findFirst({
+      where: { id: batchId, ticketTypeId, eventId },
+    });
+    if (!b) return null;
+
+    const deriveStatus = (batch: any): string => {
+      if (batch.archivedAt) return 'ARCHIVED';
+      const now = new Date();
+      if (batch.salesEnd && batch.salesEnd < now) return 'COMPLETED';
+      if (batch.status === 'COMPLETED') return 'COMPLETED';
+      if (batch.status === 'PAUSED' || !batch.isActive) return 'PAUSED';
+      if (batch.salesStart && batch.salesStart > now) return 'PENDING';
+      if (batch.status === 'ACTIVE' || batch.isActive) return 'ACTIVE';
+      return batch.status;
+    };
+
+    return {
+      id: b.id,
+      eventId: b.eventId,
+      ticketTypeId: b.ticketTypeId,
+      name: b.name,
+      price: Number(b.price),
+      totalQuantity: b.totalQuantity,
+      availableQuantity: b.availableQuantity,
+      salesStart: b.salesStart ? b.salesStart.toISOString() : null,
+      salesEnd: b.salesEnd ? b.salesEnd.toISOString() : null,
+      purchaseLimit: b.purchaseLimit,
+      visibility: b.isActive,
+      status: deriveStatus(b),
+      displayOrder: b.displayOrder,
+    };
+  }
+
+  async getTicketBatchPreview(eventId: string, ticketTypeId: string, batchId: string, organizerId?: string) {
+    await this.checkEventOwnership(eventId, organizerId);
+    const tt = await prisma.ticketType.findFirst({
+      where: { id: ticketTypeId, eventId },
+    });
+    if (!tt) return null;
+
+    const b = await prisma.ticketBatch.findFirst({
+      where: { id: batchId, ticketTypeId, eventId },
+    });
+    if (!b) return null;
+
+    const deriveStatus = (batch: any): string => {
+      if (batch.archivedAt) return 'ARCHIVED';
+      const now = new Date();
+      if (batch.salesEnd && batch.salesEnd < now) return 'COMPLETED';
+      if (batch.status === 'COMPLETED') return 'COMPLETED';
+      if (batch.status === 'PAUSED' || !batch.isActive) return 'PAUSED';
+      if (batch.salesStart && batch.salesStart > now) return 'PENDING';
+      if (batch.status === 'ACTIVE' || batch.isActive) return 'ACTIVE';
+      return batch.status;
+    };
+
+    const status = deriveStatus(b);
+    const now = new Date();
+    const blockingReasons: string[] = [];
+
+    if (b.archivedAt) blockingReasons.push('Lote arquivado.');
+    if (!b.isActive) blockingReasons.push('Lote inativo.');
+    if (b.salesStart && b.salesStart > now) blockingReasons.push('Vendas ainda não iniciadas.');
+    if (b.salesEnd && b.salesEnd < now) blockingReasons.push('Vendas encerradas.');
+    if (b.availableQuantity <= 0) blockingReasons.push('Lote esgotado.');
+
+    let availability = 'Disponível';
+    if (b.availableQuantity <= 0) availability = 'Esgotado';
+    else if (b.salesStart && b.salesStart > now) availability = 'Não Iniciado';
+    else if (b.salesEnd && b.salesEnd < now) availability = 'Encerrado';
+
+    const startStr = b.salesStart ? b.salesStart.toLocaleDateString('pt-BR') : 'Imediato';
+    const endStr = b.salesEnd ? b.salesEnd.toLocaleDateString('pt-BR') : 'Até o evento';
+
+    return {
+      ticketTypeName: tt.name,
+      batchName: b.name,
+      price: Number(b.price),
+      availability,
+      salesWindow: `${startStr} - ${endStr}`,
+      visibility: b.isActive,
+      currentSellableState: blockingReasons.length === 0,
+      blockingReasons,
+    };
+  }
+
+  async validateTicketBatches(eventId: string, ticketTypeId: string, organizerId?: string) {
+    await this.checkEventOwnership(eventId, organizerId);
+    const tt = await prisma.ticketType.findFirst({
+      where: { id: ticketTypeId, eventId },
+    });
+    if (!tt) throw new Error('Ticket type not found');
+
+    const event = await prisma.event.findUnique({ where: { id: eventId } });
+    if (!event) throw new Error('Event not found');
+
+    const batches = await prisma.ticketBatch.findMany({
+      where: { ticketTypeId, archivedAt: null },
+      orderBy: { displayOrder: 'asc' },
+    });
+
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    const totalBatchCapacity = batches.reduce((sum, b) => sum + b.totalQuantity, 0);
+    if (tt.capacity !== undefined && totalBatchCapacity > tt.capacity) {
+      errors.push(`A capacidade total dos lotes (${totalBatchCapacity}) excede a capacidade do tipo de ingresso (${tt.capacity}).`);
+    }
+
+    const uniqueOrders = new Set(batches.map(b => b.displayOrder));
+    if (uniqueOrders.size !== batches.length) {
+      errors.push('A ordenação/posição dos lotes deve ser única.');
+    }
+
+    for (let i = 0; i < batches.length; i++) {
+      const b = batches[i];
+      if (b.price !== null && Number(b.price) < 0) {
+        errors.push(`Lote "${b.name}": O preço não pode ser negativo.`);
+      }
+      if (b.totalQuantity <= 0) {
+        errors.push(`Lote "${b.name}": A capacidade deve ser maior que zero.`);
+      }
+      if (b.salesStart && b.salesEnd && b.salesEnd <= b.salesStart) {
+        errors.push(`Lote "${b.name}": Fim das vendas deve ser após o início.`);
+      }
+
+      for (let j = i + 1; j < batches.length; j++) {
+        const other = batches[j];
+        if (b.salesStart && other.salesStart && b.salesEnd && other.salesEnd) {
+          const startsBeforeEnds = b.salesStart < other.salesEnd;
+          const endsAfterStarts = b.salesEnd > other.salesStart;
+          if (startsBeforeEnds && endsAfterStarts) {
+            warnings.push(`Janela de vendas sobreposta entre os lotes "${b.name}" e "${other.name}".`);
+          }
+        }
+      }
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      warnings,
+    };
+  }
 }
 
 export const organizerEventsReadService = new OrganizerEventsReadService();
