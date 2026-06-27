@@ -420,14 +420,159 @@ export class EventsService {
     return event;
   }
 
+  async validatePublishing(id: string, organizerId: string) {
+    const event = await prisma.event.findUnique({
+      where: { id },
+      include: {
+        ticketTypes: {
+          where: { archivedAt: null },
+          include: {
+            batches: {
+              where: { archivedAt: null }
+            }
+          }
+        }
+      }
+    });
+
+    if (!event || event.organizerId !== organizerId) {
+      throw new NotFoundException('Event not found');
+    }
+
+    const blockers: string[] = [];
+    const warnings: string[] = [];
+
+    // Basic Info
+    if (!event.title?.trim()) {
+      blockers.push('Nome do evento é obrigatório.');
+    }
+    if (!event.slug?.trim()) {
+      blockers.push('Slug do evento é obrigatório.');
+    } else {
+      const duplicate = await prisma.event.findFirst({
+        where: {
+          organizerId,
+          slug: event.slug,
+          id: { not: id }
+        }
+      });
+      if (duplicate) {
+        blockers.push('Slug já está em uso.');
+      }
+    }
+    if (!event.date) {
+      blockers.push('Data de início é obrigatória.');
+    }
+    if (event.endDate && event.endDate <= event.date) {
+      blockers.push('Data de término deve ser posterior à data de início.');
+    }
+    if (event.status === EventStatus.ARCHIVED) {
+      blockers.push('O evento está arquivado e não pode ser publicado.');
+    }
+
+    // Media
+    if (!event.imageUrl) {
+      warnings.push('Banner do evento é recomendado.');
+    }
+
+    // Details/Category
+    if (!event.description?.trim()) {
+      warnings.push('Descrição completa é recomendada.');
+    }
+    if (!event.categoryId) {
+      warnings.push('Categoria do evento é recomendada.');
+    }
+
+    // Location
+    if (event.locationType === 'PHYSICAL' || event.locationType === 'HYBRID') {
+      if (!event.location?.trim()) {
+        blockers.push('Endereço é obrigatório para eventos presenciais/híbridos.');
+      }
+    }
+    if (event.locationType === 'ONLINE' || event.locationType === 'HYBRID') {
+      if (!event.onlineUrl?.trim()) {
+        warnings.push('Link de transmissão é recomendado para eventos online/híbridos.');
+      }
+    }
+
+    // Tickets & Batches
+    if (event.ticketTypes.length === 0) {
+      blockers.push('O evento deve ter pelo menos um tipo de ingresso ativo.');
+    } else {
+      for (const tt of event.ticketTypes) {
+        if (tt.capacity <= 0) {
+          blockers.push(`O tipo de ingresso "${tt.name}" deve ter capacidade maior que zero.`);
+        }
+        if (tt.capacity < 10) {
+          warnings.push(`Capacidade baixa no tipo de ingresso "${tt.name}" (${tt.capacity}).`);
+        }
+
+        const activeBatches = tt.batches;
+        if (activeBatches.length === 0) {
+          blockers.push(`O tipo de ingresso "${tt.name}" deve ter pelo menos um lote ativo.`);
+        } else {
+          const totalBatchCapacity = activeBatches.reduce((sum, b) => sum + b.totalQuantity, 0);
+          if (totalBatchCapacity > tt.capacity) {
+            blockers.push(`A capacidade total dos lotes do tipo "${tt.name}" (${totalBatchCapacity}) excede a capacidade do tipo de ingresso (${tt.capacity}).`);
+          }
+
+          for (const b of activeBatches) {
+            if (b.price === null || Number(b.price) < 0) {
+              blockers.push(`Lote "${b.name}" do tipo "${tt.name}" tem preço inválido.`);
+            }
+            if (b.totalQuantity <= 0) {
+              blockers.push(`Lote "${b.name}" do tipo "${tt.name}" deve ter capacidade maior que zero.`);
+            }
+            if (b.salesStart && b.salesEnd && b.salesEnd <= b.salesStart) {
+              blockers.push(`Lote "${b.name}" do tipo "${tt.name}" tem janela de vendas inválida (fim antes do início).`);
+            }
+            if (b.salesStart) {
+              const start = new Date(b.salesStart);
+              const now = new Date();
+              if (start.getTime() - now.getTime() < 24 * 60 * 60 * 1000 && start.getTime() > now.getTime()) {
+                warnings.push(`Vendas do lote "${b.name}" iniciam em menos de 24 horas.`);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return {
+      isValid: blockers.length === 0,
+      blockers,
+      warnings
+    };
+  }
+
   async publishEvent(id: string, organizerId: string) {
     const event = await prisma.event.findUnique({ where: { id } });
     if (!event || event.organizerId !== organizerId) throw new NotFoundException('Event not found');
-    if (event.status !== EventStatus.DRAFT) throw new BadRequestException('Only DRAFT events can be published');
+    if (event.status === EventStatus.ARCHIVED) throw new BadRequestException('Cannot publish archived event');
+
+    const validation = await this.validatePublishing(id, organizerId);
+    if (!validation.isValid) {
+      throw new BadRequestException({
+        code: 'PUBLISHING_BLOCKED',
+        message: 'Event publishing is blocked by validation errors.',
+        details: validation.blockers
+      });
+    }
 
     return prisma.event.update({
       where: { id },
       data: { status: EventStatus.PUBLISHED },
+    });
+  }
+
+  async unpublishEvent(id: string, organizerId: string) {
+    const event = await prisma.event.findUnique({ where: { id } });
+    if (!event || event.organizerId !== organizerId) throw new NotFoundException('Event not found');
+    if (event.status !== EventStatus.PUBLISHED) throw new BadRequestException('Only published events can be unpublished');
+
+    return prisma.event.update({
+      where: { id },
+      data: { status: EventStatus.DRAFT },
     });
   }
 

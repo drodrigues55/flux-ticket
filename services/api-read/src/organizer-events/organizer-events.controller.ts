@@ -85,6 +85,33 @@ organizerEventsRouter.get('/:eventId/review', async (req: AuthenticatedRequest &
   }
 });
 
+organizerEventsRouter.get('/:eventId/publishing/checklist', async (req: AuthenticatedRequest & RequestWithId, res) => {
+  try {
+    const data = await organizerEventsReadService.getPublishingChecklist(req.params.eventId, organizerId(req));
+    res.json(ok(data, requestId(req)));
+  } catch (error) {
+    sendError(res, req, 500, 'PUBLISHING_CHECKLIST_READ_ERROR', 'Failed to load publishing checklist.', error instanceof Error ? error.message : undefined);
+  }
+});
+
+organizerEventsRouter.get('/:eventId/publishing/preview', async (req: AuthenticatedRequest & RequestWithId, res) => {
+  try {
+    const data = await organizerEventsReadService.getPublishingPreview(req.params.eventId, organizerId(req));
+    res.json(ok(data, requestId(req)));
+  } catch (error) {
+    sendError(res, req, 500, 'PUBLISHING_PREVIEW_READ_ERROR', 'Failed to load publishing preview.', error instanceof Error ? error.message : undefined);
+  }
+});
+
+organizerEventsRouter.get('/:eventId/publishing', async (req: AuthenticatedRequest & RequestWithId, res) => {
+  try {
+    const data = await organizerEventsReadService.getPublishingChecklist(req.params.eventId, organizerId(req));
+    res.json(ok(data, requestId(req)));
+  } catch (error) {
+    sendError(res, req, 500, 'PUBLISHING_READ_ERROR', 'Failed to load publishing details.', error instanceof Error ? error.message : undefined);
+  }
+});
+
 organizerEventsRouter.get('/:eventId/ticket-types', async (req: AuthenticatedRequest & RequestWithId, res) => {
   try {
     const data = await organizerEventsReadService.listTicketTypes(req.params.eventId, organizerId(req));

@@ -433,8 +433,62 @@ export interface TicketBatchValidationResult {
   warnings: string[];
 }
 
+export type PublishingValidationSeverity = 'BLOCKER' | 'WARNING' | 'INFO';
+
+export interface PublishingChecklistItem {
+  id: string;
+  label: string;
+  status: 'pass' | 'fail' | 'warn';
+  severity: PublishingValidationSeverity;
+  fixUrl?: string;
+}
+
+export interface PublishingChecklistGroup {
+  name: string;
+  items: PublishingChecklistItem[];
+}
+
+export interface PublishingReadModel {
+  eventId: string;
+  eventStatus: string;
+  canPublish: boolean;
+  blockers: string[];
+  warnings: string[];
+  groups: PublishingChecklistGroup[];
+}
+
+export interface PublishingPreview {
+  event: {
+    id: string;
+    name: string;
+    description: string | null;
+    date: string;
+    endDate: string | null;
+    locationType: string;
+    location: string;
+    venue: string | null;
+    imageUrl: string | null;
+  };
+  tickets: Array<{
+    id: string;
+    name: string;
+    capacity: number;
+    price: number;
+  }>;
+  batches: Array<{
+    id: string;
+    name: string;
+    price: number;
+    availableQuantity: number;
+    salesStart: string | null;
+    salesEnd: string | null;
+  }>;
+  warnings: string[];
+}
+
 export * from './cpf';
 export * from './validation/common';
 export * from './validation/event';
+
 
 

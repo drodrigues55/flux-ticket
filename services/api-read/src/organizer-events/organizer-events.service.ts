@@ -605,6 +605,290 @@ export class OrganizerEventsReadService {
       warnings,
     };
   }
+
+  async getPublishingChecklist(eventId: string, organizerId?: string): Promise<any> {
+    await this.checkEventOwnership(eventId, organizerId);
+
+    const event = await prisma.event.findUnique({
+      where: { id: eventId },
+      include: {
+        ticketTypes: {
+          where: { archivedAt: null },
+          include: {
+            batches: {
+              where: { archivedAt: null }
+            }
+          }
+        }
+      }
+    });
+
+    if (!event) throw new Error('Event not found');
+
+    const groups: any[] = [];
+    const blockers: string[] = [];
+    const warnings: string[] = [];
+
+    // 1. Basic Info Group
+    const basicItems: any[] = [];
+    
+    const namePass = !!event.title?.trim();
+    basicItems.push({
+      id: 'event-name',
+      label: 'Nome do evento',
+      status: namePass ? 'pass' : 'fail',
+      severity: 'BLOCKER',
+      fixUrl: `/events/${eventId}/edit`
+    });
+    if (!namePass) blockers.push('Nome do evento é obrigatório.');
+
+    const slugPass = !!event.slug?.trim();
+    let slugStatus: 'pass' | 'fail' = slugPass ? 'pass' : 'fail';
+    if (slugPass) {
+      const duplicate = await prisma.event.findFirst({
+        where: { organizerId: event.organizerId, slug: event.slug, id: { not: eventId } }
+      });
+      if (duplicate) {
+        slugStatus = 'fail';
+        blockers.push('Slug já está em uso.');
+      }
+    } else {
+      blockers.push('Slug do evento é obrigatório.');
+    }
+    basicItems.push({
+      id: 'event-slug',
+      label: 'Slug amigável e único',
+      status: slugStatus,
+      severity: 'BLOCKER',
+      fixUrl: `/events/${eventId}/edit`
+    });
+
+    const startPass = !!event.date;
+    basicItems.push({
+      id: 'event-start',
+      label: 'Data de início',
+      status: startPass ? 'pass' : 'fail',
+      severity: 'BLOCKER',
+      fixUrl: `/events/${eventId}/edit`
+    });
+    if (!startPass) blockers.push('Data de início é obrigatória.');
+
+    const endPass = !event.endDate || event.endDate > event.date;
+    basicItems.push({
+      id: 'event-end',
+      label: 'Data de término coerente',
+      status: endPass ? 'pass' : 'fail',
+      severity: 'BLOCKER',
+      fixUrl: `/events/${eventId}/edit`
+    });
+    if (!endPass) blockers.push('Data de término deve ser posterior à data de início.');
+
+    const descPass = !!event.description?.trim();
+    basicItems.push({
+      id: 'event-description',
+      label: 'Descrição completa do evento',
+      status: descPass ? 'pass' : 'warn',
+      severity: 'WARNING',
+      fixUrl: `/events/${eventId}/edit`
+    });
+    if (!descPass) warnings.push('Descrição completa é recomendada.');
+
+    const catPass = !!event.categoryId;
+    basicItems.push({
+      id: 'event-category',
+      label: 'Categoria do evento',
+      status: catPass ? 'pass' : 'warn',
+      severity: 'WARNING',
+      fixUrl: `/events/${eventId}/edit`
+    });
+    if (!catPass) warnings.push('Categoria do evento é recomendada.');
+
+    groups.push({ name: 'Informações Básicas', items: basicItems });
+
+    // 2. Media Group
+    const mediaItems: any[] = [];
+    const imagePass = !!event.imageUrl;
+    mediaItems.push({
+      id: 'event-banner',
+      label: 'Banner do evento',
+      status: imagePass ? 'pass' : 'warn',
+      severity: 'WARNING',
+      fixUrl: `/events/${eventId}/general`
+    });
+    if (!imagePass) warnings.push('Banner do evento é recomendado.');
+    groups.push({ name: 'Mídia e Divulgação', items: mediaItems });
+
+    // 3. Location Group
+    const locItems: any[] = [];
+    if (event.locationType === 'PHYSICAL' || event.locationType === 'HYBRID') {
+      const addressPass = !!event.location?.trim();
+      locItems.push({
+        id: 'event-address',
+        label: 'Endereço do local',
+        status: addressPass ? 'pass' : 'fail',
+        severity: 'BLOCKER',
+        fixUrl: `/events/${eventId}/general`
+      });
+      if (!addressPass) blockers.push('Endereço é obrigatório para eventos presenciais/híbridos.');
+    }
+    if (event.locationType === 'ONLINE' || event.locationType === 'HYBRID') {
+      const urlPass = !!event.onlineUrl?.trim();
+      locItems.push({
+        id: 'event-online-url',
+        label: 'Link de transmissão',
+        status: urlPass ? 'pass' : 'warn',
+        severity: 'WARNING',
+        fixUrl: `/events/${eventId}/general`
+      });
+      if (!urlPass) warnings.push('Link de transmissão é recomendado para eventos online/híbridos.');
+    }
+    groups.push({ name: 'Localização e Acesso', items: locItems });
+
+    // 4. Tickets Group
+    const ticketItems: any[] = [];
+    const hasTickets = event.ticketTypes.length > 0;
+    ticketItems.push({
+      id: 'event-has-tickets',
+      label: 'Possui tipo de ingresso ativo',
+      status: hasTickets ? 'pass' : 'fail',
+      severity: 'BLOCKER',
+      fixUrl: `/events/${eventId}/tickets`
+    });
+    if (!hasTickets) blockers.push('O evento deve ter pelo menos um tipo de ingresso ativo.');
+
+    if (hasTickets) {
+      for (const tt of event.ticketTypes) {
+        const capPass = tt.capacity > 0;
+        ticketItems.push({
+          id: `ticket-cap-${tt.id}`,
+          label: `Capacidade do tipo "${tt.name}"`,
+          status: capPass ? (tt.capacity < 10 ? 'warn' : 'pass') : 'fail',
+          severity: capPass ? 'WARNING' : 'BLOCKER',
+          fixUrl: `/events/${eventId}/tickets`
+        });
+        if (!capPass) blockers.push(`O tipo de ingresso "${tt.name}" deve ter capacidade maior que zero.`);
+        else if (tt.capacity < 10) warnings.push(`Capacidade baixa no tipo de ingresso "${tt.name}" (${tt.capacity}).`);
+
+        const hasBatches = tt.batches.length > 0;
+        ticketItems.push({
+          id: `ticket-batches-${tt.id}`,
+          label: `Lotes do tipo "${tt.name}"`,
+          status: hasBatches ? 'pass' : 'fail',
+          severity: 'BLOCKER',
+          fixUrl: `/events/${eventId}/tickets`
+        });
+        if (!hasBatches) blockers.push(`O tipo de ingresso "${tt.name}" deve ter pelo menos um lote ativo.`);
+      }
+    }
+    groups.push({ name: 'Ingressos', items: ticketItems });
+
+    // 5. Batches Group
+    const batchItems: any[] = [];
+    if (hasTickets) {
+      for (const tt of event.ticketTypes) {
+        for (const b of tt.batches) {
+          const pricePass = b.price !== null && Number(b.price) >= 0;
+          batchItems.push({
+            id: `batch-price-${b.id}`,
+            label: `Preço do lote "${b.name}"`,
+            status: pricePass ? 'pass' : 'fail',
+            severity: 'BLOCKER',
+            fixUrl: `/events/${eventId}/tickets/${tt.id}/batches`
+          });
+          if (!pricePass) blockers.push(`Lote "${b.name}" do tipo "${tt.name}" tem preço inválido.`);
+
+          const qtyPass = b.totalQuantity > 0;
+          batchItems.push({
+            id: `batch-qty-${b.id}`,
+            label: `Capacidade do lote "${b.name}"`,
+            status: qtyPass ? 'pass' : 'fail',
+            severity: 'BLOCKER',
+            fixUrl: `/events/${eventId}/tickets/${tt.id}/batches`
+          });
+          if (!qtyPass) blockers.push(`Lote "${b.name}" do tipo "${tt.name}" deve ter capacidade maior que zero.`);
+
+          const datePass = !b.salesStart || !b.salesEnd || b.salesEnd > b.salesStart;
+          batchItems.push({
+            id: `batch-dates-${b.id}`,
+            label: `Janela de vendas do lote "${b.name}"`,
+            status: datePass ? 'pass' : 'fail',
+            severity: 'BLOCKER',
+            fixUrl: `/events/${eventId}/tickets/${tt.id}/batches`
+          });
+          if (!datePass) blockers.push(`Lote "${b.name}" do tipo "${tt.name}" tem janela de vendas inválida.`);
+        }
+      }
+    }
+    groups.push({ name: 'Lotes de Venda', items: batchItems });
+
+    return {
+      eventId,
+      eventStatus: event.status,
+      canPublish: blockers.length === 0,
+      blockers,
+      warnings,
+      groups
+    };
+  }
+
+  async getPublishingPreview(eventId: string, organizerId?: string): Promise<any> {
+    await this.checkEventOwnership(eventId, organizerId);
+    const event = await prisma.event.findUnique({
+      where: { id: eventId },
+      include: {
+        ticketTypes: {
+          where: { archivedAt: null },
+          include: {
+            batches: {
+              where: { archivedAt: null }
+            }
+          }
+        }
+      }
+    });
+
+    if (!event) throw new Error('Event not found');
+
+    const tickets = event.ticketTypes.map(tt => ({
+      id: tt.id,
+      name: tt.name,
+      capacity: tt.capacity,
+      price: tt.batches[0] ? Number(tt.batches[0].price) : 0
+    }));
+
+    const batches: any[] = [];
+    event.ticketTypes.forEach(tt => {
+      tt.batches.forEach(b => {
+        batches.push({
+          id: b.id,
+          name: b.name,
+          price: Number(b.price),
+          availableQuantity: b.availableQuantity,
+          salesStart: b.salesStart ? b.salesStart.toISOString() : null,
+          salesEnd: b.salesEnd ? b.salesEnd.toISOString() : null
+        });
+      });
+    });
+
+    const checklist = await this.getPublishingChecklist(eventId, organizerId);
+
+    return {
+      event: {
+        id: event.id,
+        name: event.title,
+        description: event.description,
+        date: event.date.toISOString(),
+        endDate: event.endDate ? event.endDate.toISOString() : null,
+        locationType: event.locationType,
+        location: event.location,
+        venue: event.venue,
+        imageUrl: event.imageUrl
+      },
+      tickets,
+      batches,
+      warnings: checklist.warnings
+    };
+  }
 }
 
 export const organizerEventsReadService = new OrganizerEventsReadService();

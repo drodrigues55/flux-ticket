@@ -393,6 +393,54 @@ export class OrganizerEventsController {
     return ok(result, requestId(req));
   }
 
+  @Post(':eventId/validate-publishing')
+  async validatePublishing(
+    @Param('eventId') eventId: string,
+    @Req() req: any
+  ) {
+    const actorId = organizerId(req);
+    const result = await this.eventsService.validatePublishing(eventId, actorId);
+    return ok(result, requestId(req));
+  }
+
+  @Post(':eventId/publish')
+  async publishEvent(
+    @Param('eventId') eventId: string,
+    @Req() req: any
+  ) {
+    const actorId = organizerId(req);
+    const result = await this.eventsService.publishEvent(eventId, actorId);
+    await this.auditService.record({
+      actorId,
+      actorRole: req.user.role,
+      action: 'EVENT_PUBLISHED',
+      entityType: 'Event',
+      entityId: eventId,
+      after: result,
+      requestId: requestId(req),
+    });
+    return ok(result, requestId(req));
+  }
+
+  @Post(':eventId/unpublish')
+  async unpublishEvent(
+    @Param('eventId') eventId: string,
+    @Req() req: any
+  ) {
+    const actorId = organizerId(req);
+    const result = await this.eventsService.unpublishEvent(eventId, actorId);
+    await this.auditService.record({
+      actorId,
+      actorRole: req.user.role,
+      action: 'EVENT_UNPUBLISHED',
+      entityType: 'Event',
+      entityId: eventId,
+      after: result,
+      requestId: requestId(req),
+    });
+    return ok(result, requestId(req));
+  }
+
   @Post(':eventId/mark-ready')
   async markReady(@Param('eventId') eventId: string, @Req() req: any) {
     const actorId = organizerId(req);
