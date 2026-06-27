@@ -10,35 +10,115 @@ import { getAllowedSectorIds, saveAllowedSectorInput } from '../lib/devicePolicy
 
 export default function StaffPortal() {
   const { isDark, toggleTheme } = useTheme();
-  const [eventId, setEventId] = useState('event-id-123');
+  
+  // Staff Auth states
+  const [staffName, setStaffName] = useState('');
+  const [staffCpf, setStaffCpf] = useState('');
+  const [tempName, setTempName] = useState('');
+  const [tempCpf, setTempCpf] = useState('');
+
+  // Event selection states
+  const [eventId, setEventId] = useState('');
+  const [eventName, setEventName] = useState('');
+  const [events, setEvents] = useState<any[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
+
+  // Layout states
+  const [activeTab, setActiveTab] = useState<'scanner' | 'search' | 'sync' | 'stats'>('scanner');
   const [allowedSectorInput, setAllowedSectorInput] = useState('');
   const [isOnline, setIsOnline] = useState(true);
   const [scannedInput, setScannedInput] = useState('');
   const [scanResult, setScanResult] = useState<{ success: boolean; message: string } | null>(null);
 
-  // Contadores locais do IndexedDB
+  // Search states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+
+  // Queue states
+  const [mutationQueueList, setMutationQueueList] = useState<any[]>([]);
+
+  // Dexie Counters
   const [validTicketsCount, setValidTicketsCount] = useState(0);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
 
-  // Status de carregamento e mensagens
+  // Sync statuses
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
 
-  // Atualiza os contadores do Dexie
+  // Load staff identity and events list on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedName = localStorage.getItem('flux_staff_name') || '';
+      const savedCpf = localStorage.getItem('flux_staff_cpf') || '';
+      setStaffName(savedName);
+      setStaffCpf(savedCpf);
+
+      const savedEventId = localStorage.getItem('flux_staff_event_id') || '';
+      const savedEventName = localStorage.getItem('flux_staff_event_name') || '';
+      setEventId(savedEventId);
+      setEventName(savedEventName);
+    }
+    loadEvents();
+  }, []);
+
+  const loadEvents = async () => {
+    setEventsLoading(true);
+    try {
+      const res = await fetch('/api/events'); // Fetch available events from proxy
+      const data = await res.json();
+      setEvents(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to load events:', err);
+    } finally {
+      setEventsLoading(false);
+    }
+  };
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tempName || !tempCpf) return;
+    localStorage.setItem('flux_staff_name', tempName);
+    localStorage.setItem('flux_staff_cpf', tempCpf);
+    setStaffName(tempName);
+    setStaffCpf(tempCpf);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('flux_staff_name');
+    localStorage.removeItem('flux_staff_cpf');
+    localStorage.removeItem('flux_staff_event_id');
+    localStorage.removeItem('flux_staff_event_name');
+    setStaffName('');
+    setStaffCpf('');
+    setEventId('');
+    setEventName('');
+  };
+
+  const handleSelectEvent = (id: string, name: string) => {
+    localStorage.setItem('flux_staff_event_id', id);
+    localStorage.setItem('flux_staff_event_name', name);
+    setEventId(id);
+    setEventName(name);
+  };
+
+  // Update Dexie counters
   const updateCounts = async () => {
     try {
       const ticketsCount = await db.validTickets.count();
       const queueCount = await db.mutationQueue.where('status').equals('PENDING_SYNC').count();
       setValidTicketsCount(ticketsCount);
       setPendingSyncCount(queueCount);
+
+      const queueItems = await db.mutationQueue.toArray();
+      setMutationQueueList(queueItems);
     } catch (err) {
       console.error('Erro ao ler contadores do Dexie:', err);
     }
   };
 
-  // Monitora status de conexão e registra sincronizador automático
+  // Monitor network and setup sync
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !eventId) return;
 
     setIsOnline(navigator.onLine);
     setAllowedSectorInput(getAllowedSectorIds().join(', '));
@@ -49,7 +129,6 @@ export default function StaffPortal() {
     window.addEventListener('online', goOnline);
     window.addEventListener('offline', goOffline);
 
-    // Registra a sincronização automática em lote ao recuperar rede
     const cleanupSync = setupNetworkSync(eventId, (result) => {
       setSyncMessage(result.message);
       updateCounts();
@@ -64,7 +143,6 @@ export default function StaffPortal() {
     };
   }, [eventId]);
 
-  // Sincroniza a carga de assinaturas do backend (GET /api/events/:id/staff-sync)
   const handleDownloadTickets = async () => {
     setSyncLoading(true);
     setSyncMessage('Baixando assinaturas criptográficas do servidor...');
@@ -73,10 +151,9 @@ export default function StaffPortal() {
       if (!response.ok) {
         throw new Error(`Erro ${response.status}: Falha ao baixar carga.`);
       }
-      const data = await response.json(); // Array de { ticket_id, hmacSignature }
+      const data = await response.json();
 
       if (Array.isArray(data)) {
-        // Limpa o banco local anterior e insere em lote os novos ingressos válidos
         await db.validTickets.clear();
         await db.validTickets.bulkPut(data.map(t => ({
           ticket_id: t.ticket_id,
@@ -96,7 +173,6 @@ export default function StaffPortal() {
     }
   };
 
-  // Valida o QR Code escaneado (simulado via Input de texto)
   const handleValidateScan = async (e: React.FormEvent) => {
     e.preventDefault();
     setScanResult(null);
@@ -107,9 +183,8 @@ export default function StaffPortal() {
     setScanResult(result);
 
     if (result.success) {
-      setScannedInput(''); // Limpa o campo em caso de sucesso
+      setScannedInput('');
     } else {
-      // Relata falha de validação/fraude para o servidor
       if (isOnline) {
         fetch(`/api/events/${eventId}/scan-fail`, {
           method: 'POST',
@@ -122,28 +197,22 @@ export default function StaffPortal() {
     await updateCounts();
   };
 
-  // Valida o QR Code escaneado via câmera
   const handleCameraScan = async (scannedData: string) => {
     setScanResult(null);
     const result = await validateTicket(scannedData);
     setScanResult(result);
 
-    if (!result.success) {
-      // Relata falha de validação/fraude para o servidor
-      if (isOnline) {
-        fetch(`/api/events/${eventId}/scan-fail`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ count: 1 })
-        }).catch(err => console.error('Falha ao reportar fraude:', err));
-      }
+    if (!result.success && isOnline) {
+      fetch(`/api/events/${eventId}/scan-fail`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ count: 1 })
+      }).catch(err => console.error('Falha ao reportar fraude:', err));
     }
 
     await updateCounts();
   };
 
-
-  // Sincroniza manualmente as mutações pendentes
   const handleManualSync = async () => {
     setSyncLoading(true);
     setSyncMessage('Iniciando sincronização manual em lote...');
@@ -153,13 +222,40 @@ export default function StaffPortal() {
     setSyncLoading(false);
   };
 
-  // Preenche dados simulados de QR Code para facilidade de testes
+  // Search attendees locally
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+    try {
+      const results = await db.validTickets
+        .filter(t => t.ticket_id.toLowerCase().includes(searchQuery.toLowerCase()))
+        .toArray();
+      setSearchResults(results);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleManualCheckin = async (ticketId: string, sig: string, sector: number | null) => {
+    setScanResult(null);
+    const payload = JSON.stringify({
+      ticket_id: ticketId,
+      buyer_cpf: '00000000000',
+      batch_id: 'manual',
+      sector_id: sector || undefined,
+      signature: sig
+    });
+    const result = await validateTicket(payload);
+    setScanResult(result);
+    await updateCounts();
+    setActiveTab('scanner');
+  };
+
   const handleFillMockQR = async (type: 'valid' | 'invalid' | 'tampered') => {
     const validMockTicketId = '8ea03604-942c-4597-b1bf-99dc3b1a67fe';
     const validMockSignature = '2b08cf7ae4ec289bca97fc796f321ca1d04d768b567167e4cb3dc0dcb89d8fa3';
 
     if (type === 'valid') {
-      // Garante que o ingresso de teste esteja registrado localmente como válido
       await db.validTickets.put({
         ticket_id: validMockTicketId,
         hmacSignature: validMockSignature,
@@ -175,7 +271,6 @@ export default function StaffPortal() {
         signature: validMockSignature
       }, null, 2));
     } else if (type === 'invalid') {
-      // Remove o ingresso do banco local para garantir que seja detectado como não cadastrado
       await db.validTickets.delete('ticket-inexistente-xyz');
       await updateCounts();
 
@@ -186,7 +281,6 @@ export default function StaffPortal() {
         signature: 'assinatura-qualquer-123'
       }, null, 2));
     } else {
-      // Insere o ingresso com a assinatura válida local, mas no QR escaneado passamos uma assinatura inválida/forjada
       await db.validTickets.put({
         ticket_id: validMockTicketId,
         hmacSignature: validMockSignature,
@@ -203,246 +297,306 @@ export default function StaffPortal() {
     }
   };
 
+  // Staff identification screen
+  if (!staffName || !staffCpf) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#03060B] text-white p-6">
+        <Card className="max-w-md w-full p-6 bg-neutral-900 border border-white/10 space-y-4">
+          <h2 className="text-xl font-bold">Identificação do Operador</h2>
+          <p className="text-xs text-neutral-400">Insira seus dados para iniciar as operações de portaria.</p>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <label className="block space-y-1">
+              <span className="text-xs font-bold text-neutral-400">Nome do Operador</span>
+              <input type="text" value={tempName} onChange={e => setTempName(e.target.value)} required className="w-full h-11 bg-neutral-950 border border-white/10 rounded-lg px-3 text-sm text-white" />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs font-bold text-neutral-400">CPF</span>
+              <input type="text" value={tempCpf} onChange={e => setTempCpf(e.target.value)} required placeholder="000.000.000-00" className="w-full h-11 bg-neutral-950 border border-white/10 rounded-lg px-3 text-sm text-white" />
+            </label>
+            <button type="submit" className="w-full h-11 rounded-lg bg-[#FF3200] hover:bg-[#E62D00] text-white font-bold text-sm cursor-pointer">
+              Entrar na Portaria
+            </button>
+          </form>
+        </Card>
+      </div>
+    );
+  }
+
+  // Event selection screen
+  if (!eventId) {
+    return (
+      <div className="min-h-screen bg-[#03060B] text-white p-6">
+        <div className="max-w-xl mx-auto space-y-6 pt-12">
+          <div className="flex justify-between items-center border-b border-white/10 pb-4">
+            <div>
+              <h2 className="text-2xl font-bold">Selecionar Evento</h2>
+              <p className="text-xs text-neutral-400 mt-1">Operador: {staffName} | CPF: {staffCpf}</p>
+            </div>
+            <button onClick={handleLogout} className="text-xs text-red-500 font-bold hover:underline cursor-pointer">Sair</button>
+          </div>
+
+          <div className="space-y-3">
+            {eventsLoading ? (
+              <div className="text-center text-sm text-neutral-500 py-6">Buscando eventos...</div>
+            ) : events.length === 0 ? (
+              <div className="text-center text-sm text-neutral-500 py-6">Nenhum evento localizado.</div>
+            ) : (
+              events.map((e: any) => (
+                <div
+                  key={e.id}
+                  onClick={() => handleSelectEvent(e.id, e.title)}
+                  className="p-4 bg-neutral-900 border border-white/10 rounded-xl hover:border-[#FF3200] cursor-pointer flex justify-between items-center transition-all"
+                >
+                  <div>
+                    <div className="font-bold text-sm text-white">{e.title}</div>
+                    <div className="text-xs text-neutral-400 mt-1">📅 {new Date(e.date).toLocaleDateString('pt-BR')}</div>
+                  </div>
+                  <span className="text-xs font-bold text-[#FF3200]">Acessar Portaria →</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen flux-page p-6 md:p-12 relative flex flex-col justify-between">
-      <div className="max-w-5xl mx-auto w-full relative z-10 space-y-8 my-auto">
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-[var(--border)] pb-6 gap-4">
+    <div className="min-h-screen flex flex-col bg-[#03060B] font-sans antialiased text-white relative overflow-hidden">
+      <div className="max-w-5xl mx-auto w-full px-6 py-12 space-y-8 z-10">
+        
+        {/* Header */}
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-white/10 pb-6 gap-4">
           <div>
-            <h1 className="text-3xl font-black text-[var(--text)]">
-              Flux Portaria PWA
-            </h1>
-            <p className="text-xs text-[var(--text-subtle)] mt-1 tracking-wide font-bold">
-              Edge Validation Client - Offline Gate Control
+            <h1 className="text-2xl font-bold">{eventName}</h1>
+            <p className="text-xs text-neutral-400 mt-1">
+              Operador: <span className="font-bold text-white">{staffName}</span> | CPF: {staffCpf}
             </p>
           </div>
 
-          <div className="flex items-center space-x-3">
-            <button
-              type="button"
-              onClick={toggleTheme}
-              className="flux-theme-toggle"
-              title={isDark ? 'Usar tema claro' : 'Usar tema escuro'}
-              aria-label={isDark ? 'Usar tema claro' : 'Usar tema escuro'}
-            >
-              {isDark ? (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v2m0 14v2m9-9h-2M5 12H3m15.36 6.36-1.42-1.42M7.05 7.05 5.64 5.64m12.72 0-1.42 1.41M7.05 16.95l-1.41 1.41M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0z" />
-                </svg>
-              ) : (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-                </svg>
-              )}
-            </button>
-            <span className="text-sm font-semibold text-[var(--text)]">Conectividade:</span>
+          <div className="flex items-center gap-3">
             {isOnline ? (
-              <span className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 text-xs px-3 py-1.5 rounded-full font-bold tracking-wide flex items-center space-x-1">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block mr-1.5 animate-pulse" />
+              <span className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs px-3 py-1 rounded-full font-bold flex items-center">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block mr-1.5 animate-pulse" />
                 Online
               </span>
             ) : (
-              <span className="bg-amber-500/10 border border-amber-500/30 text-amber-600 text-xs px-3 py-1.5 rounded-full font-bold tracking-wide flex items-center space-x-1">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block mr-1.5 animate-pulse" />
-                Offline (Borda local)
+              <span className="bg-amber-500/10 border border-amber-500/30 text-amber-500 text-xs px-3 py-1 rounded-full font-bold flex items-center">
+                <span className="w-2 h-2 rounded-full bg-amber-400 inline-block mr-1.5 animate-pulse" />
+                Offline
               </span>
             )}
+            <button onClick={() => handleLogout()} className="text-xs text-red-500 font-bold hover:underline cursor-pointer">Trocar Evento</button>
           </div>
         </header>
 
+        {/* Tab Navigation */}
+        <div className="flex border-b border-white/10">
+          {(['scanner', 'search', 'sync', 'stats'] as const).map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`flex-1 py-3 text-center text-xs font-bold uppercase tracking-wider border-b-2 cursor-pointer ${
+                activeTab === tab ? 'border-[#FF3200] text-white' : 'border-transparent text-neutral-500 hover:text-neutral-300'
+              }`}
+            >
+              {tab === 'scanner' ? 'Validador' : tab === 'search' ? 'Busca' : tab === 'sync' ? `Sincronização (${pendingSyncCount})` : 'Estatísticas'}
+            </button>
+          ))}
+        </div>
+
+        {/* Main Content Area */}
         <main className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Coluna Esquerda: Sincronização e Configurações */}
-          <div className="lg:col-span-5 space-y-6">
-            <Card className="flux-card">
-              <CardHeader>
-                <CardTitle className="text-lg">Configuração do Evento</CardTitle>
-                <CardDescription>Defina o evento e baixe a carga offline antes do início.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold tracking-wide text-[var(--text-subtle)]">ID do Evento</label>
-                  <Input
-                    value={eventId}
-                    onChange={(e) => setEventId(e.target.value)}
-                    placeholder="Ex: event-id-123"
-                    className="flux-input"
-                  />
-                </div>
+          
+          {/* Main Work Area */}
+          <div className="lg:col-span-8 space-y-6">
+            
+            {activeTab === 'scanner' && (
+              <div className="space-y-6">
+                <Card className="bg-neutral-900 border border-white/10 rounded-2xl overflow-hidden">
+                  <CardHeader>
+                    <CardTitle className="text-lg text-white">Validador de Portaria</CardTitle>
+                    <CardDescription className="text-neutral-400">Escaneie o QR Code ou insira os dados no painel de simulação.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex flex-col items-center justify-center py-6 space-y-4">
+                    {scanResult ? (
+                      <div className={`w-full p-6 border rounded-xl flex items-start space-x-4 ${
+                        scanResult.success ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-400'
+                      }`}>
+                        <div className="space-y-1">
+                          <h4 className="font-bold text-lg">
+                            {scanResult.success ? 'Acesso Liberado!' : 'Acesso Recusado!'}
+                          </h4>
+                          <p className="text-sm opacity-90">{scanResult.message}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-10 text-neutral-500 border-2 border-dashed border-white/10 rounded-xl w-full flex flex-col items-center justify-center">
+                        <p className="text-sm">Nenhum ingresso validado recentemente.</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
 
-                <div className="space-y-2">
-                  <label className="text-xs font-bold tracking-wide text-[var(--text-subtle)]">Setores Permitidos no Dispositivo</label>
-                  <Input
-                    value={allowedSectorInput}
-                    onChange={(e) => {
-                      setAllowedSectorInput(e.target.value);
-                      saveAllowedSectorInput(e.target.value);
-                    }}
-                    placeholder="Ex: 1, 2, 3"
-                    className="flux-input"
-                  />
-                  <p className="text-[11px] text-[var(--text-subtle)]">
-                    Deixe vazio para operar sem trava de setor durante testes.
-                  </p>
-                </div>
-
-                <div className="pt-2">
-                  <Button
-                    onClick={handleDownloadTickets}
-                    variant="outline"
-                    className="w-full"
-                    disabled={syncLoading || !isOnline}
-                  >
-                    Baixar Carga Offline (Sync)
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="flux-card">
-              <CardHeader>
-                <CardTitle className="text-lg">Status do Banco Local (IndexedDB)</CardTitle>
-              </CardHeader>
-              <CardContent className="grid grid-cols-2 gap-4">
-                <div className="flux-muted-surface p-4 rounded-lg border text-center">
-                  <span className="block text-2xl font-mono font-black text-[#FF3200]">
-                    {validTicketsCount}
-                  </span>
-                  <span className="text-[10px] font-bold text-[var(--text-subtle)] tracking-wide">
-                    Assinaturas Offline
-                  </span>
-                </div>
-                <div className="flux-muted-surface p-4 rounded-lg border text-center">
-                  <span className="block text-2xl font-mono font-black text-amber-400">
-                    {pendingSyncCount}
-                  </span>
-                  <span className="text-[10px] font-bold text-[var(--text-subtle)] tracking-wide">
-                    Check-ins Pendentes
-                  </span>
-                </div>
-              </CardContent>
-              <CardFooter className="pt-0">
-                <Button
-                  onClick={handleManualSync}
-                  variant="primary"
-                  className="w-full"
-                  disabled={syncLoading || pendingSyncCount === 0 || !isOnline}
-                >
-                  Sincronizar Filas Agora
-                </Button>
-              </CardFooter>
-            </Card>
-
-            {syncMessage && (
-              <div className="flux-card text-xs p-4 rounded-lg text-[var(--text-muted)] font-mono break-all shadow-md">
-                {syncMessage}
+                {/* Simulated QR Input details */}
+                <details className="bg-neutral-900 border border-white/10 rounded-xl overflow-hidden group">
+                  <summary className="p-4 cursor-pointer text-xs font-bold text-neutral-400 hover:text-white flex justify-between items-center select-none bg-neutral-950/40">
+                    <span>Simulador de QR Code</span>
+                    <span>▼</span>
+                  </summary>
+                  <div className="p-4 border-t border-white/10 space-y-4">
+                    <form onSubmit={handleValidateScan} className="space-y-4">
+                      <textarea
+                        value={scannedInput}
+                        onChange={e => setScannedInput(e.target.value)}
+                        placeholder='{ "ticket_id": "...", "signature": "..." }'
+                        rows={5}
+                        className="w-full bg-neutral-950 border border-white/10 rounded-lg p-4 text-xs font-mono text-white placeholder-neutral-600"
+                      />
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => handleFillMockQR('valid')} className="flex-1 py-2 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-bold border border-emerald-500/20 cursor-pointer">
+                          QR Válido
+                        </button>
+                        <button type="button" onClick={() => handleFillMockQR('invalid')} className="flex-1 py-2 rounded bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold border border-red-500/20 cursor-pointer">
+                          QR Inválido
+                        </button>
+                        <button type="button" onClick={() => handleFillMockQR('tampered')} className="flex-1 py-2 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-xs font-bold border border-amber-500/20 cursor-pointer">
+                          QR Adulterado
+                        </button>
+                      </div>
+                      <button type="submit" className="w-full h-11 rounded-lg bg-[#FF3200] hover:bg-[#E62D00] text-white font-bold text-sm cursor-pointer">
+                        Validar Simulação (Check-in)
+                      </button>
+                    </form>
+                  </div>
+                </details>
               </div>
             )}
+
+            {activeTab === 'search' && (
+              <Card className="bg-neutral-900 border border-white/10 rounded-2xl">
+                <CardHeader>
+                  <CardTitle className="text-lg text-white">Manual Attendee Lookup</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <form onSubmit={handleSearch} className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Pesquisar por Código do Ingresso..."
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      className="flex-grow h-11 bg-neutral-950 border border-white/10 rounded-lg px-3 text-sm text-white"
+                    />
+                    <button type="submit" className="px-6 h-11 rounded-lg bg-[#FF3200] hover:bg-[#E62D00] text-white font-bold text-sm cursor-pointer">
+                      Buscar
+                    </button>
+                  </form>
+
+                  <div className="divide-y divide-white/5 pt-2">
+                    {searchResults.length === 0 ? (
+                      <p className="text-center text-xs text-neutral-500 py-4">Nenhum ingresso localizado localmente.</p>
+                    ) : (
+                      searchResults.map(ticket => (
+                        <div key={ticket.ticket_id} className="py-3 flex justify-between items-center text-xs">
+                          <div>
+                            <div className="font-bold text-neutral-300">{ticket.ticket_id}</div>
+                            <div className="text-[10px] text-neutral-500 mt-0.5">Setor: {ticket.sectorId || 'Geral'}</div>
+                          </div>
+                          <button
+                            onClick={() => handleManualCheckin(ticket.ticket_id, ticket.hmacSignature, ticket.sectorId)}
+                            className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 px-3 py-1.5 rounded font-bold cursor-pointer"
+                          >
+                            Check-in
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {activeTab === 'sync' && (
+              <Card className="bg-neutral-900 border border-white/10 rounded-2xl">
+                <CardHeader>
+                  <CardTitle className="text-lg text-white">Fila de Sincronização Local</CardTitle>
+                  <CardDescription className="text-neutral-400">Verifique os check-ins pendentes de envio ao servidor.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleManualSync}
+                      disabled={pendingSyncCount === 0 || !isOnline}
+                      className="w-full h-11 rounded-lg bg-[#FF3200] hover:bg-[#E62D00] text-white font-bold text-sm disabled:opacity-50 cursor-pointer"
+                    >
+                      Sincronizar Filas Agora
+                    </button>
+                  </div>
+
+                  <div className="divide-y divide-white/5 pt-2">
+                    {mutationQueueList.length === 0 ? (
+                      <p className="text-center text-xs text-neutral-500 py-4">Fila limpa. Todos os dados sincronizados.</p>
+                    ) : (
+                      mutationQueueList.map(item => (
+                        <div key={item.ticket_id} className="py-3 flex justify-between items-center text-xs">
+                          <div>
+                            <span className="font-bold block text-neutral-300">{item.ticket_id}</span>
+                            <span className="text-[10px] text-neutral-500">{new Date(item.timestamp).toLocaleTimeString()}</span>
+                          </div>
+                          <span className="text-[10px] bg-amber-500/10 border border-amber-500/20 text-amber-500 px-2 py-0.5 rounded font-bold uppercase">
+                            {item.status}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {activeTab === 'stats' && (
+              <Card className="bg-neutral-900 border border-white/10 rounded-2xl">
+                <CardHeader>
+                  <CardTitle className="text-lg text-white">Estatísticas da Portaria</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-2 gap-4">
+                  <div className="bg-neutral-950 p-4 rounded-xl border border-white/5 text-center">
+                    <span className="block text-2xl font-mono font-bold text-[#FF3200]">{validTicketsCount}</span>
+                    <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider block mt-1">Total Offline</span>
+                  </div>
+                  <div className="bg-neutral-950 p-4 rounded-xl border border-white/5 text-center">
+                    <span className="block text-2xl font-mono font-bold text-amber-400">{pendingSyncCount}</span>
+                    <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider block mt-1">Pendentes Sync</span>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
           </div>
 
-          {/* Coluna Direita: Validador QR Code & Câmera */}
-          <div className="lg:col-span-7 space-y-6">
-            <Card className="flux-card relative overflow-hidden">
-              <CardHeader>
-                <CardTitle className="text-xl">Validador de Portaria</CardTitle>
-                <CardDescription>Toque no botão de câmera flutuante abaixo para iniciar a validação.</CardDescription>
-              </CardHeader>
-
-              <CardContent className="flex flex-col items-center justify-center py-6 space-y-4">
-                {scanResult ? (
-                  <div className={`w-full p-6 border rounded-xl flex items-start space-x-4 ${scanResult.success
-                      ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                      : 'bg-red-50 border-red-200 text-red-700'
-                    }`}>
-                    <div className={`p-2 rounded-lg ${scanResult.success ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
-                      }`}>
-                      {scanResult.success ? (
-                        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                        </svg>
-                      ) : (
-                        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      )}
-                    </div>
-                    <div className="space-y-1">
-                      <h4 className="font-bold text-lg">
-                        {scanResult.success ? 'Acesso Liberado!' : 'Acesso Recusado!'}
-                      </h4>
-                      <p className="text-sm opacity-90">{scanResult.message}</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-10 text-[var(--text-subtle)] border-2 border-dashed border-[var(--border-strong)] rounded-xl w-full flex flex-col items-center justify-center">
-                    <svg className="w-12 h-12 text-neutral-600 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                    </svg>
-                    <p className="text-sm">Nenhum ingresso validado recentemente.</p>
-                  </div>
+          {/* Sync status sidebar */}
+          <div className="lg:col-span-4 space-y-6">
+            <Card className="bg-neutral-900 border border-white/10 rounded-2xl">
+              <CardHeader><CardTitle className="text-sm font-bold text-neutral-200">Sincronização Offline</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <button
+                  onClick={handleDownloadTickets}
+                  disabled={syncLoading || !isOnline}
+                  className="w-full h-11 rounded-lg border border-white/10 bg-transparent hover:bg-white/5 text-white font-bold text-xs cursor-pointer"
+                >
+                  Baixar Assinaturas Offline
+                </button>
+                {syncMessage && (
+                  <p className="text-[10px] font-mono text-neutral-400 break-all bg-neutral-950 p-3 rounded border border-white/5 leading-relaxed">
+                    {syncMessage}
+                  </p>
                 )}
               </CardContent>
             </Card>
-
-            {/* Debug Panel colapsável */}
-            <details className="flux-card overflow-hidden group">
-              <summary className="p-4 cursor-pointer text-xs font-bold tracking-wide text-[var(--text-subtle)] hover:text-[var(--text)] select-none flex justify-between items-center flux-muted-surface">
-                <span>Painel de Debug (Simulador de QR)</span>
-                <span className="text-[10px] text-neutral-500 group-open:rotate-180 transition-transform">▼</span>
-              </summary>
-              <div className="p-4 border-t border-[var(--border)] space-y-4">
-                <form onSubmit={handleValidateScan} className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold tracking-wide text-[var(--text-subtle)]">Dados do QR Code (JSON)</label>
-                    <textarea
-                      value={scannedInput}
-                      onChange={(e) => setScannedInput(e.target.value)}
-                      placeholder='{ "ticket_id": "...", "buyer_cpf": "...", "batch_id": "...", "signature": "..." }'
-                      rows={5}
-                      className="flux-input w-full rounded-lg p-4 text-xs font-mono placeholder-[var(--text-subtle)]"
-                    />
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      onClick={() => handleFillMockQR('valid')}
-                      variant="outline"
-                      size="sm"
-                      className="border-emerald-500/30 text-emerald-600 hover:border-emerald-500 hover:bg-emerald-500/10 transition-all font-semibold"
-                    >
-                      Preencher QR Válido
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={() => handleFillMockQR('invalid')}
-                      variant="outline"
-                      size="sm"
-                      className="border-red-500/30 text-red-500 hover:border-red-500 hover:bg-red-500/10 transition-all font-semibold"
-                    >
-                      Preencher QR Não Cadastrado
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={() => handleFillMockQR('tampered')}
-                      variant="outline"
-                      size="sm"
-                      className="border-amber-500/30 text-amber-600 hover:border-amber-500 hover:bg-amber-500/10 transition-all font-semibold"
-                    >
-                      Preencher QR Adulterado
-                    </Button>
-                  </div>
-                  <Button type="submit" variant="primary" className="w-full py-3">
-                    Validar Ingresso (Check-in)
-                  </Button>
-                </form>
-              </div>
-            </details>
           </div>
+
         </main>
       </div>
-
-      <footer className="text-center text-xs text-[var(--text-subtle)] py-6 relative z-10">
-        <p>&copy; {new Date().getFullYear()} Flux Ticketss - Portaria Offline. Todos os direitos reservados.</p>
-      </footer>
 
       <SyncGate eventId={eventId} onSyncComplete={updateCounts} />
       <ScanButton onScan={handleCameraScan} />

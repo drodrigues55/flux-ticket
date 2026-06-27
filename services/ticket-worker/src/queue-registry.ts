@@ -30,10 +30,10 @@ export const ACTIVE_QUEUE_NAMES: QueueName[] = [
   QUEUE_NAMES.checkinsSync,
   QUEUE_NAMES.analyticsAggregate,
   QUEUE_NAMES.batchesProgressionCheck,
+  QUEUE_NAMES.ticketsEmail,
 ];
 
 export const SCAFFOLD_QUEUE_NAMES: QueueName[] = [
-  QUEUE_NAMES.ticketsEmail,
   QUEUE_NAMES.walletGenerate,
   QUEUE_NAMES.refundsProcess,
 ];
@@ -118,6 +118,10 @@ export function resolveQueueForOutbox(type: string, payload: any): QueueName | n
 
   if (type === QUEUE_NAMES.batchesProgressionCheck || type === 'BATCHES_PROGRESSION_CHECK') {
     return QUEUE_NAMES.batchesProgressionCheck;
+  }
+
+  if (type === 'tickets.delivery' || type === QUEUE_NAMES.ticketsEmail) {
+    return QUEUE_NAMES.ticketsEmail;
   }
 
   return null;

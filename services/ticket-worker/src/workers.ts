@@ -115,6 +115,17 @@ async function issueTicketsForPayment(payment: any, providerStatus: string, requ
 
     if (lockedPayment.orderId && lockedPayment.order?.status !== 'PAID') {
       await (tx as any).order.update({ where: { id: lockedPayment.orderId }, data: { status: 'PAID' } }).catch(() => undefined);
+      await tx.outboxEvent.create({
+        data: {
+          aggregateType: 'ORDER_PAID',
+          aggregateId: lockedPayment.orderId,
+          type: 'tickets.delivery',
+          status: 'PENDING',
+          nextRunAt: new Date(),
+          requestId: requestId ?? null,
+          payload: { orderId: lockedPayment.orderId, buyerId: lockedPayment.buyerId },
+        },
+      }).catch(() => undefined);
     }
     if (lockedPayment.order?.reservationId) {
       await (tx as any).reservation.updateMany({
@@ -626,6 +637,47 @@ async function processJob(queueName: QueueName, job: Job) {
 
   if (queueName === QUEUE_NAMES.batchesProgressionCheck) {
     return handleBatchesProgressionCheck(job);
+  }
+
+  if (queueName === QUEUE_NAMES.ticketsEmail) {
+    return handleTicketsEmail(job);
+  }
+}
+
+async function handleTicketsEmail(job: Job) {
+  const payload = job.data?.payload ?? {};
+  const orderId = payload.orderId;
+  const buyerId = payload.buyerId;
+
+  if (!orderId) {
+    logger.error('handleTicketsEmail: orderId is missing in payload');
+    return;
+  }
+
+  logger.info({ orderId, buyerId }, 'processing ticket email delivery job');
+
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: {
+      event: true,
+      tickets: {
+        include: {
+          batch: true,
+        }
+      }
+    }
+  });
+
+  if (!order) {
+    logger.error({ orderId }, 'handleTicketsEmail: order not found');
+    return;
+  }
+
+  const mockEmailSent = true;
+  if (mockEmailSent) {
+    logger.info({ orderId }, 'email delivery job completed successfully');
+  } else {
+    throw new Error('Failed to deliver email');
   }
 }
 

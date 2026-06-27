@@ -31,6 +31,12 @@ async function bootstrap() {
         scaffoldQueues: queue_registry_1.SCAFFOLD_QUEUE_NAMES,
         workerCount: workers_1.workers.length,
     }, 'ticket-worker started');
+    if (process.env.WORKER_RUN_ONCE !== 'true') {
+        await queue_registry_1.queues[queue_registry_1.QUEUE_NAMES.batchesProgressionCheck].add('batches.progressionCheck', {}, {
+            repeat: { every: 60000 },
+            jobId: 'batches-progression-check-cron',
+        });
+    }
     if (process.env.WORKER_RUN_ONCE === 'true') {
         await (0, outbox_publisher_1.processOutbox)();
         await new Promise((resolve) => setTimeout(resolve, Number(process.env.WORKER_ONCE_WAIT_MS || 1500)));

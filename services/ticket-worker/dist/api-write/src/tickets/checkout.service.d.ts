@@ -19,13 +19,13 @@ export declare class CheckoutService {
         requestId?: string;
     }): Promise<{
         id: string;
-        status: import(".prisma/client").$Enums.TicketStatus;
-        createdAt: Date;
-        batchId: string;
         eventId: string;
         price: import("@prisma/client/runtime/library").Decimal;
         meiaEntrada: boolean;
+        status: import(".prisma/client").$Enums.TicketStatus;
+        createdAt: Date;
         updatedAt: Date;
+        batchId: string;
         buyerId: string;
         reservationId: string | null;
         reservationItemId: string | null;
@@ -45,13 +45,13 @@ export declare class CheckoutService {
      */
     approveTicketPayment(ticketId: string): Promise<{
         id: string;
-        status: import(".prisma/client").$Enums.TicketStatus;
-        createdAt: Date;
-        batchId: string;
         eventId: string;
         price: import("@prisma/client/runtime/library").Decimal;
         meiaEntrada: boolean;
+        status: import(".prisma/client").$Enums.TicketStatus;
+        createdAt: Date;
         updatedAt: Date;
+        batchId: string;
         buyerId: string;
         reservationId: string | null;
         reservationItemId: string | null;

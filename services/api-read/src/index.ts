@@ -485,6 +485,117 @@ app.get('/public/events/:slug/tickets', async (req, res) => {
   }
 });
 
+app.get('/public/orders/:orderId/confirmation', async (req, res) => {
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: req.params.orderId },
+      include: { event: true, tickets: { include: { batch: true } } },
+    });
+
+    if (!order) {
+      return res.status(404).json(fail({
+        code: 'ORDER_NOT_FOUND',
+        message: 'Order not found',
+        statusCode: 404,
+        requestId: (req as RequestWithId).requestId || 'req_unknown',
+      }));
+    }
+
+    const deliveryJob = await prisma.outboxEvent.findFirst({
+      where: { aggregateType: 'ORDER_PAID', aggregateId: order.id, type: 'tickets.delivery' },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    let deliveryStatus = 'PENDING';
+    if (deliveryJob) {
+      if (deliveryJob.status === 'PROCESSED') {
+        deliveryStatus = 'DELIVERED';
+      } else if (deliveryJob.status === 'FAILED') {
+        deliveryStatus = 'FAILED';
+      }
+    }
+
+    const tickets = order.tickets.map(t => ({
+      id: t.id,
+      holderName: t.holderName,
+      holderCpf: t.holderCpf,
+      price: t.price.toNumber(),
+      status: t.status,
+      batch: {
+        name: t.batch.name,
+      },
+    }));
+
+    res.json({
+      order: {
+        id: order.id,
+        status: order.status,
+        totalAmount: order.netAmount.toNumber(),
+        deliveryStatus,
+        event: {
+          title: order.event.title,
+          date: order.event.date.toISOString(),
+          location: order.event.location,
+        },
+        tickets,
+      }
+    });
+  } catch (error) {
+    res.status(500).json(fail({
+      code: 'CONFIRMATION_ERROR',
+      message: 'Failed to retrieve confirmation details',
+      statusCode: 500,
+      requestId: (req as RequestWithId).requestId || 'req_unknown',
+    }));
+  }
+});
+
+app.get('/public/tickets/:ticketId', async (req, res) => {
+  try {
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: req.params.ticketId },
+      include: {
+        batch: { include: { event: true } },
+      }
+    });
+
+    if (!ticket) {
+      return res.status(404).json(fail({
+        code: 'TICKET_NOT_FOUND',
+        message: 'Ticket not found',
+        statusCode: 404,
+        requestId: (req as RequestWithId).requestId || 'req_unknown',
+      }));
+    }
+
+    res.json({
+      id: ticket.id,
+      status: ticket.status,
+      meiaEntrada: ticket.meiaEntrada,
+      price: ticket.price.toNumber(),
+      holderName: ticket.holderName,
+      holderCpf: ticket.holderCpf,
+      hmacSignature: ticket.hmacSignature,
+      event: {
+        title: ticket.batch.event.title,
+        date: ticket.batch.event.date.toISOString(),
+        location: ticket.batch.event.location,
+        venue: ticket.batch.event.venue,
+      },
+      batch: {
+        name: ticket.batch.name,
+      }
+    });
+  } catch (error) {
+    res.status(500).json(fail({
+      code: 'TICKET_DETAIL_ERROR',
+      message: 'Failed to retrieve ticket details',
+      statusCode: 500,
+      requestId: (req as RequestWithId).requestId || 'req_unknown',
+    }));
+  }
+});
+
 import { authMiddleware } from './auth-middleware';
 
 function parseSectorFilter(value: unknown): number[] {

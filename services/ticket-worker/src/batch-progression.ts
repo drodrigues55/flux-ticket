@@ -70,12 +70,12 @@ export class BatchProgressionService {
       now >= new Date(batch.progressionDateThreshold);
 
     switch (batch.progressionRule) {
-      case BatchProgressionRule.QUANTITY:
+      case BatchProgressionRule.QUANTITY_SOLD:
         return meetsQuantity;
-      case BatchProgressionRule.DATE:
+      case BatchProgressionRule.DATE_REACHED:
         return meetsDate;
-      case BatchProgressionRule.BOTH:
-        // Transition if EITHER condition is met
+      case BatchProgressionRule.QUANTITY_OR_DATE:
+      case BatchProgressionRule.QUANTITY_AND_DATE:
         return meetsQuantity || meetsDate;
       default:
         return false;
@@ -107,7 +107,7 @@ export class BatchProgressionService {
           where: { id: batch.nextBatchId },
         });
 
-        if (nextBatch && nextBatch.status === 'DRAFT') {
+        if (nextBatch && nextBatch.status === 'PAUSED') {
           await tx.ticketBatch.update({
             where: { id: batch.nextBatchId },
             data: { status: 'ACTIVE' },

@@ -3,9 +3,14 @@ export declare class FluxEngineService implements OnModuleInit, OnModuleDestroy 
     private readonly logger;
     private redisClient;
     private reserveTicketsScriptSha;
+    private readonly criticalTimeoutMs;
+    private readonly nonCriticalTimeoutMs;
     onModuleInit(): Promise<void>;
     onModuleDestroy(): void;
     private loadScripts;
+    private withTimeout;
+    private criticalRedis;
+    private nonCriticalRedis;
     /**
      * Atomically reserve tickets for a batch.
      * @param batchId The ID of the ticket batch
@@ -38,8 +43,10 @@ export declare class FluxEngineService implements OnModuleInit, OnModuleDestroy 
      */
     extendTicketLock(userId: string, ticketId: string, batchId: string, ttlSeconds: number): Promise<boolean>;
     getCheckoutLimit(): Promise<number>;
+    getCheckoutLimitSafe(): Promise<number>;
     setCheckoutLimit(limit: number): Promise<void>;
     isSalesPaused(): Promise<boolean>;
+    isSalesPausedSafe(): Promise<boolean>;
     setSalesPaused(paused: boolean): Promise<void>;
     incrementDeniedAttempts(eventId: string): Promise<number>;
     getDeniedAttempts(eventId: string): Promise<number>;
