@@ -6,10 +6,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { eventId, batchId, price, isHalfPrice, quantity } = req.body;
+  const { eventId, batchId, price, isHalfPrice, quantity, items } = req.body;
 
-  if (!eventId || !batchId || price === undefined) {
-    return res.status(400).json({ error: 'eventId, batchId and price are required' });
+  if (!eventId) {
+    return res.status(400).json({ error: 'eventId is required' });
+  }
+
+  if (!items && (!batchId || price === undefined)) {
+    return res.status(400).json({ error: 'batchId and price, or items list, is required' });
   }
 
   try {
@@ -19,7 +23,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ eventId, batchId, price, isHalfPrice, quantity }),
+      body: JSON.stringify({ eventId, batchId, price, isHalfPrice, quantity, items }),
     });
 
     const data = await response.json();
