@@ -54,7 +54,7 @@ Feature status definitions:
 | RC1 Manual QA | ✅ |
 | RC1 Smoke Test | ✅ |
 | RC1 Deployment Prep | ✅ |
-| RC1 Approval | ✅ |
+| RC1 Approval | ✅ With Known Non-Blocking Issues |
 | Production Release | 📋 |
 
 ---
