@@ -10,9 +10,9 @@ This document outlines the testing strategy, automated test coverage matrix, and
 | `@flux/api-write` | tsx --test  | `npm run test -w @flux/api-write` |
 | `@flux/api-read`  | tsx --test  | `npm run test -w @flux/api-read` |
 | `@flux/ticket-worker` | tsc & tsx --test | `npm run test -w @flux/ticket-worker` |
-| `@flux/client`    | Jest / Next | `npm run test -w @flux/client` |
-| `@flux/dashboard` | Jest / Next | `npm run test -w @flux/dashboard` |
-| `@flux/staff-pwa` | Jest / Next | `npm run test -w @flux/staff-pwa` |
+| `@flux/client`    | tsx --test  | `npm run test -w @flux/client` |
+| `@flux/dashboard` | tsx --test  | `npm run test -w @flux/dashboard` |
+| `@flux/staff-pwa` | tsx --test  | `npm run test -w @flux/staff-pwa` |
 
 ## Test Coverage Matrix (Phases 1-10)
 
@@ -26,3 +26,12 @@ This document outlines the testing strategy, automated test coverage matrix, and
 8. **Consumer Portal**: Public catalogs, reservations, inventory locking.
 9. **Staff Portal**: Gate validation, signature comparisons, offline queues.
 10. **Ticket Delivery MVP**: Delivery outbox events, resending, and printable views.
+
+---
+
+## QA-2 Updates: Cross-Service Coverage
+- **Contract Tests**: Added Zod schema validations for event dates, ticket prices, purchase limits, and QR payloads in `@flux/types`.
+- **Express Read Model Tests**: Verify scope boundaries and customer data sanitization inside `@flux/api-read`.
+- **Worker Idempotency Tests**: Added retryability and duplicate email checks inside `@flux/ticket-worker`.
+- **Frontend Error Handlers**: Mock components and error bounds tests added to `dashboard`, `client`, and `staff-pwa`.
+- **Integration Smoke Tests**: Added full checkout E2E loops and offline conflict simulations to `@flux/api-write`.

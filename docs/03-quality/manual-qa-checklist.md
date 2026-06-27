@@ -20,3 +20,9 @@ Step-by-step instructions to verify the MVP ticketing cycle manually.
 2. Select the event and click "Baixar Assinaturas Offline".
 3. Open Scanner or simulate valid/invalid scans.
 4. Verify check-ins are logged locally and synced once connectivity is restored.
+
+---
+
+## QA-2 Updates: Device / Network Scenarios
+- **Desktop Chrome / Safari**: Validate that clicking "Reenviar E-mail" displays a progress indicator and transitions to a success message.
+- **Offline / Stale State**: Verify that loading the Staff PWA offline allows local search lookups via IndexedDB.

@@ -16,3 +16,7 @@ This document analyzes high-risk failure modes, their mitigation, and reproducti
 - **Risk**: Offline check-ins conflict with remote status (e.g. ticket revoked/changed).
 - **Mitigation**: The synchronization process verifies HMAC signatures and detects duplicates against online records.
 - **Verification**: Covered by `staff-portal.test.ts`.
+
+## QA-2 Updates: Frontend Error Handlers
+- **Dashboard & client requestIds**: Error modals are guaranteed to extract and present `meta.requestId` to simplify troubleshooting.
+- **Stale/Expired Reservations**: Clients receive real-time warnings when reservation session countdowns expire.

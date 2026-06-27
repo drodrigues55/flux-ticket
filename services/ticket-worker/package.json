@@ -5,7 +5,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx watch src/index.ts",
-    "test": "jest"
+    "test": "tsx --test src/**/*.test.ts"
   },
   "dependencies": {
     "@flux/database": "*",
