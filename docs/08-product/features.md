@@ -56,6 +56,7 @@ Feature status definitions:
 | RC1 Deployment Prep | ✅ |
 | RC1 Approval | ✅ With Known Non-Blocking Issues |
 | Staging/Demo Deployment | ✅ |
+| Demo Ready | ✅ |
 | Production Release | 📋 |
 
 ---
