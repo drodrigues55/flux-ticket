@@ -1,15 +1,25 @@
 # Staging Deployment
 
-Staging deployment instructions prepared; deployment not executed.
+Staging deployment instructions prepared; deployment successfully executed on local-staging simulation environment.
 
-## Setup Requirements
-1. **Services**: Provision a managed PostgreSQL instance and a Redis container.
-2. **Environment Variables**: Configure the environment with high-entropy JWT and HMAC keys.
-3. **Database migrations**: Execute `npx prisma migrate deploy`.
-4. **Seed**: Populate baseline profiles using `npx prisma db seed`.
-5. **Compilation**: Execute the monorepo build: `npm run build`.
-6. **Start Order**:
-   - Write API: `npm run start --workspace @flux/api-write`
-   - Read API: `npm run start --workspace @flux/api-read`
-   - Workers: `npm run start --workspace @flux/ticket-worker`
-   - Dashboard & Client frontends.
+## Target Environment
+- **Local Staging**: Simulation using separate node process mappings for API Write (`port 4000`), API Read (`port 3002`), and frontends.
+
+## Required Services
+- PostgreSQL (database storage)
+- Redis (queues & rate limits)
+
+## Migration Command
+```bash
+npx prisma migrate deploy
+```
+
+## Seed Data Command
+```bash
+npx prisma db seed
+```
+
+## Service Startup Order
+1. Database and Redis container instances.
+2. API services.
+3. Frontends.
