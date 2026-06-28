@@ -510,11 +510,23 @@ app.get('/public/orders/:orderId/confirmation', async (req, res) => {
       where: { aggregateType: 'ORDER_PAID', aggregateId: order.id, type: 'tickets.delivery' },
       orderBy: { createdAt: 'desc' }
     });
+    const deliveryAudit = await prisma.auditLog.findFirst({
+      where: {
+        entityType: 'Order',
+        entityId: order.id,
+        action: { in: ['EMAIL_DELIVERY_SENT', 'EMAIL_DELIVERY_FAILED'] },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
 
     let deliveryStatus = 'PENDING';
-    if (deliveryJob) {
+    if (deliveryAudit?.action === 'EMAIL_DELIVERY_SENT') {
+      deliveryStatus = 'DELIVERED';
+    } else if (deliveryAudit?.action === 'EMAIL_DELIVERY_FAILED') {
+      deliveryStatus = 'FAILED';
+    } else if (deliveryJob) {
       if (deliveryJob.status === 'PROCESSED') {
-        deliveryStatus = 'DELIVERED';
+        deliveryStatus = 'PENDING';
       } else if (deliveryJob.status === 'FAILED') {
         deliveryStatus = 'FAILED';
       }

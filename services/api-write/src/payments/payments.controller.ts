@@ -72,7 +72,7 @@ export class PaymentsController {
         status: 'PENDING',
         nextRunAt: new Date(),
         requestId: req.requestId ?? null,
-        payload: { orderId: order.id, buyerId: order.buyerId },
+        payload: { orderId: order.id, buyerId: order.buyerId, purpose: 'resend_ticket' },
       },
     });
 

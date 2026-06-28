@@ -103,7 +103,23 @@ export class OrgWriteController {
       },
     });
 
-    return invite;
+    await prisma.outboxEvent.create({
+      data: {
+        aggregateType: 'ORGANIZATION_INVITE_CREATED',
+        aggregateId: invite.id,
+        type: 'email.organizationInvite',
+        status: 'PENDING',
+        nextRunAt: new Date(),
+        requestId: req.requestId ?? null,
+        payload: {
+          kind: 'organization.invite',
+          inviteId: invite.id,
+          organizationId: invite.organizationId,
+        },
+      },
+    });
+
+    return { ...invite, emailDeliveryStatus: 'QUEUED' };
   }
 
   @Post('invites/:inviteId/resend')
@@ -120,7 +136,23 @@ export class OrgWriteController {
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       },
     });
-    return updated;
+    await prisma.outboxEvent.create({
+      data: {
+        aggregateType: 'ORGANIZATION_INVITE_RESENT',
+        aggregateId: updated.id,
+        type: 'email.organizationInvite',
+        status: 'PENDING',
+        nextRunAt: new Date(),
+        requestId: req.requestId ?? null,
+        payload: {
+          kind: 'organization.invite',
+          inviteId: updated.id,
+          organizationId: updated.organizationId,
+          force: true,
+        },
+      },
+    });
+    return { ...updated, emailDeliveryStatus: 'QUEUED' };
   }
 
   @Post('invites/:inviteId/cancel')

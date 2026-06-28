@@ -10,6 +10,7 @@ import { InternalPaymentStatus } from './payment-provider';
 import { getPaymentProvider } from './payment-provider-registry';
 import { BatchProgressionService } from './batch-progression';
 import { normalizeProviderStatus } from './payment-status';
+import { EmailDeliveryPurpose, getEmailProvider } from './email-provider';
 
 const connection = createRedisConnection();
 const FINAL_PAYMENT_STATUSES: InternalPaymentStatus[] = ['APPROVED', 'REJECTED', 'EXPIRED', 'CANCELLED', 'REFUNDED', 'FAILED'];
@@ -124,7 +125,7 @@ async function issueTicketsForPayment(payment: any, providerStatus: string, requ
           status: 'PENDING',
           nextRunAt: new Date(),
           requestId: requestId ?? null,
-          payload: { orderId: lockedPayment.orderId, buyerId: lockedPayment.buyerId },
+          payload: { orderId: lockedPayment.orderId, buyerId: lockedPayment.buyerId, purpose: 'purchase_confirmation' },
         },
       }).catch(() => undefined);
     }
@@ -641,15 +642,19 @@ async function processJob(queueName: QueueName, job: Job) {
 
 async function handleTicketsEmail(job: Job) {
   const payload = job.data?.payload ?? {};
+  if (payload.kind === 'organization.invite') {
+    return handleOrganizationInviteEmail(job);
+  }
+
   const orderId = payload.orderId;
-  const buyerId = payload.buyerId;
+  const purpose = (payload.purpose || 'purchase_confirmation') as EmailDeliveryPurpose;
 
   if (!orderId) {
     logger.error('handleTicketsEmail: orderId is missing in payload');
     return;
   }
 
-  logger.info({ orderId, buyerId }, 'processing ticket email delivery job');
+  logger.info({ orderId, purpose }, 'processing ticket email delivery job');
 
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -658,8 +663,10 @@ async function handleTicketsEmail(job: Job) {
       tickets: {
         include: {
           batch: true,
+          buyer: true,
         }
-      }
+      },
+      buyer: true,
     }
   });
 
@@ -668,11 +675,176 @@ async function handleTicketsEmail(job: Job) {
     return;
   }
 
-  const mockEmailSent = true;
-  if (mockEmailSent) {
-    logger.info({ orderId }, 'email delivery job completed successfully');
-  } else {
-    throw new Error('Failed to deliver email');
+  if (order.status !== 'PAID') {
+    logger.info({ orderId, status: order.status }, 'ticket email skipped for unpaid order');
+    return;
+  }
+
+  const alreadySent = await prisma.auditLog.findFirst({
+    where: {
+      action: 'EMAIL_DELIVERY_SENT',
+      entityType: 'Order',
+      entityId: orderId,
+      metadata: {
+        path: ['purpose'],
+        equals: purpose,
+      } as any,
+    },
+  });
+  if (alreadySent) {
+    logger.info({ orderId, purpose, messageId: (alreadySent.metadata as any)?.messageId }, 'ticket email already sent');
+    return;
+  }
+
+  const provider = getEmailProvider();
+  const ticketLinks = order.tickets.map((ticket: any) => {
+    const publicBaseUrl = process.env.PUBLIC_CLIENT_URL || process.env.CLIENT_PUBLIC_URL || 'http://localhost:3003';
+    return `${publicBaseUrl.replace(/\/$/, '')}/ticket/${ticket.id}`;
+  });
+  const buyerEmail = order.buyer?.email || order.tickets[0]?.buyer?.email;
+  if (!buyerEmail) {
+    throw new Error(`Order ${orderId} has no buyer email for ticket delivery`);
+  }
+
+  const firstTicket = order.tickets[0];
+  const mockPaymentNote = process.env.PAYMENT_PROVIDER !== 'mercado_pago'
+    ? '<p><strong>Modo demo:</strong> pagamento mock usado para validação MVP. Gateway e liquidação real não estão conectados.</p>'
+    : '';
+  const subject = purpose === 'resend_ticket'
+    ? `Reenvio dos seus ingressos - ${order.event?.title || 'Flux Tickets'}`
+    : `Compra aprovada - ${order.event?.title || 'Flux Tickets'}`;
+  const rows = order.tickets.map((ticket: any, index: number) => (
+    `<li>${ticket.holderName || order.buyer?.name || 'Participante'} - ${ticket.batch?.name || 'Ingresso'} - <a href="${ticketLinks[index]}">Acessar ingresso</a></li>`
+  )).join('');
+  const html = [
+    `<h1>${subject}</h1>`,
+    `<p>Pedido: ${order.id}</p>`,
+    `<p>Evento: ${order.event?.title || 'Evento'}</p>`,
+    `<p>Status: ${order.status}</p>`,
+    firstTicket ? `<p>Tipo de ingresso: ${firstTicket.batch?.name || 'Ingresso'}</p>` : '',
+    `<ul>${rows}</ul>`,
+    '<p>Guarde este e-mail. Em caso de dúvida, fale com o suporte da Flux Tickets.</p>',
+    mockPaymentNote,
+  ].join('');
+
+  const message = {
+    to: buyerEmail,
+    subject,
+    html,
+    text: `${subject}\nPedido: ${order.id}\nEvento: ${order.event?.title || 'Evento'}\nIngressos:\n${ticketLinks.join('\n')}`,
+    purpose,
+    metadata: { orderId },
+  };
+
+  const result = purpose === 'resend_ticket'
+    ? await provider.sendResendTicketEmail(message)
+    : await provider.sendPurchaseConfirmation(message);
+
+  await prisma.auditLog.create({
+    data: {
+      actorRole: 'SYSTEM',
+      action: result.status === 'SENT' ? 'EMAIL_DELIVERY_SENT' : 'EMAIL_DELIVERY_FAILED',
+      entityType: 'Order',
+      entityId: orderId,
+      reason: `EMAIL_${result.status}`,
+      requestId: job.data?.requestId ?? null,
+      metadata: {
+        purpose,
+        provider: result.provider,
+        messageId: result.messageId ?? null,
+        errorCode: result.errorCode ?? null,
+        errorMessage: result.errorMessage ?? null,
+        outboxEventId: job.data?.outboxEventId ?? null,
+      },
+    },
+  });
+
+  if (result.status === 'RETRYABLE') {
+    throw new Error(result.errorMessage || 'Retryable email provider failure');
+  }
+  if (result.status === 'FAILED') {
+    logger.warn({ orderId, purpose, provider: result.provider, errorCode: result.errorCode }, 'email delivery failed permanently');
+    return;
+  }
+
+  logger.info({ orderId, purpose, provider: result.provider, messageId: result.messageId }, 'email delivery completed');
+}
+
+async function handleOrganizationInviteEmail(job: Job) {
+  const payload = job.data?.payload ?? {};
+  const inviteId = payload.inviteId?.toString();
+  if (!inviteId) {
+    logger.error('handleOrganizationInviteEmail: inviteId is missing in payload');
+    return;
+  }
+
+  const invite = await prisma.organizationInvite.findUnique({
+    where: { id: inviteId },
+    include: { organization: true },
+  });
+
+  if (!invite) {
+    logger.warn({ inviteId }, 'organization invite email skipped because invite was not found');
+    return;
+  }
+
+  const alreadySent = await prisma.auditLog.findFirst({
+    where: {
+      action: 'EMAIL_DELIVERY_SENT',
+      entityType: 'OrganizationInvite',
+      entityId: inviteId,
+      metadata: {
+        path: ['purpose'],
+        equals: 'organization_invite',
+      } as any,
+    },
+  });
+  if (alreadySent && payload.force !== true) {
+    logger.info({ inviteId }, 'organization invite email already sent');
+    return;
+  }
+
+  const publicBaseUrl = process.env.DASHBOARD_PUBLIC_URL || process.env.PUBLIC_DASHBOARD_URL || 'http://localhost:3001';
+  const inviteLink = `${publicBaseUrl.replace(/\/$/, '')}/organization/invites/accept?token=${encodeURIComponent(invite.token)}`;
+  const provider = getEmailProvider();
+  const result = await provider.sendOrganizationInvite({
+    to: invite.email,
+    subject: `Convite para ${invite.organization?.name || 'Flux Tickets'}`,
+    html: [
+      `<h1>Voce foi convidado para ${invite.organization?.name || 'uma organizacao Flux Tickets'}</h1>`,
+      `<p>Cargo: ${invite.role}</p>`,
+      `<p>Este convite expira em ${invite.expiresAt.toISOString()}.</p>`,
+      `<p><a href="${inviteLink}">Aceitar convite</a></p>`,
+    ].join(''),
+    text: `Convite para ${invite.organization?.name || 'Flux Tickets'}\nCargo: ${invite.role}\nExpira em: ${invite.expiresAt.toISOString()}\n${inviteLink}`,
+    purpose: 'organization_invite',
+    metadata: { inviteId },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      actorRole: 'SYSTEM',
+      action: result.status === 'SENT' ? 'EMAIL_DELIVERY_SENT' : 'EMAIL_DELIVERY_FAILED',
+      entityType: 'OrganizationInvite',
+      entityId: inviteId,
+      reason: `EMAIL_${result.status}`,
+      requestId: job.data?.requestId ?? null,
+      metadata: {
+        purpose: 'organization_invite',
+        provider: result.provider,
+        messageId: result.messageId ?? null,
+        errorCode: result.errorCode ?? null,
+        errorMessage: result.errorMessage ?? null,
+        outboxEventId: job.data?.outboxEventId ?? null,
+      },
+    },
+  });
+
+  if (result.status === 'RETRYABLE') {
+    throw new Error(result.errorMessage || 'Retryable organization invite email provider failure');
+  }
+  if (result.status === 'FAILED') {
+    logger.warn({ inviteId, provider: result.provider, errorCode: result.errorCode }, 'organization invite email failed permanently');
   }
 }
 

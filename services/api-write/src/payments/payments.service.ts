@@ -471,6 +471,24 @@ export class PaymentsService {
         });
       }
 
+      if (lockedPayment.orderId && issuedStatuses.length > 0) {
+        await tx.outboxEvent.create({
+          data: {
+            aggregateType: 'ORDER_PAID',
+            aggregateId: lockedPayment.orderId,
+            type: 'tickets.delivery',
+            status: 'PENDING',
+            nextRunAt: new Date(),
+            requestId: input.requestId ?? null,
+            payload: {
+              orderId: lockedPayment.orderId,
+              buyerId: lockedPayment.buyerId,
+              purpose: 'purchase_confirmation',
+            },
+          },
+        });
+      }
+
       if (lockedPayment.order?.reservationId) {
         await (tx as any).reservation.updateMany({
           where: { id: lockedPayment.order.reservationId, status: { not: 'CONVERTED' } },

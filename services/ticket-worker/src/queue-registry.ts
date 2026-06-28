@@ -120,7 +120,7 @@ export function resolveQueueForOutbox(type: string, payload: any): QueueName | n
     return QUEUE_NAMES.batchesProgressionCheck;
   }
 
-  if (type === 'tickets.delivery' || type === QUEUE_NAMES.ticketsEmail) {
+  if (type === 'tickets.delivery' || type === 'email.organizationInvite' || type === QUEUE_NAMES.ticketsEmail) {
     return QUEUE_NAMES.ticketsEmail;
   }
 

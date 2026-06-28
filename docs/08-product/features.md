@@ -301,7 +301,7 @@ Feature status definitions:
 | Apple Wallet (.pkpass) |   📋   |
 | Google Wallet          |   📋   |
 | PDF Ticket             |   📋   |
-| Email Delivery         |   📋   |
+| Email Delivery         |    ✅   |
 | Wallet Updates         |   💡   |
 
 ---
@@ -339,7 +339,8 @@ Feature status definitions:
 | Feature            | Status |
 | ------------------ | :----: |
 | Notification Queue |    ✅   |
-| Email Provider     |   📋   |
+| Email Provider     |    ✅   |
+| Resend Provider    |    ✅   |
 | WhatsApp Provider  |   📋   |
 | SMS Provider       |   💡   |
 | Push Notifications |   💡   |

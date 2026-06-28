@@ -65,7 +65,7 @@ export default function OrgMembersPage() {
           requestId: err.requestId || json.requestId,
         } satisfies ApiError;
       }
-      setInviteMsg('Convite enviado com sucesso.');
+      setInviteMsg('Convite criado. Envio por e-mail em processamento.');
       setInviteEmail('');
       loadData();
     } catch (err: any) {
@@ -101,7 +101,7 @@ export default function OrgMembersPage() {
         const err = json.error || {};
         throw { message: err.message || json.message || 'Falha ao reenviar.' } satisfies ApiError;
       }
-      setInviteMsg('Convite reenviado com sucesso.');
+      setInviteMsg('Reenvio do convite enfileirado.');
     } catch (err: any) {
       setError(err);
     }
