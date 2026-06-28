@@ -9,35 +9,42 @@ import { MonitoringModule } from './monitoring/monitoring.module';
 import { HealthModule } from './health/health.module';
 import { OrgWriteModule } from './org/org-write.module';
 
+import { RedisThrottlerStorage } from './redis-throttler-storage';
+
 @Module({
   imports: [
-    ThrottlerModule.forRoot([
-      {
-        name: 'default',
-        ttl: 60000,
-        limit: Number(process.env.RATE_LIMIT_DEFAULT) || 120,
-      },
-      {
-        name: 'checkout',
-        ttl: 60000,
-        limit: Number(process.env.RATE_LIMIT_CHECKOUT) || 15,
-      },
-      {
-        name: 'reserve',
-        ttl: 60000,
-        limit: Number(process.env.RATE_LIMIT_RESERVE) || 30,
-      },
-      {
-        name: 'sync',
-        ttl: 60000,
-        limit: Number(process.env.RATE_LIMIT_SYNC) || 45,
-      },
-      {
-        name: 'webhooks',
-        ttl: 60000,
-        limit: Number(process.env.RATE_LIMIT_WEBHOOKS) || 300, // separate high limit for webhook retries
-      }
-    ]),
+    ThrottlerModule.forRootAsync({
+      useFactory: () => ({
+        throttlers: [
+          {
+            name: 'default',
+            ttl: 60000,
+            limit: Number(process.env.RATE_LIMIT_DEFAULT) || 120,
+          },
+          {
+            name: 'checkout',
+            ttl: 60000,
+            limit: Number(process.env.RATE_LIMIT_CHECKOUT) || 15,
+          },
+          {
+            name: 'reserve',
+            ttl: 60000,
+            limit: Number(process.env.RATE_LIMIT_RESERVE) || 30,
+          },
+          {
+            name: 'sync',
+            ttl: 60000,
+            limit: Number(process.env.RATE_LIMIT_SYNC) || 45,
+          },
+          {
+            name: 'webhooks',
+            ttl: 60000,
+            limit: Number(process.env.RATE_LIMIT_WEBHOOKS) || 300,
+          }
+        ],
+        storage: new RedisThrottlerStorage(),
+      }),
+    }),
     FluxEngineModule,
     EventsModule,
     PaymentsModule,

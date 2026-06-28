@@ -75,6 +75,7 @@ const common_1 = require("@nestjs/common");
 const ioredis_1 = __importDefault(require("ioredis"));
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
+const types_1 = require("@flux/types");
 let FluxEngineService = (() => {
     let _classDecorators = [(0, common_1.Injectable)()];
     let _classDescriptor;
@@ -95,15 +96,19 @@ let FluxEngineService = (() => {
         criticalTimeoutMs = Number(process.env.REDIS_CRITICAL_TIMEOUT_MS) || 1500;
         nonCriticalTimeoutMs = Number(process.env.REDIS_NON_CRITICAL_TIMEOUT_MS) || 750;
         async onModuleInit() {
-            // Initialize Redis Client using ioredis
-            // For local development, it defaults to localhost:6379
-            this.redisClient = new ioredis_1.default({
-                host: process.env.REDIS_HOST || 'localhost',
-                port: Number(process.env.REDIS_PORT) || 6379,
+            const config = (0, types_1.parseRedisConfig)('cache', process.env);
+            if (process.env.NODE_ENV === 'production' && !config.url && !process.env.REDIS_HOST && !process.env.REDIS_URL) {
+                throw new Error('Production environment is missing required Redis configuration');
+            }
+            const redisOptions = {
+                ...config.options,
                 connectTimeout: this.criticalTimeoutMs,
                 maxRetriesPerRequest: 1,
                 commandTimeout: this.criticalTimeoutMs,
-            });
+            };
+            this.redisClient = config.url
+                ? new ioredis_1.default(config.url, redisOptions)
+                : new ioredis_1.default(redisOptions);
             this.redisClient.on('error', (err) => {
                 this.logger.error('Redis client error', err);
             });

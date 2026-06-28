@@ -1,4 +1,5 @@
 import { prisma } from '@flux/database';
+import { parseRedisConfig } from '@flux/types';
 import Redis from 'ioredis';
 import { logger } from './logger';
 
@@ -20,13 +21,21 @@ const QUEUE_NAMES = [
 ];
 
 function redisClient() {
-  const client = process.env.REDIS_URL
-    ? new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: 1 })
-    : new Redis({
-        host: process.env.REDIS_HOST || 'localhost',
-        port: Number(process.env.REDIS_PORT) || 6379,
-        maxRetriesPerRequest: 1,
-      });
+  const config = parseRedisConfig('cache', process.env);
+
+  if (process.env.NODE_ENV === 'production' && !config.url && !process.env.REDIS_HOST && !process.env.REDIS_URL) {
+    throw new Error('Production environment is missing required Redis configuration');
+  }
+
+  const redisOptions = {
+    ...config.options,
+    maxRetriesPerRequest: 1,
+  };
+
+  const client = config.url
+    ? new Redis(config.url, redisOptions)
+    : new Redis(redisOptions);
+
   client.on('error', (err) => {
     logger.error({ err, service, component: 'observability' }, 'redis client error');
   });

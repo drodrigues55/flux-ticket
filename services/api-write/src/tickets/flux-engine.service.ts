@@ -2,6 +2,7 @@ import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/commo
 import Redis from 'ioredis';
 import * as fs from 'fs';
 import * as path from 'path';
+import { parseRedisConfig } from '@flux/types';
 
 @Injectable()
 export class FluxEngineService implements OnModuleInit, OnModuleDestroy {
@@ -12,15 +13,22 @@ export class FluxEngineService implements OnModuleInit, OnModuleDestroy {
   private readonly nonCriticalTimeoutMs = Number(process.env.REDIS_NON_CRITICAL_TIMEOUT_MS) || 750;
 
   async onModuleInit() {
-    // Initialize Redis Client using ioredis
-    // For local development, it defaults to localhost:6379
-    this.redisClient = new Redis({
-      host: process.env.REDIS_HOST || 'localhost',
-      port: Number(process.env.REDIS_PORT) || 6379,
+    const config = parseRedisConfig('cache', process.env);
+
+    if (process.env.NODE_ENV === 'production' && !config.url && !process.env.REDIS_HOST && !process.env.REDIS_URL) {
+      throw new Error('Production environment is missing required Redis configuration');
+    }
+
+    const redisOptions = {
+      ...config.options,
       connectTimeout: this.criticalTimeoutMs,
       maxRetriesPerRequest: 1,
       commandTimeout: this.criticalTimeoutMs,
-    });
+    };
+
+    this.redisClient = config.url
+      ? new Redis(config.url, redisOptions)
+      : new Redis(redisOptions);
 
     this.redisClient.on('error', (err) => {
       this.logger.error('Redis client error', err);

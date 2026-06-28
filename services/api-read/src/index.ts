@@ -3,7 +3,7 @@ import compression from 'compression';
 import { prisma } from '@flux/database';
 import rateLimit from 'express-rate-limit';
 import Redis from 'ioredis';
-import type { BatchInfo, EventDetail, EventSummary } from '@flux/types';
+import { BatchInfo, EventDetail, EventSummary, parseRedisConfig } from '@flux/types';
 import { ok, fail } from './api-response';
 import { validateRuntimeEnv } from './env.validation';
 import { logger } from './logger';
@@ -20,13 +20,21 @@ validateRuntimeEnv();
 initSentry('api-read');
 const app = express();
 const port = process.env.PORT || 3002;
-const redis = process.env.REDIS_URL
-  ? new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: 1 })
-  : new Redis({
-      host: process.env.REDIS_HOST || 'localhost',
-      port: Number(process.env.REDIS_PORT) || 6379,
-      maxRetriesPerRequest: 1,
-    });
+
+const config = parseRedisConfig('cache', process.env);
+if (process.env.NODE_ENV === 'production' && !config.url && !process.env.REDIS_HOST && !process.env.REDIS_URL) {
+  throw new Error('Production environment is missing required Redis configuration');
+}
+
+const redisOptions = {
+  ...config.options,
+  maxRetriesPerRequest: 1,
+};
+
+const redis = config.url
+  ? new Redis(config.url, redisOptions)
+  : new Redis(redisOptions);
+
 redis.on('error', (err) => {
   logger.error({ err, service: 'api-read' }, 'redis client error');
 });

@@ -146,3 +146,32 @@ test('sanitizeAnalyticsProperties removes forbidden and unknown properties', () 
 
   assert.deepEqual(result, { eventId: 'event-1', requestId: 'req-1' });
 });
+
+import { parseRedisConfig } from './redis';
+
+test('parseRedisConfig defaults to local host and port', () => {
+  const config = parseRedisConfig('default', {});
+  assert.equal(config.provider, 'local');
+  assert.equal(config.options.host, 'localhost');
+  assert.equal(config.options.port, 6379);
+  assert.equal(config.options.tls, undefined);
+});
+
+test('parseRedisConfig parses REDIS_PROVIDER=upstash and configures TLS', () => {
+  const config = parseRedisConfig('default', {
+    REDIS_PROVIDER: 'upstash',
+    REDIS_URL: 'redis://my-upstash.com:30000',
+  });
+  assert.equal(config.provider, 'upstash');
+  assert.equal(config.url, 'rediss://my-upstash.com:30000');
+  assert.deepEqual(config.options.tls, {});
+});
+
+test('parseRedisConfig supports queue-specific url overrides', () => {
+  const config = parseRedisConfig('queue', {
+    REDIS_URL: 'redis://default-redis:6379',
+    QUEUE_REDIS_URL: 'redis://queue-redis:6379',
+  });
+  assert.equal(config.url, 'redis://queue-redis:6379');
+});
+
