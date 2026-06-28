@@ -385,6 +385,7 @@ Feature status definitions:
 | ---------------- | :----: |
 | PostgreSQL       |    ✅   |
 | Redis            |    ✅   |
+| Upstash Compatibility |  ✅   |
 | BullMQ           |    ✅   |
 | Health Endpoints |    ✅   |
 | Metrics          |    ✅   |
