@@ -356,6 +356,7 @@ Feature status definitions:
 | Operational Alerts |    ✅   |
 | Revenue Metrics    |   🚧   |
 | Occupancy Metrics  |    ✅   |
+| PostHog Analytics  |    ✅   |
 | Sales Trends       |   📋   |
 | Forecasting        |   📋   |
 | AI Insights        |   💡   |
