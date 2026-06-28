@@ -29,20 +29,30 @@ interface PrintablePdfTicketProps {
 }
 
 export default function PrintablePdfTicket({ ticket }: PrintablePdfTicketProps) {
+  const isPrintable = ticket && ['VALID', 'PENDING_VALIDATION', 'CONSUMED'].includes(ticket.status);
+
   useEffect(() => {
-    if (ticket) {
+    if (isPrintable) {
       // Pequeno timeout para garantir que o QR Code e os estilos carregaram
       const timer = setTimeout(() => {
         window.print();
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [ticket]);
+  }, [isPrintable]);
 
-  if (!ticket) {
+  if (!ticket || !isPrintable) {
     return (
-      <div className="p-8 text-center font-sans">
-        <h1 className="text-xl font-bold text-red-600">Ingresso Não Encontrado</h1>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-8 font-sans">
+        <div className="max-w-md w-full bg-white border border-slate-200 rounded-3xl p-8 text-center shadow-sm space-y-4">
+          <div className="text-4xl">⚠️</div>
+          <h1 className="text-xl font-black text-slate-900">Ingresso Inválido para Impressão</h1>
+          <p className="text-slate-500 text-sm leading-relaxed">
+            {!ticket
+              ? 'O ingresso solicitado não foi encontrado.'
+              : `Este ingresso possui o status "${ticket.status}" e não está disponível para impressão.`}
+          </p>
+        </div>
       </div>
     );
   }

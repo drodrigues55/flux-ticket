@@ -245,49 +245,51 @@ export default function PublicTicketPage({ ticket }: PublicTicketPageProps) {
             )}
 
             {/* Actions Section */}
-            <div className="pt-4 border-t border-white/5 space-y-3">
-              <a
-                href={`/ticket/${ticket.id}/pdf`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 hover:border-white/20 transition-all font-semibold text-xs tracking-wide text-white uppercase text-center cursor-pointer"
-              >
-                Imprimir Ingresso (PDF)
-              </a>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={async () => {
-                    try {
-                      window.location.href = `/api/tickets/${ticket.id}/pkpass`;
-                    } catch (e) {
-                      alert('Não foi possível preparar o arquivo Apple Wallet.');
-                    }
-                  }}
-                  className="flex items-center justify-center gap-1.5 py-3 px-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 transition-all font-bold text-[10px] text-slate-300 uppercase tracking-wide cursor-pointer"
+            {(isValid || isPending || isConsumed) && (
+              <div className="pt-4 border-t border-white/5 space-y-3">
+                <a
+                  href={`/ticket/${ticket.id}/pdf`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 hover:border-white/20 transition-all font-semibold text-xs tracking-wide text-white uppercase text-center cursor-pointer"
                 >
-                  Apple Wallet
-                </button>
-                <button
-                  onClick={async () => {
-                    try {
-                      const res = await fetch(`/api/tickets/${ticket.id}/googlepay`);
-                      if (!res.ok) throw new Error('Falha ao preparar Google Wallet');
-                      const data = await res.json();
-                      if (data.saveUrl) {
-                        window.location.href = data.saveUrl;
-                      } else {
-                        alert('Link do Google Wallet indisponível para este ingresso.');
+                  Imprimir Ingresso (PDF)
+                </a>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={async () => {
+                      try {
+                        window.location.href = `/api/tickets/${ticket.id}/pkpass`;
+                      } catch (e) {
+                        alert('Não foi possível preparar o arquivo Apple Wallet.');
                       }
-                    } catch (e) {
-                      alert('Não foi possível preparar o Google Wallet.');
-                    }
-                  }}
-                  className="flex items-center justify-center gap-1.5 py-3 px-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 transition-all font-bold text-[10px] text-slate-300 uppercase tracking-wide cursor-pointer"
-                >
-                  Google Wallet
-                </button>
+                    }}
+                    className="flex items-center justify-center gap-1.5 py-3 px-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 transition-all font-bold text-[10px] text-slate-300 uppercase tracking-wide cursor-pointer"
+                  >
+                    Apple Wallet
+                  </button>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(`/api/tickets/${ticket.id}/googlepay`);
+                        if (!res.ok) throw new Error('Falha ao preparar Google Wallet');
+                        const data = await res.json();
+                        if (data.saveUrl) {
+                          window.location.href = data.saveUrl;
+                        } else {
+                          alert('Link do Google Wallet indisponível para este ingresso.');
+                        }
+                      } catch (e) {
+                        alert('Não foi possível preparar o Google Wallet.');
+                      }
+                    }}
+                    className="flex items-center justify-center gap-1.5 py-3 px-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 transition-all font-bold text-[10px] text-slate-300 uppercase tracking-wide cursor-pointer"
+                  >
+                    Google Wallet
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
           </div>
         </div>

@@ -300,7 +300,7 @@ Feature status definitions:
 | ---------------------- | :----: |
 | Apple Wallet (.pkpass) |   📋   |
 | Google Wallet          |   📋   |
-| PDF Ticket             |   📋   |
+| PDF Ticket             |    ✅   |
 | Email Delivery         |    ✅   |
 | Wallet Updates         |   💡   |
 

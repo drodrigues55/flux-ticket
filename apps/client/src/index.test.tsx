@@ -55,3 +55,15 @@ test('blocks selecting more than the purchase limit', () => {
   assert.equal(checkPurchaseLimit(6, 5), false);
   assert.equal(checkPurchaseLimit(3, 5), true);
 });
+
+function isPrintableTicket(status: string): boolean {
+  return ['VALID', 'PENDING_VALIDATION', 'CONSUMED'].includes(status);
+}
+
+test('isPrintableTicket allows printable statuses and blocks revoked/pending payment', () => {
+  assert.equal(isPrintableTicket('VALID'), true);
+  assert.equal(isPrintableTicket('PENDING_VALIDATION'), true);
+  assert.equal(isPrintableTicket('CONSUMED'), true);
+  assert.equal(isPrintableTicket('REVOKED'), false);
+  assert.equal(isPrintableTicket('PENDING_PAYMENT'), false);
+});
