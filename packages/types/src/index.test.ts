@@ -13,6 +13,26 @@ test('CreateEventInputSchema rejects missing name and startAt', () => {
   assert.equal(result.success, false);
 });
 
+test('CreateEventInputSchema accepts dashboard wizard payload', () => {
+  const result = CreateEventInputSchema.safeParse({
+    name: 'Bee Gees Alive - Anapolis',
+    slug: 'bee-gees-alive-anapolis',
+    shortDescription: 'Future RC1 demo event.',
+    description: 'Prepared event for RC1 dashboard and public purchase demo.',
+    startAt: '2026-08-14T20:00:00.000Z',
+    endAt: '2026-08-14T23:00:00.000Z',
+    timezone: 'America/Cuiaba',
+    locationType: 'PHYSICAL',
+    venueName: 'Teatro Sao Francisco',
+    city: 'Anapolis',
+    state: 'GO',
+    country: 'BR',
+    bannerImageUrl: 'https://picsum.photos/seed/flux-bee-gees-alive-anapolis/1200/630',
+    capacityTarget: 1500,
+  });
+  assert.equal(result.success, true);
+});
+
 test('MinimalTicketTypeInputSchema rejects negative price', () => {
   const result = MinimalTicketTypeInputSchema.safeParse({
     name: 'General',

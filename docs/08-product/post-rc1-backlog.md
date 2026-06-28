@@ -7,6 +7,7 @@ A tracker of deferred non-blocking items for subsequent development phases, upda
 
 ## Demo Risks & UX Polish
 - **Mock Sandbox Notice**: Add subtle header notices to dashboard and client portals indicating the active mock state of payment APIs.
+- **Live Dashboard Event Creation Validation**: Keep prepared seed events as the RC1 demo default; validate live creation in each target environment before presenting it as a live demo step.
 
 ## Technical Debt
 - **Docker Containerization**: Containerize all services and workers to ease environment provisioning.

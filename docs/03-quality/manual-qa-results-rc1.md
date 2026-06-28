@@ -49,14 +49,20 @@ The default client dev port was already occupied during the original walkthrough
 | --- | --- | --- |
 | Demo Blocker | Client catalog events had `slug: null`, so catalog card CTA could fall back to `/events` instead of opening the event detail page. | Fixed by routing fallback to `/event/{id}`. |
 | Demo Blocker | Staff PWA called `/api/events`, but the PWA had no index route for event listing, blocking event selection. | Fixed by adding the minimal PWA `/api/events` read proxy. |
-| Demo Risk | Dashboard organizer workspace does not show public seed events; opening a public seed event in dashboard routes returns `Event not found`. | Documented. Avoid relying on dashboard event workspace for public seeds during demo. |
-| Demo Risk | Dashboard event creation returned `Invalid event input` without visible field-level detail during manual attempt. | Documented. Use pre-created dashboard fixtures if organizer workflow must be shown live. |
+| Demo Risk | Dashboard organizer workspace does not show public seed events; opening a public seed event in dashboard routes returns `Event not found`. | Mitigated in RC1 risk cleanup by aligning `seed-categories.ts` with dashboard organizer ID `organizer-mock`. Rerun seed before demo. |
+| Demo Risk | Dashboard event creation returned `Invalid event input` without visible field-level detail during manual attempt. | Mitigated by documenting prepared seed as default path. Live creation should be shown only after target-environment validation; capture request ID if it fails. |
 | Demo Risk | Finance center remained zero after client mock checkout in this local dataset. | Documented. Present as read-model screen with mock-provider limitation unless seeded finance data is prepared. |
 | Demo Risk | Default dev ports had stale/corrupted `.next` artifacts after builds were run while dev servers were active. | Mitigated by clearing generated artifacts and using clean alternate ports. |
 | Demo Risk | Staff PWA sync gate attempted to call staff mutation before loading offline signatures, even when there were no pending check-ins. | Fixed for empty queues; sync gate can now clear and load offline signatures without requiring `api-write` until a real pending check-in exists. |
 | Demo Risk | Staff PWA simulator success/error states were present but hard to target and verify in browser automation. | Fixed by keeping the simulator open during demo and exposing stable visible result/test IDs. |
 | Post-RC1 Polish | Dashboard emits Next `legacyBehavior` warnings. | Not fixed. |
 | Post-RC1 Polish | Staff PWA and legacy event page still use some dark-theme styling and icon-only buttons with weak accessible names. | Not fixed. |
+
+## RC1 Risk Cleanup Update - Dashboard Seed
+
+The dashboard seed consistency issue was traced to different organizer fixtures: public seed events were created under `organizer@flux.com`, while dashboard proxy routes authenticate as `mock-organizer@flux.com` with ID `organizer-mock`.
+
+`packages/database/seed-categories.ts` now creates the seed organizer as `organizer-mock`, adds slugs/images/location summary fields to seeded events, and moves the Bee Gees fixture to `2026-08-14T20:00:00Z`. After running `npx prisma db seed`, public catalog, dashboard organizer event list/workspace, Staff PWA event selection, and dashboard command center should share the same prepared event dataset.
 
 ## Final Result
 

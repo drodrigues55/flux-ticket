@@ -470,21 +470,30 @@ Current implementation has completed the core ticketing loop and Phase 11 paymen
 The current product stage is late-MVP: the platform now supports the core ticketing loop from organizer event creation through publishing and consumer checkout, and the payment layer is prepared for a future real gateway. Remaining gaps are mostly real gateway integration, financial tooling, ticket delivery channels, staff workflows, enterprise controls, growth tooling, and production hardening.
 
 ---
-
 # Next Product Milestones
 
 The next major milestones are:
 
-1. Phase 12 — Financial Center MVP
-2. Phase 13 — Organizer Dashboard 2.0
-3. Phase 14 — Organization Management MVP
-4. Phase 15 — Production Hardening & Release Readiness
-5. Staff Portal expansion
-6. Ticket Delivery MVP
-7. Integrations
-8. Growth and marketing tools
-9. Refunds and chargebacks
-10. Reserved seating
-11. White Label / Enterprise capabilities
+1. Phase 16 — RC1 Risk Cleanup: Dashboard Event Creation & Demo Seed Consistency
+2. Phase 17 — Resend Email Delivery Integration
+3. Phase 18 — PostHog Product Analytics
+4. Phase 19 — Upstash Redis Compatibility & Managed Redis Readiness
+5. Phase 20 — Real Payment Gateway Integration
+6. Phase 21 — Staging / Production Deployment Plan
+7. Phase 22 — Supabase Managed Infrastructure Evaluation
+8. Staff Portal Expansion
+9. Refunds and Chargebacks
+10. Growth and Marketing Tools
+11. Reserved Seating
+12. White Label / Enterprise Capabilities
+13. Future AI / Semantic Search Infrastructure
 
 Future development expands the platform while preserving the existing architecture, CQRS boundaries, shared contracts, and business rules.
+
+Managed services should be introduced incrementally:
+
+* Resend is the first integration priority because email delivery directly supports ticket delivery, resend flows, organization invites, and purchase confirmations.
+* PostHog should follow as product analytics for checkout, ticketing, staff validation, and dashboard usage funnels.
+* Upstash should be evaluated for Redis-compatible rate limiting, idempotency keys, locks, and reservation TTL behavior before replacing any BullMQ-critical Redis usage.
+* Supabase should be evaluated as managed Postgres/Auth/Storage infrastructure, not as a replacement for `api-write`, `api-read`, or `ticket-worker`.
+* Pinecone should remain future-facing and only be introduced when Flux Tickets has a real AI, semantic search, or operational assistant use case.

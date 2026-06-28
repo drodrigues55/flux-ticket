@@ -41,6 +41,18 @@ Validated result:
 - Offline check-in queue synced through `/staff-mutation` 200.
 - Simulated adulterated QR showed `Acesso Recusado! Assinatura inválida`.
 
+## Dashboard Seed Risk Cleanup
+
+Root cause of the organizer/demo data mismatch: `packages/database/seed-categories.ts` created public events under `organizer@flux.com` with a UUID fixture, while the dashboard proxy authenticates requests as `mock-organizer@flux.com` with ID `organizer-mock`. Public purchase worked, but dashboard organizer routes could not open those public seed events.
+
+Fix applied:
+
+- The RC1 seed now creates the organizer as `mock-organizer@flux.com` with ID `organizer-mock`.
+- Seeded public events now include slugs, image URLs, physical location metadata, capacity targets, and dashboard-readable summary fields.
+- The primary Bee Gees demo event was moved to `2026-08-14T20:00:00Z` so it remains a future demo fixture after the 2026-06-28 RC1 pass.
+
+After reseeding, public catalog, dashboard event list/workspace, Staff PWA event selection, and dashboard command center should use the same prepared event dataset.
+
 ## Official Demo Path
 
 The official RC1 demo should use the stable browser-verified path:
@@ -59,9 +71,9 @@ The official RC1 demo should use the stable browser-verified path:
 
 ## Dashboard Demo Fallback
 
-Use an existing public demo event for the purchase and validation loop. If dashboard event creation returns `Invalid event input`, or if the organizer workspace cannot open a public seed event, skip live event creation and continue with the prepared public event.
+Use the RC1 seed before the demo when dashboard organizer screens need to be shown. The seed aligns public events with the dashboard mock organizer, so prepared public events should be visible in dashboard event management after reset.
 
-Event creation and publishing UI should be described as part of the dashboard surface, not as the primary live RC1 demo path unless prepared organizer demo data is loaded beforehand. The RC1 demo focuses on the verified public purchase, ticket access, staff validation, finance overview, and command-center loop.
+If live dashboard event creation still returns a validation error in a local environment, record the request ID, skip live creation, and continue with the prepared public event. Do not present the live creation error as fixed unless that exact environment has been validated.
 
 ## Finance Demo Note
 
@@ -75,9 +87,8 @@ The dashboard finance UI already displays an estimated-values/mock-provider noti
 
 | Classification | Risk | Demo Guidance |
 | --- | --- | --- |
-| Demo Risk | Dashboard organizer event list is empty in the current local dataset, while public seed events exist. | Do not claim the public seed event can be edited in the organizer workspace unless a dashboard fixture is prepared. |
-| Demo Risk | Dashboard event creation may require prepared/demo data; live creation returned `Invalid event input` during walkthrough. | Use an existing public demo event; skip live creation if validation fails. |
-| Demo Risk | Publishing checklist routes load, but public seed event IDs return `Event not found` in dashboard organizer routes. | Treat publishing checklist as available UI, but do not demo it against public seed IDs. |
+| Demo Risk | Local databases seeded before this cleanup can still have public events under the old organizer fixture. | Rerun the RC1 seed before demo if dashboard organizer screens show empty event data. |
+| Demo Risk | Live dashboard event creation must be validated in the target local/staging environment before showing it live. | Use prepared seed events as the default path; if creation fails, capture request ID and continue with the prepared event. |
 | Demo Risk | Finance values are mock/demo-only until real gateway integration; local checkout may not update dashboard finance totals. | Present finance as MVP visibility, not real settlement or payout data. |
 | Demo Risk | Dashboard command-center data may depend on seeded/demo states. | Present it as operational visibility over the current demo dataset. |
 | Demo Risk | Clean client/PWA instances may require clearing `.next` if production builds were run while dev servers were active. | Before demo, stop old dev servers before running builds; if a dev server returns 500, clear that app's generated `.next` folder and restart. |

@@ -2,6 +2,18 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+const DEMO_ORGANIZER_ID = 'organizer-mock';
+const DEMO_ORGANIZER_EMAIL = 'mock-organizer@flux.com';
+
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 async function main() {
   console.log('\n=== SEEDING EVENTS WITH DYNAMIC PRICES ===\n');
 
@@ -29,10 +41,10 @@ async function main() {
   // 2. Garantir organizador
   const user = await prisma.user.create({
     data: {
-      id: 'ca2a30e0-1a2e-4a85-b549-19ec34d49080',
-      email: 'organizer@flux.com',
+      id: DEMO_ORGANIZER_ID,
+      email: DEMO_ORGANIZER_EMAIL,
       password: 'password123',
-      name: 'Organizer User',
+      name: 'Mock Organizer',
       role: 'ORGANIZER',
     },
   });
@@ -49,12 +61,21 @@ async function main() {
     supportsHalfPrice: boolean = false,
     status: 'DRAFT' | 'PUBLISHED' = 'PUBLISHED'
   ) {
+    const slug = slugify(title);
     const event = await prisma.event.create({
       data: { 
         title, 
+        slug,
+        shortDescription: description.slice(0, 140),
         description, 
         date: new Date(date), 
         location, 
+        timezone: 'America/Cuiaba',
+        locationType: 'PHYSICAL',
+        venue: location.split(' - ')[0] || location,
+        country: 'BR',
+        imageUrl: `https://picsum.photos/seed/flux-${slug}/1200/630`,
+        capacityTarget: 1500,
         categoryId, 
         organizerId,
         status: status as any
@@ -106,7 +127,7 @@ async function main() {
   await createEvent(
     'Bee Gees Alive - Anapolis',
     'Bee Gees Alive apresenta show em comemoração aos 25 anos de carreira. Espetáculo faz parte da turnê 2026 e traz novidades para o público.',
-    '2026-06-14T20:00:00Z',
+    '2026-08-14T20:00:00Z',
     'Teatro São Francisco',
     1,
     { superior: 110.00, vip: 140.00, premium: 160.00 },

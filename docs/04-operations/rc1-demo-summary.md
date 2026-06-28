@@ -8,7 +8,7 @@ Summary details for the Release Candidate 1 demonstration.
 - **Staging Environment**: Verified under local staging environments.
 - **Manual QA Status**: PASS for the stable public purchase, ticket access, staff validation, finance overview, and command-center path.
 - **Blockers remaining**: 0 issues block the official demo path.
-- **Demo Positioning**: Use prepared/public demo data and avoid live dashboard event creation unless a fixture is loaded.
+- **Demo Positioning**: Use the RC1 seed so public catalog, dashboard event management, Staff PWA, and command center share the same prepared event dataset. Keep live dashboard event creation as optional unless validated in the target environment.
 - **Staff PWA Status**: Revalidated on `http://localhost:3000`; event list, sync gate, visible validation success, visible tampered QR rejection, and staff mutation proxy passed.
 
 ## Official Demo Path
@@ -30,7 +30,8 @@ Summary details for the Release Candidate 1 demonstration.
 
 | Classification | Risk | Demo Handling |
 | --- | --- | --- |
-| Demo Risk | Dashboard event creation may require prepared/demo data. | Use an existing public demo event; skip live creation if validation fails. |
+| Demo Risk | Local databases seeded before RC1 risk cleanup can still have public events under the old organizer fixture. | Rerun the RC1 seed before demo if dashboard event management is empty. |
+| Demo Risk | Live dashboard event creation must be validated in the target environment before showing it live. | Use prepared seed events as the default path; if creation fails, capture request ID and continue. |
 | Demo Risk | Finance values are mock/demo-only until real gateway integration. | Use the visible finance note and do not present values as real settlement or payout data. |
 | Demo Risk | Dashboard command-center data may depend on seeded/demo states. | Present it as operational visibility over current demo data. |
 | Post-RC1 Polish | Minor UI warnings and legacy styling remain. | Non-blocking; avoid focusing the demo on polish details. |

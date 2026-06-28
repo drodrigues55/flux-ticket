@@ -6,7 +6,7 @@ Operational script for the Flux Tickets MVP Release Candidate 1 demonstration.
 
 1. State the demo objective: show the stable MVP loop from public ticket purchase to staff validation and operational visibility.
 2. Set scope clearly: payment is running in mock mode, real gateway settlement and payouts are not connected, and finance values are for MVP/demo validation only.
-3. Use prepared demo data. Do not depend on creating a new dashboard event live during the demo.
+3. Use the RC1 seed when dashboard organizer screens need to be shown. Do not depend on creating a new dashboard event live unless it has already been validated in the target environment.
 
 ## Official Demo Path
 
@@ -25,9 +25,9 @@ Operational script for the Flux Tickets MVP Release Candidate 1 demonstration.
 
 ## Dashboard Fallback
 
-Use an existing demo event whenever possible. If dashboard event creation returns a validation error or the organizer event workspace is not aligned with public seed data, skip live event creation and continue with the prepared public event.
+Use the prepared RC1 seed event whenever possible. The seed aligns public events with the `organizer-mock` dashboard account, so dashboard event management should show the same event dataset after reset.
 
-This demo focuses on the verified public purchase, ticket access, staff validation, finance visibility, and command-center loop. Dashboard event creation and publishing UI remain available for review, but should not be presented as the primary RC1 live path unless prepared demo data is loaded beforehand.
+If dashboard event creation returns a validation error, capture the request ID, skip live creation, and continue with the prepared public event. This demo focuses on the verified public purchase, ticket access, staff validation, finance visibility, and command-center loop.
 
 ## Finance Narration
 
