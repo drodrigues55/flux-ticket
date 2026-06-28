@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@flux/ui';
 import db from '../lib/db';
 import { syncOfflineMutations } from '../lib/sync';
+import { track } from '../lib/analytics';
 
 interface SyncGateProps {
   eventId: string;

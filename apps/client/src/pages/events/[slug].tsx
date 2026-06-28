@@ -2,6 +2,7 @@ import { useRouter } from 'next/router';
 import { useEffect, useState, useMemo } from 'react';
 import { Header } from '../../components/header';
 import { FaCalendarDays, FaClock, FaLocationDot, FaPlus, FaMinus } from 'react-icons/fa6';
+import { track } from '../../lib/analytics';
 
 export default function PublicEventDetailPage() {
   const router = useRouter();
@@ -22,9 +23,19 @@ export default function PublicEventDetailPage() {
         const res = await fetch(`/api/public/events/${slug}`);
         const json = await res.json();
         if (!res.ok) throw new Error(json.error?.message || 'Falha ao carregar detalhes do evento.');
-        setEvent(json.data || json);
+        const loaded = json.data || json;
+        setEvent(loaded);
+        track({
+          event: 'public_event_viewed',
+          properties: {
+            eventId: loaded.id,
+            eventSlug: loaded.slug || slug,
+            status: 'loaded',
+          },
+        });
       } catch (err: any) {
         setError(err.message);
+        track({ event: 'public_event_viewed', properties: { eventSlug: slug, status: 'failed' } });
       } finally {
         setLoading(false);
       }
@@ -36,6 +47,17 @@ export default function PublicEventDetailPage() {
     const current = quantities[batchId] || 0;
     const next = Math.max(0, Math.min(limit, current + delta));
     setQuantities({ ...quantities, [batchId]: next });
+    if (next > 0) {
+      track({
+        event: 'ticket_selected',
+        properties: {
+          eventId: event?.id,
+          eventSlug: event?.slug || slug,
+          batchId,
+          status: 'quantity_selected',
+        },
+      });
+    }
   };
 
   const handleReserve = async (batchId: string, price: number) => {
@@ -57,11 +79,32 @@ export default function PublicEventDetailPage() {
       });
       const json = await res.json();
       if (!res.ok) throw json.error || { message: 'Erro ao criar reserva de ingressos.' };
+      track({
+        event: 'reservation_created',
+        properties: {
+          eventId: event.id,
+          eventSlug: event.slug || slug,
+          batchId,
+          amount: price * qty,
+          currency: 'BRL',
+          status: 'created',
+        },
+      });
 
       // Redirect to checkout path
       router.push(`/events/${slug}/checkout?reservationId=${json.reservation.id}&eventId=${event.id}&batchId=${batchId}&quantity=${qty}`);
     } catch (err: any) {
       setError(err.message || 'Falha ao reservar ingressos.');
+      track({
+        event: 'reservation_failed',
+        properties: {
+          eventId: event?.id,
+          eventSlug: event?.slug || slug,
+          batchId,
+          status: 'failed',
+          reason: err?.code || err?.message || 'reserve_failed',
+        },
+      });
       setReserving(false);
     }
   };

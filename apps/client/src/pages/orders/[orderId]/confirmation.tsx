@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Header } from '../../../components/header';
 import { prisma } from '@flux/database';
 import { FaCircleCheck, FaTicket, FaEnvelope, FaDownload } from 'react-icons/fa6';
+import { track } from '../../../lib/analytics';
 
 interface ConfirmationPageProps {
   order: {
@@ -12,6 +13,7 @@ interface ConfirmationPageProps {
     totalAmount: number;
     deliveryStatus: string;
     event: {
+      id: string;
       title: string;
       date: string;
       location: string;
@@ -49,6 +51,15 @@ export default function OrderConfirmationPage({ order }: ConfirmationPageProps) 
       });
       if (res.ok) {
         setResendMessage('Pedido de reenvio enviado com sucesso!');
+        track({
+          event: 'ticket_resend_requested',
+          properties: {
+            eventId: order.event.id,
+            amount: order.totalAmount,
+            currency: 'BRL',
+            status: 'queued',
+          },
+        });
       } else {
         setResendMessage('Erro ao solicitar reenvio dos ingressos.');
       }
@@ -202,6 +213,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
           totalAmount: order.netAmount.toNumber(),
           deliveryStatus,
           event: {
+            id: order.event.id,
             title: order.event.title,
             date: order.event.date.toISOString(),
             location: order.event.location,

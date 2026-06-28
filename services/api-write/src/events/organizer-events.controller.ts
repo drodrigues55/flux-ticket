@@ -4,6 +4,7 @@ import { TicketTypesService } from './ticket-types.service';
 import { StaffGuard } from '../tickets/staff-guard';
 import { AuditService } from '../audit/audit.service';
 import { ok } from '../api-response';
+import { track } from '../analytics';
 
 function requestId(req: any) {
   return req.requestId || req.headers?.['x-request-id'] || 'req_unknown';
@@ -38,6 +39,11 @@ export class OrganizerEventsController {
       requestId: requestId(req),
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
+    });
+    track({
+      event: 'event_created',
+      distinctId: actorId,
+      properties: { eventId: event.id, role: req.user.role, requestId: requestId(req), status: event.status },
     });
     return ok(event, requestId(req));
   }
@@ -138,6 +144,16 @@ export class OrganizerEventsController {
       entityId: result.ticketType.id,
       after: result,
       requestId: requestId(req),
+    });
+    track({
+      event: 'ticket_type_created',
+      distinctId: actorId,
+      properties: { eventId, ticketTypeId: result.ticketType.id, role: req.user.role, requestId: requestId(req), status: 'saved' },
+    });
+    track({
+      event: 'batch_created',
+      distinctId: actorId,
+      properties: { eventId, ticketTypeId: result.ticketType.id, batchId: result.batch.id, role: req.user.role, requestId: requestId(req), status: result.batch.status },
     });
     return ok(result, requestId(req));
   }
@@ -400,6 +416,13 @@ export class OrganizerEventsController {
   ) {
     const actorId = organizerId(req);
     const result = await this.eventsService.validatePublishing(eventId, actorId);
+    if (result.blockers?.length) {
+      track({
+        event: 'publishing_blocked',
+        distinctId: actorId,
+        properties: { eventId, role: req.user.role, blockerCount: result.blockers.length, requestId: requestId(req), status: 'blocked' },
+      });
+    }
     return ok(result, requestId(req));
   }
 
@@ -418,6 +441,11 @@ export class OrganizerEventsController {
       entityId: eventId,
       after: result,
       requestId: requestId(req),
+    });
+    track({
+      event: 'event_published',
+      distinctId: actorId,
+      properties: { eventId, role: req.user.role, requestId: requestId(req), status: result.status },
     });
     return ok(result, requestId(req));
   }

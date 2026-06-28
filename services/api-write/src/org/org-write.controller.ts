@@ -3,6 +3,7 @@ import { prisma } from '@flux/database';
 import { StaffGuard } from '../tickets/staff-guard';
 import { InviteOrganizationMemberInputSchema, UpdateOrganizationProfileInputSchema } from '@flux/types';
 import { randomUUID } from 'crypto';
+import { track } from '../analytics';
 
 @Controller('organization')
 @UseGuards(StaffGuard)
@@ -116,6 +117,16 @@ export class OrgWriteController {
           inviteId: invite.id,
           organizationId: invite.organizationId,
         },
+      },
+    });
+    track({
+      event: 'organization_member_invited',
+      distinctId: req.user.userId,
+      properties: {
+        organizationId: membership.organizationId,
+        role,
+        requestId: req.requestId ?? null,
+        status: 'queued',
       },
     });
 
@@ -241,6 +252,16 @@ export class OrgWriteController {
     const updated = await prisma.organizationMember.update({
       where: { id: memberId },
       data: { role: body.role },
+    });
+    track({
+      event: 'role_changed',
+      distinctId: req.user.userId,
+      properties: {
+        organizationId: currentMembership.organizationId,
+        role: body.role,
+        requestId: req.requestId ?? null,
+        status: 'updated',
+      },
     });
     return updated;
   }

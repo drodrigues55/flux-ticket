@@ -74,6 +74,7 @@ test('FinancialExportQuerySchema rejects invalid export scope filters', () => {
 });
 
 import { InviteOrganizationMemberInputSchema, UpdateOrganizationProfileInputSchema } from './organization';
+import { NoopAnalyticsProvider, PostHogAnalyticsProvider, safeCapture, sanitizeAnalyticsProperties } from './analytics';
 
 test('InviteOrganizationMemberInputSchema rejects invalid email and role', () => {
   assert.equal(InviteOrganizationMemberInputSchema.safeParse({ email: 'bademail', role: 'EVENT_MANAGER' }).success, false);
@@ -84,4 +85,64 @@ test('InviteOrganizationMemberInputSchema rejects invalid email and role', () =>
 test('UpdateOrganizationProfileInputSchema rejects name shorter than 2 chars', () => {
   assert.equal(UpdateOrganizationProfileInputSchema.safeParse({ name: 'A' }).success, false);
   assert.equal(UpdateOrganizationProfileInputSchema.safeParse({ name: 'My Organization' }).success, true);
+});
+
+test('NoopAnalyticsProvider does not throw', async () => {
+  const provider = new NoopAnalyticsProvider();
+  await provider.capture({ event: 'checkout_started', properties: { eventId: 'event-1' } });
+  await provider.identify('actor-1', { role: 'ADMIN' });
+});
+
+test('PostHogAnalyticsProvider captures sanitized event payload', async () => {
+  let body: any = null;
+  const provider = new PostHogAnalyticsProvider({
+    apiKey: 'ph_test',
+    host: 'https://posthog.example',
+    fetchImpl: async (_url, init) => {
+      body = JSON.parse(String(init?.body));
+      return new Response('{}', { status: 200 });
+    },
+  });
+
+  await provider.capture({
+    event: 'checkout_completed',
+    distinctId: 'anon-1',
+    properties: {
+      eventId: 'event-1',
+      amount: 120,
+      currency: 'BRL',
+      cpf: '00000000000',
+      rawPayload: 'secret',
+      email: 'buyer@example.com',
+    },
+  });
+
+  assert.equal(body.event, 'checkout_completed');
+  assert.equal(body.distinct_id, 'anon-1');
+  assert.equal(body.properties.eventId, 'event-1');
+  assert.equal(body.properties.amount, 120);
+  assert.equal(body.properties.cpf, undefined);
+  assert.equal(body.properties.rawPayload, undefined);
+  assert.equal(body.properties.email, undefined);
+});
+
+test('safeCapture swallows provider failure', async () => {
+  const provider = new PostHogAnalyticsProvider({
+    apiKey: 'ph_test',
+    fetchImpl: async () => new Response('{}', { status: 500 }),
+  });
+
+  await safeCapture(provider, { event: 'reservation_failed', properties: { requestId: 'req-1' } });
+});
+
+test('sanitizeAnalyticsProperties removes forbidden and unknown properties', () => {
+  const result = sanitizeAnalyticsProperties({
+    eventId: 'event-1',
+    requestId: 'req-1',
+    holderCpf: '000',
+    qrPayload: 'raw',
+    providerRawPayload: 'unknown',
+  });
+
+  assert.deepEqual(result, { eventId: 'event-1', requestId: 'req-1' });
 });

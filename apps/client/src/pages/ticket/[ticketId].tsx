@@ -1,6 +1,8 @@
 import { GetServerSideProps } from 'next';
 import Head from 'next/head';
+import { useEffect } from 'react';
 import { prisma } from '@flux/database';
+import { track } from '../../lib/analytics';
 import {
   FaCalendarDays,
   FaLocationDot,
@@ -25,9 +27,11 @@ interface PublicTicketPageProps {
       name: string;
     };
     batch: {
+      id: string;
       name: string;
       sectorName: string | null;
       event: {
+        id: string;
         title: string;
         date: string;
         location: string;
@@ -37,6 +41,18 @@ interface PublicTicketPageProps {
 }
 
 export default function PublicTicketPage({ ticket }: PublicTicketPageProps) {
+  useEffect(() => {
+    if (!ticket) return;
+    track({
+      event: 'ticket_page_viewed',
+      properties: {
+        eventId: ticket.batch.event.id,
+        batchId: ticket.batch.id,
+        status: ticket.status,
+      },
+    });
+  }, [ticket]);
+
   if (!ticket) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 font-sans px-4 text-center">
@@ -322,9 +338,11 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
             name: ticket.buyer.name,
           },
           batch: {
+            id: ticket.batch.id,
             name: ticket.batch.name,
             sectorName: ticket.batch.sectorName,
             event: {
+              id: ticket.batch.event.id,
               title: ticket.batch.event.title,
               date: ticket.batch.event.date.toISOString(),
               location: ticket.batch.event.location,

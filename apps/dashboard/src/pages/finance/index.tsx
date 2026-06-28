@@ -5,6 +5,7 @@ import Layout from '../../components/Layout';
 import { Button, Card, CardContent, CardHeader, CardTitle } from '@flux/ui';
 import type { FinancialOverview } from '@flux/types';
 import { currency, readEnvelope, type ApiError } from '../../lib/finance';
+import { track } from '../../lib/analytics';
 
 function Metric({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
@@ -24,6 +25,7 @@ export default function FinanceOverviewPage() {
   const [error, setError] = useState<ApiError | null>(null);
 
   useEffect(() => {
+    track({ event: 'finance_center_opened', properties: { status: 'opened' } });
     const load = async () => {
       try {
         setLoading(true);

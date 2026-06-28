@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { Header } from '../../../components/header';
 import { FaClock, FaTicket, FaCreditCard, FaLock, FaPix } from 'react-icons/fa6';
 import { formatPaymentError } from '../../../lib/payment-errors';
+import { track } from '../../../lib/analytics';
 
 interface ApiError {
   message: string;
@@ -67,6 +68,19 @@ export default function EventCheckoutPage() {
     };
     fetchEvent();
   }, [slug]);
+
+  useEffect(() => {
+    if (!reservationId || !eventId) return;
+    track({
+      event: 'checkout_started',
+      properties: {
+        eventId,
+        eventSlug: slug,
+        batchId,
+        status: 'started',
+      },
+    });
+  }, [batchId, eventId, reservationId, slug]);
 
   useEffect(() => {
     if (timeLeft <= 0) return;
@@ -203,6 +217,26 @@ export default function EventCheckoutPage() {
         setPixQrBase64(json.pixQrBase64 || json.qrCodeBase64 || '');
         setPaymentStatus('pending_pix');
       } else {
+        track({
+          event: 'checkout_completed',
+          properties: {
+            eventId,
+            eventSlug: slug,
+            batchId,
+            status: json.status || 'approved',
+            provider: 'mock',
+          },
+        });
+        track({
+          event: 'mock_payment_approved',
+          properties: {
+            eventId,
+            eventSlug: slug,
+            batchId,
+            status: 'approved',
+            provider: 'mock',
+          },
+        });
         await scrollToTopEased();
         if (nextOrderId) {
           router.push(`/orders/${nextOrderId}/confirmation?ticketId=${ticketIds.join(',')}`);
@@ -212,12 +246,42 @@ export default function EventCheckoutPage() {
       }
     } catch (err: any) {
       setError(err);
+      track({
+        event: 'checkout_failed',
+        properties: {
+          eventId,
+          eventSlug: slug,
+          batchId,
+          status: 'failed',
+          reason: err?.message || 'checkout_failed',
+        },
+      });
     } finally {
       setSaving(false);
     }
   };
 
   const handleSimulatePixPaid = () => {
+    track({
+      event: 'mock_payment_approved',
+      properties: {
+        eventId,
+        eventSlug: slug,
+        batchId,
+        status: 'approved',
+        provider: 'mock',
+      },
+    });
+    track({
+      event: 'checkout_completed',
+      properties: {
+        eventId,
+        eventSlug: slug,
+        batchId,
+        status: 'approved',
+        provider: 'mock',
+      },
+    });
     scrollToTopEased().then(() => {
       if (orderId) {
         router.push(`/orders/${orderId}/confirmation?ticketId=${checkoutTicketIds.join(',')}`);

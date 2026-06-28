@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { Header } from '../../components/header';
 import { EventCard } from '../../components/EventCard';
 import { FaFaceSmile, FaFutbol, FaMagnifyingGlass, FaMasksTheater, FaMusic } from 'react-icons/fa6';
+import { track } from '../../lib/analytics';
 
 const categories = [
   { id: 1, label: 'Shows', icon: <FaMusic className="text-[13px]" /> },
@@ -52,9 +53,11 @@ export default function PublicEventsCatalog() {
       const res = await fetch(url);
       const data = await res.json();
       setEvents(Array.isArray(data) ? data : []);
+      track({ event: 'public_event_list_viewed', properties: { status: res.ok ? 'loaded' : 'failed' } });
     } catch (err) {
       console.error(err);
       setEvents([]);
+      track({ event: 'public_event_list_viewed', properties: { status: 'failed' } });
     } finally {
       setLoading(false);
     }
@@ -181,7 +184,17 @@ export default function PublicEventsCatalog() {
                   location={event.venue || event.location || 'Local a confirmar'}
                   price={formatPrice(event)}
                   imageUrl={getEventImage(event)}
-                  onBuy={() => router.push(event.slug ? `/events/${event.slug}` : `/event/${event.id}`)}
+                  onBuy={() => {
+                    track({
+                      event: 'ticket_selected',
+                      properties: {
+                        eventId: event.id,
+                        eventSlug: event.slug || null,
+                        status: 'catalog_card',
+                      },
+                    });
+                    router.push(event.slug ? `/events/${event.slug}` : `/event/${event.id}`);
+                  }}
                 />
               ))}
             </div>

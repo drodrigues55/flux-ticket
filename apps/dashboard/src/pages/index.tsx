@@ -48,6 +48,7 @@ import type {
 } from '@flux/types';
 import { getDashboardBundle, getLotPerformance } from '../services/dashboardService';
 import type { DashboardOverview, DashboardServiceError } from '../types/dashboard';
+import { track } from '../lib/analytics';
 
 dayjs.locale('pt-br');
 
@@ -333,6 +334,10 @@ function HealthyEventCard({ event }: { event: DashboardHealthyEvent }) {
 // ─────────────────────────────────────────────
 
 export default function DashboardPage() {
+  useEffect(() => {
+    track({ event: 'dashboard_opened', properties: { status: 'opened' } });
+  }, []);
+
   // Filter state
   const [selectedEvent, setSelectedEvent] = useState('all');
   const [selectedPeriod, setSelectedPeriod] = useState('30d');

@@ -7,6 +7,7 @@ import { SyncGate } from '../components/SyncGate';
 import { ScanButton } from '../components/ScanButton';
 import { useTheme } from '../hooks/useTheme';
 import { getAllowedSectorIds, saveAllowedSectorInput } from '../lib/devicePolicy';
+import { track } from '../lib/analytics';
 
 export default function StaffPortal() {
   const { isDark, toggleTheme } = useTheme();
@@ -47,6 +48,7 @@ export default function StaffPortal() {
 
   // Load staff identity and events list on mount
   useEffect(() => {
+    track({ event: 'staff_pwa_opened', properties: { status: 'opened' } });
     if (typeof window !== 'undefined') {
       const savedName = localStorage.getItem('flux_staff_name') || '';
       const savedCpf = localStorage.getItem('flux_staff_cpf') || '';
@@ -99,6 +101,7 @@ export default function StaffPortal() {
     localStorage.setItem('flux_staff_event_name', name);
     setEventId(id);
     setEventName(name);
+    track({ event: 'staff_event_selected', properties: { eventId: id, status: 'selected' } });
   };
 
   // Update Dexie counters
@@ -161,6 +164,7 @@ export default function StaffPortal() {
           sectorId: t.sectorId ?? null
         })));
         setSyncMessage(`Sucesso! ${data.length} assinaturas de ingressos salvas offline.`);
+        track({ event: 'offline_bundle_loaded', properties: { eventId, syncCount: data.length, status: 'loaded' } });
         await updateCounts();
       } else {
         throw new Error('Formato de resposta inesperado do servidor.');
@@ -183,8 +187,11 @@ export default function StaffPortal() {
     setScanResult(result);
 
     if (result.success) {
+      track({ event: 'qr_validation_success', properties: { eventId, validationResult: 'accepted', status: 'accepted' } });
+      track({ event: 'offline_checkin_queued', properties: { eventId, status: 'queued' } });
       setScannedInput('');
     } else {
+      track({ event: 'qr_validation_rejected', properties: { eventId, validationResult: 'rejected', reason: result.message, status: 'rejected' } });
       if (isOnline) {
         fetch(`/api/events/${eventId}/scan-fail`, {
           method: 'POST',
@@ -202,6 +209,13 @@ export default function StaffPortal() {
     const result = await validateTicket(scannedData);
     setScanResult(result);
 
+    if (result.success) {
+      track({ event: 'qr_validation_success', properties: { eventId, validationResult: 'accepted', status: 'accepted' } });
+      track({ event: 'offline_checkin_queued', properties: { eventId, status: 'queued' } });
+    } else {
+      track({ event: 'qr_validation_rejected', properties: { eventId, validationResult: 'rejected', reason: result.message, status: 'rejected' } });
+    }
+
     if (!result.success && isOnline) {
       fetch(`/api/events/${eventId}/scan-fail`, {
         method: 'POST',
@@ -216,8 +230,18 @@ export default function StaffPortal() {
   const handleManualSync = async () => {
     setSyncLoading(true);
     setSyncMessage('Iniciando sincronização manual em lote...');
+    track({ event: 'offline_sync_started', properties: { eventId, status: 'started', syncCount: pendingSyncCount } });
     const result = await syncOfflineMutations(eventId);
     setSyncMessage(result.message);
+    track({
+      event: result.success ? 'offline_sync_completed' : 'offline_sync_conflict',
+      properties: {
+        eventId,
+        status: result.success ? 'completed' : 'failed',
+        syncCount: result.count,
+        reason: result.success ? null : result.message,
+      },
+    });
     await updateCounts();
     setSyncLoading(false);
   };
