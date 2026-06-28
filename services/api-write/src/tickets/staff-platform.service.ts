@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { prisma } from '@flux/database';
 import { AuditService } from '../audit/audit.service';
 import { logger } from '../logger';
@@ -57,6 +57,10 @@ export class StaffPlatformService {
     const allowedSectorIds = this.normalizeAllowedSectorIds(input.allowedSectorIds ?? request.user?.allowedSectorIds);
 
     if (deviceId && deviceName) {
+      const devData = await this.fluxEngine.getStaffDevice(eventId, deviceId);
+      if (devData && devData.status === 'disabled') {
+        throw new UnauthorizedException('Dispositivo desativado pelo administrador. Sincronização bloqueada.');
+      }
       await this.fluxEngine.registerStaffDevice(eventId, deviceId, deviceName, pendingCount || 0, allowedSectorIds);
     }
 

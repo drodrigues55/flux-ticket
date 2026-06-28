@@ -227,12 +227,21 @@ export class FluxEngineService implements OnModuleInit, OnModuleDestroy {
   }
 
   async registerStaffDevice(eventId: string, deviceId: string, deviceName: string, pendingCount: number, allowedSectorIds: number[] = []): Promise<void> {
+    const existing = await this.nonCriticalRedis('getDevice', this.redisClient.hget(`event:${eventId}:staff_devices`, deviceId), null);
+    let status = 'active';
+    if (existing) {
+      try {
+        const parsed = JSON.parse(existing);
+        status = parsed.status || 'active';
+      } catch (e) {}
+    }
     const deviceData = JSON.stringify({
       deviceId,
       deviceName,
       lastSyncTime: new Date().toISOString(),
       pendingSyncCount: pendingCount,
       allowedSectorIds,
+      status,
     });
     await this.nonCriticalRedis('registerStaffDevice', this.redisClient.hset(`event:${eventId}:staff_devices`, deviceId, deviceData), 0);
   }
@@ -240,6 +249,16 @@ export class FluxEngineService implements OnModuleInit, OnModuleDestroy {
   async getStaffDevices(eventId: string): Promise<any[]> {
     const devicesMap = await this.nonCriticalRedis('getStaffDevices', this.redisClient.hgetall(`event:${eventId}:staff_devices`), {});
     return Object.values(devicesMap).map((data) => JSON.parse(data));
+  }
+
+  async getStaffDevice(eventId: string, deviceId: string): Promise<any | null> {
+    const deviceStr = await this.nonCriticalRedis('getDevice', this.redisClient.hget(`event:${eventId}:staff_devices`, deviceId), null);
+    if (!deviceStr) return null;
+    try {
+      return JSON.parse(deviceStr);
+    } catch (e) {
+      return null;
+    }
   }
 
   async addLatencyMetric(latencyMs: number): Promise<void> {

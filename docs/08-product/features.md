@@ -90,7 +90,7 @@ Feature status definitions:
 | Refresh Tokens                    |   📋   |
 | Password Recovery                 |   📋   |
 | Two-Factor Authentication         |   💡   |
-| Device Registration               |   📋   |
+| Device Registration               |    ✅   |
 
 ---
 
@@ -314,11 +314,11 @@ Feature status definitions:
 | IndexedDB Storage   |    ✅   |
 | Offline Validation  |    ✅   |
 | Offline Queue       |    ✅   |
-| Synchronization     |   🚧   |
-| Conflict Resolution |   🚧   |
-| Camera Scanner      |   📋   |
-| Staff Login         |   📋   |
-| Device Registration |   📋   |
+| Synchronization     |    ✅   |
+| Conflict Resolution |    ✅   |
+| Camera Scanner      |    ✅   |
+| Staff Login         |    ✅   |
+| Device Registration |    ✅   |
 
 ---
 

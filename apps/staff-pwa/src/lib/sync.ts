@@ -19,6 +19,8 @@ export async function syncOfflineMutations(eventId: string): Promise<{ success: 
       hmacSignature: (record as any).hmacSignature,
       sectorId: (record as any).sectorId ?? null,
       version: (record as any).version ?? 1,
+      operatorName: (record as any).operatorName || null,
+      operatorCpf: (record as any).operatorCpf || null,
     }));
     const allowedSectorIds = getAllowedSectorIds();
     console.log(`[SYNC] Tentando sincronizar ${checkins.length} check-ins para o evento ${eventId}...`);

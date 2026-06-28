@@ -45,6 +45,7 @@ export default function StaffPortal() {
   // Sync statuses
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
+  const [bundleDownloadTime, setBundleDownloadTime] = useState<string | null>(null);
 
   // Load staff identity and events list on mount
   useEffect(() => {
@@ -59,6 +60,9 @@ export default function StaffPortal() {
       const savedEventName = localStorage.getItem('flux_staff_event_name') || '';
       setEventId(savedEventId);
       setEventName(savedEventName);
+
+      const savedDownloadTime = localStorage.getItem('flux_bundle_download_time') || null;
+      setBundleDownloadTime(savedDownloadTime);
     }
     loadEvents();
   }, []);
@@ -165,6 +169,11 @@ export default function StaffPortal() {
         })));
         setSyncMessage(`Sucesso! ${data.length} assinaturas de ingressos salvas offline.`);
         track({ event: 'offline_bundle_loaded', properties: { eventId, syncCount: data.length, status: 'loaded' } });
+        
+        const nowStr = new Date().toISOString();
+        localStorage.setItem('flux_bundle_download_time', nowStr);
+        setBundleDownloadTime(nowStr);
+
         await updateCounts();
       } else {
         throw new Error('Formato de resposta inesperado do servidor.');
@@ -183,7 +192,7 @@ export default function StaffPortal() {
 
     if (!scannedInput.trim()) return;
 
-    const result = await validateTicket(scannedInput);
+    const result = await validateTicket(scannedInput, staffName, staffCpf);
     setScanResult(result);
 
     if (result.success) {
@@ -206,7 +215,7 @@ export default function StaffPortal() {
 
   const handleCameraScan = async (scannedData: string) => {
     setScanResult(null);
-    const result = await validateTicket(scannedData);
+    const result = await validateTicket(scannedData, staffName, staffCpf);
     setScanResult(result);
 
     if (result.success) {
@@ -269,7 +278,7 @@ export default function StaffPortal() {
       sector_id: sector || undefined,
       signature: sig
     });
-    const result = await validateTicket(payload);
+    const result = await validateTicket(payload, staffName, staffCpf);
     setScanResult(result);
     await updateCounts();
     setActiveTab('scanner');
@@ -622,6 +631,42 @@ export default function StaffPortal() {
                     {syncMessage}
                   </p>
                 )}
+
+                <div className="text-xs space-y-2 border-t border-white/5 pt-3">
+                  <div className="flex justify-between">
+                    <span className="text-neutral-400">Ingressos Offline:</span>
+                    <span className="font-bold text-white">{validTicketsCount}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-neutral-400">Último Download:</span>
+                    <span className="font-bold text-neutral-300">
+                      {bundleDownloadTime ? new Date(bundleDownloadTime).toLocaleTimeString('pt-BR') : 'Nenhum'}
+                    </span>
+                  </div>
+                  {bundleDownloadTime && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-neutral-400">Idade da Carga:</span>
+                      <span className={`font-bold ${
+                        (Date.now() - new Date(bundleDownloadTime).getTime()) > 3 * 3600 * 1000 
+                          ? 'text-amber-400 animate-pulse' 
+                          : 'text-emerald-400'
+                      }`}>
+                        {Math.round((Date.now() - new Date(bundleDownloadTime).getTime()) / 60000)} min
+                      </span>
+                    </div>
+                  )}
+                  {bundleDownloadTime && (Date.now() - new Date(bundleDownloadTime).getTime()) > 3 * 3600 * 1000 && (
+                    <p className="text-[9px] text-amber-500 font-bold bg-amber-500/10 border border-amber-500/20 p-2 rounded">
+                      ⚠️ Carga desatualizada! Baixe novas assinaturas se houver conexão de rede.
+                    </p>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-neutral-400">Prontidão Offline:</span>
+                    <span className={`font-bold ${validTicketsCount > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {validTicketsCount > 0 ? 'PRONTO' : 'SEM CARGA'}
+                    </span>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>

@@ -20,7 +20,11 @@ export interface ValidationResult {
  * com a assinatura original armazenada no banco local (IndexedDB).
  * Se for válido, registra a intenção de check-in na fila de sincronização.
  */
-export async function validateTicket(scannedData: string): Promise<ValidationResult> {
+export async function validateTicket(
+  scannedData: string,
+  operatorName?: string,
+  operatorCpf?: string
+): Promise<ValidationResult> {
   let parsed: ScannedQRData;
   
   try {
@@ -92,6 +96,8 @@ export async function validateTicket(scannedData: string): Promise<ValidationRes
       hmacSignature: signature,
       sectorId: localRecord.sectorId ?? null,
       version: version,
+      operatorName: operatorName || null,
+      operatorCpf: operatorCpf || null,
     } as any);
 
     console.log(`[EDGE VALIDATION] Ticket ${ticketId} validado com sucesso offline.`);

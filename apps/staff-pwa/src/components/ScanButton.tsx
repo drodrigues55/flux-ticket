@@ -9,35 +9,58 @@ interface ScanButtonProps {
 export function ScanButton({ onScan }: ScanButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const qrScannerRef = useRef<Html5Qrcode | null>(null);
+  const [cameraState, setCameraState] = useState<'requesting' | 'active' | 'denied' | 'no-camera' | 'error'>('requesting');
+  const [errorText, setErrorText] = useState('');
 
   useEffect(() => {
     if (!isOpen) return;
 
-    // Aguarda o elemento renderizar no DOM antes de iniciar o scanner
+    setCameraState('requesting');
+    setErrorText('');
+
     const timer = setTimeout(() => {
       const scannerId = "flux-qr-reader";
-      const scannerElement = document.getElementById(scannerId);
-      if (!scannerElement) return;
-
-      const html5QrCode = new Html5Qrcode(scannerId);
-      qrScannerRef.current = html5QrCode;
-
-      html5QrCode.start(
-        { facingMode: "environment" },
-        {
-          fps: 10,
-          qrbox: { width: 220, height: 220 },
-        },
-        (decodedText) => {
-          // Quando escaneia com sucesso
-          onScan(decodedText);
-          handleClose();
-        },
-        () => {
-          // Ignora mensagens de erro do frame-by-frame scanner para evitar spam nos logs
+      
+      Html5Qrcode.getCameras().then(devices => {
+        if (!devices || devices.length === 0) {
+          setCameraState('no-camera');
+          return;
         }
-      ).catch((err) => {
-        console.error("Falha ao inicializar a câmera do QR Code:", err);
+
+        const html5QrCode = new Html5Qrcode(scannerId);
+        qrScannerRef.current = html5QrCode;
+
+        html5QrCode.start(
+          { facingMode: "environment" },
+          {
+            fps: 10,
+            qrbox: { width: 220, height: 220 },
+          },
+          (decodedText) => {
+            onScan(decodedText);
+            handleClose();
+          },
+          () => {}
+        ).then(() => {
+          setCameraState('active');
+        }).catch((err) => {
+          console.error("Falha ao inicializar a câmera do QR Code:", err);
+          const errStr = String(err).toLowerCase();
+          if (errStr.includes('permission') || errStr.includes('allowed') || errStr.includes('denied')) {
+            setCameraState('denied');
+          } else {
+            setCameraState('error');
+            setErrorText(String(err));
+          }
+        });
+      }).catch(err => {
+        console.error("Falha ao obter câmeras:", err);
+        const errStr = String(err).toLowerCase();
+        if (errStr.includes('permission') || errStr.includes('allowed') || errStr.includes('denied')) {
+          setCameraState('denied');
+        } else {
+          setCameraState('no-camera');
+        }
       });
     }, 150);
 
@@ -94,12 +117,45 @@ export function ScanButton({ onScan }: ScanButtonProps) {
             </div>
 
             {/* Viewfinder Container */}
-            <div className="w-full aspect-square max-w-sm bg-black rounded-2xl overflow-hidden border border-[#2C2C2C] shadow-2xl relative">
-              <div id="flux-qr-reader" className="w-full h-full" />
-              {/* Moldura Guia de Foco */}
-              <div className="absolute inset-0 border-[40px] border-black/40 pointer-events-none flex items-center justify-center">
-                <div className="w-48 h-48 border-2 border-dashed border-[#FF3200]/80 rounded-lg animate-pulse" />
-              </div>
+            <div className="w-full aspect-square max-w-sm bg-black rounded-2xl overflow-hidden border border-[#2C2C2C] shadow-2xl relative flex items-center justify-center">
+              {cameraState === 'active' && <div id="flux-qr-reader" className="w-full h-full" />}
+              
+              {cameraState === 'requesting' && (
+                <div className="text-center p-6 space-y-2 text-neutral-400">
+                  <div className="animate-spin text-2xl">⏳</div>
+                  <p className="text-xs">Solicitando permissão da câmera...</p>
+                </div>
+              )}
+
+              {cameraState === 'denied' && (
+                <div className="text-center p-6 space-y-2 text-red-400">
+                  <div className="text-3xl">🚫</div>
+                  <p className="font-bold text-sm">Permissão Negada</p>
+                  <p className="text-[10px] text-neutral-400">Por favor, permita o acesso à câmera nas configurações do navegador.</p>
+                </div>
+              )}
+
+              {cameraState === 'no-camera' && (
+                <div className="text-center p-6 space-y-2 text-neutral-400">
+                  <div className="text-3xl">📷</div>
+                  <p className="font-bold text-sm">Nenhuma Câmera Localizada</p>
+                  <p className="text-[10px] text-neutral-500">Utilize o simulador de QR Code do painel para fins de demonstração.</p>
+                </div>
+              )}
+
+              {cameraState === 'error' && (
+                <div className="text-center p-6 space-y-2 text-amber-500">
+                  <div className="text-3xl">⚠️</div>
+                  <p className="font-bold text-sm">Erro ao Iniciar Câmera</p>
+                  <p className="text-[10px] text-neutral-455">{errorText || 'Erro desconhecido'}</p>
+                </div>
+              )}
+
+              {cameraState === 'active' && (
+                <div className="absolute inset-0 border-[40px] border-black/40 pointer-events-none flex items-center justify-center">
+                  <div className="w-48 h-48 border-2 border-dashed border-[#FF3200]/80 rounded-lg animate-pulse" />
+                </div>
+              )}
             </div>
 
             <Button
