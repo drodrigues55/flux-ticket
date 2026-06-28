@@ -221,6 +221,22 @@
   will-change: transform;
 }
 
+.animate-breathe {
+  animation: breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.92;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
 @media (hover: hover) {
   .group:hover .animate-marquee-hover {
     animation: marquee-scroll 10s linear infinite;

@@ -180,34 +180,44 @@ export default function CheckoutPage() {
   const isCardExpiryInvalid = submitAttempted && cardExpiry.length !== 5;
   const isCardCvcInvalid = submitAttempted && cardCvc.length < 3;
 
-  // Auto scroll up on form complete
-  const [hasScrolledUp, setHasScrolledUp] = useState(false);
-  useEffect(() => {
-    if (isFormComplete) {
-      if (!hasScrolledUp) {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        setHasScrolledUp(true);
-      }
-    } else {
-      setHasScrolledUp(false);
-    }
-  }, [isFormComplete, hasScrolledUp]);
-
-  // Scroll up on payment status change
-  useEffect(() => {
-    if (paymentStatus !== 'idle') {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  }, [paymentStatus]);
-
   // Lock expiration handler
   const handleLockExpired = () => {
     setPaymentStatus('expired');
     setErrorMessage('Sua sessão de reserva expirou. O ingresso foi liberado de volta ao estoque.');
-    setTimeout(() => {
-      router.push(`/`);
-    }, 4000);
   };
+
+  const returnToEvent = () => {
+    router.push(activeEventId ? `/event/${activeEventId}` : '/events');
+  };
+
+  const scrollToTopEased = () => new Promise<void>((resolve) => {
+    if (typeof window === 'undefined') {
+      resolve();
+      return;
+    }
+
+    const startY = window.scrollY;
+    if (startY <= 0) {
+      resolve();
+      return;
+    }
+
+    const duration = 650;
+    const start = performance.now();
+    const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+
+    const step = (now: number) => {
+      const progress = Math.min((now - start) / duration, 1);
+      window.scrollTo(0, startY * (1 - easeInOut(progress)));
+      if (progress < 1) {
+        requestAnimationFrame(step);
+      } else {
+        resolve();
+      }
+    };
+
+    requestAnimationFrame(step);
+  });
 
   const { timeLeft, formattedTime } = useTicketLock({
     userId,
@@ -217,7 +227,7 @@ export default function CheckoutPage() {
     onExpired: handleLockExpired,
   });
 
-  const progressPercent = (timeLeft / 180) * 100;
+  const progressPercent = Math.max(0, Math.min(100, (timeLeft / 180) * 100));
 
   // Fetch and reserve
   useEffect(() => {
@@ -439,7 +449,7 @@ export default function CheckoutPage() {
       }
 
       if (data.status === 'approved') {
-        setPaymentStatus('success');
+        await scrollToTopEased();
         router.push(`/checkout/success?ticketId=${ticketId || data.ticketId}`);
       } else if (data.status === 'pending' || data.status === 'in_process') {
         if (paymentMethod === 'pix') {
@@ -472,7 +482,6 @@ export default function CheckoutPage() {
 
   // Checkout page current step calculation
   const currentStep = useMemo(() => {
-    if (paymentStatus === 'success') return 4;
     if (paymentMethod !== null && isBuyerInfoComplete && isHoldersInfoComplete) return 3;
     if (isBuyerInfoComplete) return 2;
     return 1;
@@ -486,7 +495,7 @@ export default function CheckoutPage() {
         
         {/* Navigation back */}
         <button
-          onClick={() => router.push(activeEventId ? `/?eventId=${activeEventId}` : '/')}
+          onClick={returnToEvent}
           className="flex items-center gap-2 text-sm font-bold text-neutral-500 hover:text-[#FF3200] transition-colors mb-6 cursor-pointer border-none bg-transparent"
         >
           <FaArrowLeft className="w-4 h-4" />
@@ -529,23 +538,7 @@ export default function CheckoutPage() {
                 </p>
               </div>
 
-              {paymentStatus === 'success' ? (
-                <div className="text-center py-16 px-6 space-y-5 animate-in fade-in zoom-in-95 duration-200">
-                  <div className="w-20 h-20 bg-emerald-50 border-4 border-emerald-100 rounded-full flex items-center justify-center mx-auto text-emerald-600 shadow-sm">
-                    <FaCircleCheck className="w-10 h-10" />
-                  </div>
-                  <h3 className="text-2xl font-black text-neutral-900">Pagamento Aprovado!</h3>
-                  <p className="text-neutral-500 text-sm max-w-sm mx-auto leading-relaxed font-light">
-                    Seu ingresso foi emitido e assinado digitalmente com sucesso. A assinatura HMAC já está salva na portaria.
-                  </p>
-                  <button
-                    onClick={() => router.push('/')}
-                    className="bg-[#FF3200] hover:bg-[#E62D00] text-white px-8 py-3 rounded-full font-bold transition-all shadow-sm active:scale-95 text-sm cursor-pointer inline-block mt-4 border-none"
-                  >
-                    Voltar para Início
-                  </button>
-                </div>
-              ) : paymentStatus === 'pending_card_review' ? (
+              {paymentStatus === 'pending_card_review' ? (
                 <div className="text-center py-16 px-6 space-y-5 animate-in fade-in zoom-in-95 duration-200">
                   <div className="w-20 h-20 bg-amber-50 border-4 border-amber-100 rounded-full flex items-center justify-center mx-auto text-amber-600 shadow-sm animate-pulse">
                     <FaClock className="w-9 h-9" />
@@ -614,8 +607,15 @@ export default function CheckoutPage() {
                   </div>
                   <h3 className="text-2xl font-black text-neutral-900">Reserva Expirada</h3>
                   <p className="text-neutral-500 text-sm max-w-sm mx-auto leading-relaxed">
-                    {errorMessage} Redirecionando...
+                    {errorMessage}
                   </p>
+                  <button
+                    type="button"
+                    onClick={returnToEvent}
+                    className="bg-[#FF3200] hover:bg-[#E62D00] text-white px-8 py-3 rounded-full font-bold transition-all shadow-sm active:scale-95 text-sm cursor-pointer inline-block border-none"
+                  >
+                    Voltar para o evento
+                  </button>
                 </div>
               ) : (
                 <form id="checkout-form" onSubmit={handlePaymentSubmit} className="divide-y divide-[#EAEAEA]">
@@ -953,54 +953,25 @@ export default function CheckoutPage() {
 
           {/* Right Column: Timer & Summary */}
           <div className="lg:col-span-5 space-y-6">
-            {/* Countdown timer card */}
-            <div className="bg-white rounded-2xl border border-[#EAEAEA] shadow-sm p-6 flex flex-col items-center space-y-4">
-              <span className={`text-xs font-bold uppercase tracking-wider rounded-full px-4 py-1.5 border transition-all duration-300 ${timeLeft < 60
-                ? 'text-amber-600 bg-amber-50 border-amber-200 animate-pulse'
-                : 'text-[#FF3200] bg-[#FF3200]/5 border-[#FF3200]/15'
-                }`}>
-                {timeLeft < 60 ? 'Atenção: Tempo Esgotando!' : 'Tempo Restante'}
-              </span>
-
-              {/* Visual circular timer */}
-              <div className="relative w-36 h-36 flex items-center justify-center">
-                <svg className="absolute inset-0 w-full h-full transform -rotate-90">
-                  <circle
-                    cx="72"
-                    cy="72"
-                    r="64"
-                    className="stroke-neutral-100"
-                    strokeWidth="6"
-                    fill="transparent"
-                  />
-                  <circle
-                    cx="72"
-                    cy="72"
-                    r="64"
-                    className={`transition-all duration-1000 ease-linear ${timeLeft < 60 ? 'stroke-amber-500 animate-pulse' : 'stroke-[#FF3200]'
-                      }`}
-                    strokeWidth="6"
-                    strokeLinecap="round"
-                    fill="transparent"
-                    strokeDasharray={402}
-                    strokeDashoffset={402 - (402 * progressPercent) / 100}
-                  />
-                </svg>
-                <div className="text-center">
-                  <span className={`text-3xl font-sans font-black tracking-wider transition-colors duration-300 ${timeLeft < 60 ? 'text-amber-500' : 'text-neutral-900'
-                    }`}>
+            {/* Countdown timer bar */}
+            <div className="bg-white rounded-2xl border border-[#EAEAEA] shadow-sm overflow-hidden">
+              <div className="h-1.5 bg-neutral-100">
+                <div
+                  className={`h-full transition-all duration-1000 ease-linear ${timeLeft < 60 ? 'bg-amber-500' : 'bg-[#FF3200]'}`}
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+              <div className="p-4 space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <span className={`text-xs font-bold ${timeLeft < 60 ? 'text-amber-600' : 'text-[#FF3200]'}`}>
+                    {timeLeft < 60 ? 'Tempo esgotando' : 'Reserva ativa'}
+                  </span>
+                  <span className={`text-lg font-sans font-black tracking-wider ${timeLeft < 60 ? 'text-amber-600' : 'text-neutral-900'}`}>
                     {formattedTime}
                   </span>
-                  <p className="text-[10px] uppercase font-bold text-neutral-400 tracking-widest mt-1">
-                    Minutos
-                  </p>
                 </div>
-              </div>
-
-              <div className="text-center space-y-1 max-w-[240px]">
-                <h4 className="text-sm font-bold text-neutral-800">Seus ingressos estão reservados</h4>
                 <p className="text-xs text-neutral-500 leading-normal font-light">
-                  O tempo é renovado enquanto você preenche os dados.
+                  Seus ingressos estão reservados enquanto você conclui a compra.
                 </p>
               </div>
             </div>
@@ -1071,18 +1042,16 @@ export default function CheckoutPage() {
                   <div className="flex gap-2">
                     <input
                       type="text"
-                      placeholder="Cupom de desconto"
+                      placeholder="Cupom indisponível"
                       value={couponCode}
                       onChange={(e) => setCouponCode(e.target.value)}
-                      className="flex-1 bg-[#FAFAFA] border border-[#DCDCDC] rounded-full px-4 py-1.5 text-xs text-neutral-800 outline-none focus:border-[#FF3200] uppercase"
+                      disabled
+                      className="flex-1 bg-neutral-100 border border-[#DCDCDC] rounded-full px-4 py-1.5 text-xs text-neutral-400 outline-none cursor-not-allowed uppercase"
                     />
                     <button
                       type="button"
-                      disabled={!couponCode.trim()}
-                      className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border-none ${!couponCode.trim()
-                        ? 'bg-neutral-100 text-neutral-400 cursor-not-allowed'
-                        : 'bg-[#FF3200] hover:bg-[#E62D00] text-white cursor-pointer shadow-sm hover:shadow'
-                        }`}
+                      disabled
+                      className="px-4 py-1.5 rounded-full text-xs font-bold transition-all border-none bg-neutral-100 text-neutral-400 cursor-not-allowed"
                     >
                       Aplicar
                     </button>
@@ -1102,7 +1071,7 @@ export default function CheckoutPage() {
               </div>
 
               {/* Form Action submit button */}
-              {paymentStatus !== 'success' && paymentStatus !== 'pending_pix' && paymentStatus !== 'pending_card_review' && paymentStatus !== 'expired' && (
+              {paymentStatus !== 'pending_pix' && paymentStatus !== 'pending_card_review' && paymentStatus !== 'expired' && (
                 <div className="pt-2 flex flex-col gap-3">
                   <button
                     type={paymentMethod === null ? 'button' : 'submit'}

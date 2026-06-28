@@ -83,8 +83,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const sessionToken = signToken({ id: user.id, email: user.email, role: user.role });
 
-    // Set cookie securely
-    res.setHeader('Set-Cookie', `flux_token=${sessionToken}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`);
+    const secureCookie = process.env.NODE_ENV === 'production' || process.env.APP_ENV === 'production' ? '; Secure' : '';
+    res.setHeader('Set-Cookie', `flux_token=${sessionToken}; Path=/; HttpOnly${secureCookie}; SameSite=Lax; Max-Age=2592000`);
 
     return res.status(200).json({
       success: true,
@@ -99,4 +99,3 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return res.status(400).json({ error: 'Invalid action. Must be "send" or "verify".' });
 }
-

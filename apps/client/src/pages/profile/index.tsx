@@ -41,6 +41,37 @@ interface Ticket {
   };
 }
 
+interface EventSuggestion {
+  id: string;
+  title: string;
+  slug?: string | null;
+  date: string;
+  location: string;
+  venue?: string | null;
+  imageUrl?: string | null;
+  startingPrice?: number | null;
+  categoryId?: number | null;
+}
+
+const SUGGESTION_FALLBACK_IMAGES: Record<number, string> = {
+  1: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&q=80&w=600',
+  2: 'https://images.unsplash.com/photo-1503095391755-1414e86720d0?auto=format&fit=crop&q=80&w=600',
+  3: 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&q=80&w=600',
+  4: 'https://images.unsplash.com/photo-1516627145497-ae6968895b74?auto=format&fit=crop&q=80&w=600',
+};
+
+function getSuggestionImage(event: EventSuggestion) {
+  return event.imageUrl || SUGGESTION_FALLBACK_IMAGES[event.categoryId || 0] || 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?auto=format&fit=crop&q=80&w=600';
+}
+
+function formatSuggestionDate(date: string) {
+  return new Date(date).toLocaleDateString('pt-BR', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
 export default function ProfilePage() {
   const router = useRouter();
 
@@ -56,6 +87,8 @@ export default function ProfilePage() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loadingTickets, setLoadingTickets] = useState(false);
   const [selectedQrTicket, setSelectedQrTicket] = useState<Ticket | null>(null);
+  const [suggestions, setSuggestions] = useState<EventSuggestion[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
 
   // Transfer modal state
   const [selectedTransferTicket, setSelectedTransferTicket] = useState<Ticket | null>(null);
@@ -91,12 +124,19 @@ export default function ProfilePage() {
   // Fetch tickets when loggedInUser updates
   useEffect(() => {
     if (!loggedInUser) return;
-    const userId = loggedInUser.id;
 
     async function fetchTickets() {
       setLoadingTickets(true);
       try {
-        const res = await fetch(`/api/tickets/user?userId=${userId}`);
+        const res = await fetch('/api/tickets/user');
+        if (res.status === 401) {
+          localStorage.removeItem('flux_user_session');
+          setLoggedInUser(null);
+          setTickets([]);
+          setStep('email');
+          setAuthError('Sua sessão expirou. Entre novamente para ver seus ingressos.');
+          return;
+        }
         if (res.ok) {
           const data = await res.json();
           setTickets(data);
@@ -110,6 +150,27 @@ export default function ProfilePage() {
 
     fetchTickets();
   }, [loggedInUser]);
+
+  useEffect(() => {
+    if (!loggedInUser || tickets.length > 0) return;
+
+    async function fetchSuggestions() {
+      setLoadingSuggestions(true);
+      try {
+        const res = await fetch('/api/public/events');
+        if (!res.ok) return;
+        const data = await res.json();
+        const events = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+        setSuggestions(events.slice(0, 2));
+      } catch (err) {
+        console.error('[SUGGESTIONS FETCH ERROR]', err);
+      } finally {
+        setLoadingSuggestions(false);
+      }
+    }
+
+    fetchSuggestions();
+  }, [loggedInUser, tickets.length]);
 
   // Auth flow handlers
   const handleSendOtp = async (e: React.FormEvent) => {
@@ -200,7 +261,7 @@ export default function ProfilePage() {
       setTransferSuccess(true);
 
       // Refresh tickets list
-      const ticketRes = await fetch(`/api/tickets/user?userId=${loggedInUser.id}`);
+      const ticketRes = await fetch('/api/tickets/user');
       if (ticketRes.ok) {
         const ticketData = await ticketRes.json();
         setTickets(ticketData);
@@ -377,23 +438,29 @@ export default function ProfilePage() {
               <div className="flex flex-col md:flex-row gap-6 items-start">
                 {/* Left Sidebar */}
                 <div className="w-full md:w-52 shrink-0 flux-card p-3 space-y-1 shadow-sm">
-                  <button className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-[14px] text-xs font-bold bg-[#FF3200]/10 text-[#FF3200] transition-colors cursor-pointer text-left">
+                  <button
+                    type="button"
+                    onClick={() => router.push('/profile')}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-[14px] text-xs font-bold bg-[#FF3200]/10 text-[#FF3200] transition-colors cursor-pointer text-left"
+                  >
                     <FaTicketSimple className="w-3.5 h-3.5" />
                     Meus Ingressos
                   </button>
-                  <button className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-[14px] text-xs font-semibold text-[var(--text-subtle)] hover:text-white hover:bg-[#252528] transition-colors cursor-pointer text-left">
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Histórico
-                  </button>
-                  <button className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-[14px] text-xs font-semibold text-[var(--text-subtle)] hover:text-white hover:bg-[#252528] transition-colors cursor-pointer text-left">
+                  <button
+                    type="button"
+                    onClick={() => router.push('/profile/account')}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-[14px] text-xs font-semibold text-[var(--text-subtle)] hover:text-white hover:bg-[#252528] transition-colors cursor-pointer text-left"
+                  >
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
                     Perfil
                   </button>
-                  <button className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-[14px] text-xs font-semibold text-[var(--text-subtle)] hover:text-white hover:bg-[#252528] transition-colors cursor-pointer text-left">
+                  <button
+                    type="button"
+                    onClick={() => router.push('/profile/payments')}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-[14px] text-xs font-semibold text-[var(--text-subtle)] hover:text-white hover:bg-[#252528] transition-colors cursor-pointer text-left"
+                  >
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                     </svg>
@@ -426,7 +493,7 @@ export default function ProfilePage() {
                           if (searchQuery) {
                             setSearchQuery('');
                           } else {
-                            router.push('/');
+                            router.push('/events');
                           }
                         }}
                         className="bg-[#FF3200] hover:bg-[#E62D00] text-white px-6 py-2.5 rounded-xl font-bold text-xs shadow-sm transition-all cursor-pointer"
@@ -437,6 +504,8 @@ export default function ProfilePage() {
                   ) : (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in duration-300">
                       {filteredTickets.map((ticket) => {
+                        const eventTimestamp = new Date(ticket.batch.event.date).getTime();
+                        const isPastEvent = Number.isFinite(eventTimestamp) && eventTimestamp < Date.now();
                         const eventDate = new Date(ticket.batch.event.date).toLocaleDateString('pt-BR', {
                           day: 'numeric',
                           month: 'long',
@@ -450,7 +519,7 @@ export default function ProfilePage() {
                           <div
                             key={ticket.id}
                             className={`flux-card overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between ${
-                              ticket.isTransferred || (ticket.holderCpf && ticket.holderCpf !== ticket.buyerCpf)
+                              isPastEvent || ticket.isTransferred || (ticket.holderCpf && ticket.holderCpf !== ticket.buyerCpf)
                                 ? 'opacity-70 saturate-50 hover:opacity-85'
                                 : ''
                             }`}
@@ -497,7 +566,11 @@ export default function ProfilePage() {
                                     Transferido
                                   </span>
                                 )}
-                                {ticket.status === 'VALID' ? (
+                                {isPastEvent ? (
+                                  <span className="inline-flex items-center gap-1.5 text-[10px] text-[var(--text-subtle)] font-bold bg-[var(--surface-muted)] px-3 py-1 rounded-full border border-[var(--border)]">
+                                    Evento Encerrado
+                                  </span>
+                                ) : ticket.status === 'VALID' ? (
                                   <span className="inline-flex items-center gap-1.5 text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
                                     <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full" />
                                     Ingresso Ativo
@@ -517,7 +590,11 @@ export default function ProfilePage() {
 
                             {/* Card footer action buttons */}
                             <div className="bg-[var(--surface-muted)] border-t border-[var(--border)] p-4 flex flex-col gap-2.5">
-                              {ticket.isTransferred || (ticket.holderCpf && ticket.holderCpf !== ticket.buyerCpf) ? (
+                              {isPastEvent ? (
+                                <div className="text-center text-xs text-[var(--text-subtle)] py-1.5">
+                                  Este evento já passou. O ingresso fica disponível apenas para consulta.
+                                </div>
+                              ) : ticket.isTransferred || (ticket.holderCpf && ticket.holderCpf !== ticket.buyerCpf) ? (
                                 <>
                                   <button
                                     onClick={() => handleCopyAccessLink(ticket.id)}
@@ -605,59 +682,50 @@ export default function ProfilePage() {
                         Sugestões para Você
                       </h3>
 
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        {/* Event 1 */}
-                        <div className="flux-card overflow-hidden shadow-sm flex flex-col sm:flex-row hover:shadow-md transition-all">
-                          <div className="w-full sm:w-32 h-24 relative bg-[#FF3200] flex items-center justify-center text-white p-3 text-center shrink-0">
-                            <div className="absolute inset-0 opacity-10 flex items-center justify-center">
-                              <svg className="w-12 h-12" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
-                              </svg>
-                            </div>
-                            <span className="font-black text-[10px] tracking-wide relative z-10 leading-snug">Música</span>
-                          </div>
-                          <div className="p-4 flex flex-col justify-between flex-grow">
-                            <div className="space-y-0.5">
-                              <h4 className="font-extrabold text-xs text-[var(--text)] leading-snug">Festival de Música da Cidade</h4>
-                              <span className="text-[9px] text-[var(--text-subtle)] font-bold uppercase block">OUT 12, 2026</span>
-                            </div>
-                            <div className="pt-2">
-                              <button
-                                onClick={() => router.push('/')}
-                                className="bg-[#FF3200] hover:bg-[#E62D00] text-white px-3.5 py-1.5 rounded-xl font-bold text-[9px] transition-all cursor-pointer border-none"
-                              >
-                                Ver Detalhes
-                              </button>
-                            </div>
-                          </div>
+                      {loadingSuggestions ? (
+                        <div className="flux-card p-5 text-xs font-semibold text-[var(--text-subtle)] flex items-center gap-2">
+                          <FaSpinner className="w-4 h-4 animate-spin text-[#FF3200]" />
+                          Carregando sugestões...
                         </div>
-
-                        {/* Event 2 */}
-                        <div className="flux-card overflow-hidden shadow-sm flex flex-col sm:flex-row hover:shadow-md transition-all">
-                          <div className="w-full sm:w-32 h-24 relative bg-[#FF3200] flex items-center justify-center text-white p-3 text-center shrink-0">
-                            <div className="absolute inset-0 opacity-10 flex items-center justify-center">
-                              <svg className="w-12 h-12" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.04-.42 1.99-1.07 2.75z" />
-                              </svg>
-                            </div>
-                            <span className="font-black text-[10px] tracking-wide relative z-10 leading-snug">Teatro</span>
-                          </div>
-                          <div className="p-4 flex flex-col justify-between flex-grow">
-                            <div className="space-y-0.5">
-                              <h4 className="font-extrabold text-xs text-[var(--text)] leading-snug">Teatro: A Comédia do Ano</h4>
-                              <span className="text-[9px] text-[var(--text-subtle)] font-bold uppercase block">SET 30, 2026</span>
-                            </div>
-                            <div className="pt-2">
-                              <button
-                                onClick={() => router.push('/')}
-                                className="bg-[#FF3200] hover:bg-[#E62D00] text-white px-3.5 py-1.5 rounded-xl font-bold text-[9px] transition-all cursor-pointer border-none"
-                              >
-                                Comprar Ingressos
-                              </button>
-                            </div>
-                          </div>
+                      ) : suggestions.length === 0 ? (
+                        <div className="flux-card p-5 text-xs font-semibold text-[var(--text-subtle)]">
+                          Nenhuma sugestão disponível no momento.
                         </div>
-                      </div>
+                      ) : (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                          {suggestions.map((event) => (
+                            <div key={event.id} className="flux-card overflow-hidden shadow-sm flex flex-col sm:flex-row hover:shadow-md transition-all">
+                              <div className="w-full sm:w-32 h-28 sm:h-24 relative bg-[var(--surface-muted)] shrink-0 overflow-hidden">
+                                <img
+                                  src={getSuggestionImage(event)}
+                                  alt={event.title}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                              <div className="p-4 flex flex-col justify-between flex-grow gap-3">
+                                <div className="space-y-1">
+                                  <h4 className="font-extrabold text-xs text-[var(--text)] leading-snug">{event.title}</h4>
+                                  <span className="text-[9px] text-[var(--text-subtle)] font-bold uppercase block">{formatSuggestionDate(event.date)}</span>
+                                  <span className="text-[10px] text-[var(--text-muted)] line-clamp-1 block">{event.venue || event.location}</span>
+                                </div>
+                                <div className="flex items-center justify-between gap-3">
+                                  <span className="text-[10px] font-bold text-[#FF3200]">
+                                    {typeof event.startingPrice === 'number'
+                                      ? event.startingPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                                      : 'Consultar'}
+                                  </span>
+                                  <button
+                                    onClick={() => router.push(event.slug ? `/events/${event.slug}` : '/events')}
+                                    className="bg-[#FF3200] hover:bg-[#E62D00] text-white px-3.5 py-1.5 rounded-xl font-bold text-[9px] transition-all cursor-pointer border-none"
+                                  >
+                                    Ver Detalhes
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

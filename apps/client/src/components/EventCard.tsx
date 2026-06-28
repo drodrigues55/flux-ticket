@@ -12,10 +12,10 @@ export const EventCard = ({ title, date, location, price, imageUrl, badge, onBuy
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
           />
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-tr from-neutral-200 to-transparent group-hover:scale-105 transition-transform duration-200" />
+          <div className="absolute inset-0 bg-[var(--surface-muted)] group-hover:scale-105 transition-transform duration-200" />
         )}
         {badge && (
-          <span className="absolute top-3 left-3 bg-[#FF3200] text-white text-[10px] uppercase font-extrabold tracking-wider px-2.5 py-1 rounded-full shadow-md z-10">
+          <span className="absolute top-3 left-3 bg-[#FF3200] text-white text-[10px] font-extrabold px-2.5 py-1 rounded-[10px] shadow-md z-10">
             {badge}
           </span>
         )}
@@ -36,7 +36,14 @@ export const EventCard = ({ title, date, location, price, imageUrl, badge, onBuy
       <span className="text-[var(--text-muted)] font-normal text-sm">
         A partir de <span className="font-bold text-[var(--text)]">{price}</span>
       </span>
-      <button className="bg-[#FF3200] hover:bg-[#E62D00] text-white px-5 py-2 rounded-full text-sm font-bold border-none transition-all cursor-pointer shadow-sm">
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onBuy?.();
+        }}
+        className="bg-[#FF3200] hover:bg-[#E62D00] text-white px-5 py-2 rounded-[10px] text-sm font-bold border-none transition-all cursor-pointer shadow-sm"
+      >
         Ver
       </button>
     </div>

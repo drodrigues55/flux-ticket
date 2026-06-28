@@ -77,7 +77,8 @@ export function SyncGate({ eventId, onSyncComplete }: SyncGateProps) {
       await db.validTickets.clear();
       await db.validTickets.bulkPut(data.map((t: any) => ({
         ticket_id: t.ticket_id,
-        hmacSignature: t.hmacSignature
+        hmacSignature: t.hmacSignature,
+        sectorId: t.sectorId ?? null
       })));
 
       setSyncProgress(100);

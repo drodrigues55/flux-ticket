@@ -1,6 +1,5 @@
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
 import { Header } from '../../../components/header';
 import { FaClock, FaTicket, FaCreditCard, FaLock, FaPix } from 'react-icons/fa6';
 import { formatPaymentError } from '../../../lib/payment-errors';
@@ -44,6 +43,14 @@ export default function EventCheckoutPage() {
   const [pixQrBase64, setPixQrBase64] = useState('');
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'pending_pix' | 'success' | 'failed'>('idle');
   const [orderId, setOrderId] = useState('');
+  const [checkoutTicketIds, setCheckoutTicketIds] = useState<string[]>([]);
+  const [expirationStatus, setExpirationStatus] = useState<'active' | 'checking' | 'available' | 'unavailable'>('active');
+
+  const cleanCpf = buyerCpf.replace(/\D/g, '');
+  const buyerInfoComplete = buyerName.trim().length >= 3 && email.trim().length > 0 && cleanCpf.length >= 11;
+  const paymentInfoComplete = paymentMethod === 'pix' || (cardNumber.trim() && cardholderName.trim() && cardExpiry.trim() && cardCvc.trim());
+  const isCheckoutCompact = Boolean(buyerInfoComplete && paymentInfoComplete);
+  const progressPercent = Math.max(0, Math.min(100, (timeLeft / 180) * 100));
 
   useEffect(() => {
     if (!slug) return;
@@ -63,15 +70,86 @@ export default function EventCheckoutPage() {
 
   useEffect(() => {
     if (timeLeft <= 0) return;
-    const timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
+    const timer = setInterval(() => setTimeLeft(prev => Math.max(prev - 1, 0)), 1000);
     return () => clearInterval(timer);
   }, [timeLeft]);
+
+  useEffect(() => {
+    if (timeLeft > 0 || expirationStatus !== 'active') return;
+
+    let cancelled = false;
+    setExpirationStatus('checking');
+
+    async function checkAvailability() {
+      let available = false;
+      try {
+        const res = await fetch(`/api/public/events/${slug}/tickets`);
+        if (res.ok) {
+          const ticketTypes = await res.json();
+          const batches = (Array.isArray(ticketTypes) ? ticketTypes : []).flatMap((ticketType: any) => ticketType.batches || []);
+          available = batches.some((batch: any) => {
+            const matchesBatch = batchId ? batch.id === batchId : true;
+            return matchesBatch && Number(batch.availableQuantity) > 0;
+          });
+        }
+      } catch (err) {
+        console.error('[EXPIRED AVAILABILITY CHECK ERROR]', err);
+      }
+
+      window.setTimeout(() => {
+        if (!cancelled) setExpirationStatus(available ? 'available' : 'unavailable');
+      }, 5000);
+    }
+
+    checkAvailability();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [batchId, expirationStatus, slug, timeLeft]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  const goBackToPreviousScreen = () => {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.push(slug ? `/events/${slug}` : '/events');
+  };
+
+  const scrollToTopEased = () => new Promise<void>((resolve) => {
+    if (typeof window === 'undefined') {
+      resolve();
+      return;
+    }
+
+    const startY = window.scrollY;
+    if (startY <= 0) {
+      resolve();
+      return;
+    }
+
+    const duration = 650;
+    const start = performance.now();
+    const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+
+    const step = (now: number) => {
+      const progress = Math.min((now - start) / duration, 1);
+      window.scrollTo(0, startY * (1 - easeInOut(progress)));
+      if (progress < 1) {
+        requestAnimationFrame(step);
+      } else {
+        resolve();
+      }
+    };
+
+    requestAnimationFrame(step);
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,8 +160,6 @@ export default function EventCheckoutPage() {
 
     setSaving(true);
     setError(null);
-
-    const cleanCpf = buyerCpf.replace(/\D/g, '');
 
     const paymentMethodPayload: any = { method: paymentMethod };
     if (paymentMethod === 'credit_card') {
@@ -114,15 +190,25 @@ export default function EventCheckoutPage() {
       const json = await res.json();
       if (!res.ok) throw { message: formatPaymentError(json, 'Erro ao processar o pagamento.') };
 
-      setOrderId(json.orderId);
+      const ticketIds = Array.isArray(json.ticketIds)
+        ? json.ticketIds
+        : typeof json.ticketId === 'string'
+          ? json.ticketId.split(',').filter(Boolean)
+          : [];
+      const nextOrderId = json.orderId || '';
+      setOrderId(nextOrderId);
+      setCheckoutTicketIds(ticketIds);
       if (paymentMethod === 'pix') {
-        setPixCode(json.pixCode || '00020126360014br.gov.bcb.pix...');
-        setPixQrBase64(json.pixQrBase64 || '');
+        setPixCode(json.pixCode || json.qrCode || '00020126360014br.gov.bcb.pix...');
+        setPixQrBase64(json.pixQrBase64 || json.qrCodeBase64 || '');
         setPaymentStatus('pending_pix');
       } else {
-        setPaymentStatus('success');
-        // Redirect to confirmation
-        router.push(`/orders/${json.orderId}/confirmation?ticketId=${json.ticketIds?.join(',') || ''}`);
+        await scrollToTopEased();
+        if (nextOrderId) {
+          router.push(`/orders/${nextOrderId}/confirmation?ticketId=${ticketIds.join(',')}`);
+        } else {
+          router.push(`/checkout/success?ticketId=${ticketIds.join(',')}`);
+        }
       }
     } catch (err: any) {
       setError(err);
@@ -132,8 +218,13 @@ export default function EventCheckoutPage() {
   };
 
   const handleSimulatePixPaid = () => {
-    setPaymentStatus('success');
-    router.push(`/orders/${orderId}/confirmation`);
+    scrollToTopEased().then(() => {
+      if (orderId) {
+        router.push(`/orders/${orderId}/confirmation?ticketId=${checkoutTicketIds.join(',')}`);
+      } else {
+        router.push(`/checkout/success?ticketId=${checkoutTicketIds.join(',')}`);
+      }
+    });
   };
 
   if (loading) {
@@ -146,14 +237,23 @@ export default function EventCheckoutPage() {
   }
 
   if (timeLeft <= 0) {
+    const isChecking = expirationStatus === 'checking';
+    const isAvailable = expirationStatus === 'available';
     return (
-      <div className="min-h-screen bg-[#03060B] text-white flex flex-col justify-center items-center p-6 space-y-4">
-        <FaClock className="text-red-500 text-5xl" />
-        <h1 className="text-xl font-bold">Tempo Expirado!</h1>
-        <p className="text-neutral-400 text-sm text-center">Sua reserva de ingressos expirou. Volte para a página do evento para tentar novamente.</p>
-        <Link href={`/events/${slug}`}>
-          <Button>Voltar para o Evento</Button>
-        </Link>
+      <div className="min-h-screen bg-[#03060B] text-white flex flex-col justify-center items-center p-6 space-y-5">
+        <FaClock className={isAvailable ? 'text-amber-400 text-5xl' : 'text-red-500 text-5xl'} />
+        <div className="space-y-2 text-center max-w-md">
+          <h1 className="text-xl font-bold">Tempo Expirado</h1>
+          <p className="text-neutral-400 text-sm">
+            {isChecking
+              ? 'Estamos verificando se o ingresso ainda está disponível.'
+              : isAvailable
+                ? 'Ainda há ingressos disponíveis. Volte para a tela anterior e faça uma nova reserva.'
+                : 'Não encontramos disponibilidade para este ingresso no momento.'}
+          </p>
+        </div>
+        {isChecking && <div className="w-8 h-8 border-4 border-white/10 border-t-[#FF3200] rounded-full animate-spin" />}
+        <Button onClick={goBackToPreviousScreen}>Voltar para a tela anterior</Button>
       </div>
     );
   }
@@ -162,13 +262,30 @@ export default function EventCheckoutPage() {
     <div className="min-h-screen flex flex-col bg-[#03060B] font-sans antialiased text-white relative overflow-hidden">
       <Header />
 
-      <main className="flex-grow max-w-4xl mx-auto px-6 py-12 w-full space-y-6 z-10">
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Finalizar Compra</h1>
-          <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded text-amber-500 text-xs font-bold">
-            <FaClock />
-            <span>Reserva expira em: {formatTime(timeLeft)}</span>
+      <main className={`flex-grow max-w-4xl mx-auto px-6 w-full z-10 ${isCheckoutCompact ? 'py-5 space-y-4' : 'py-12 space-y-6'}`}>
+        {isCheckoutCompact && (
+          <div className="w-full rounded-lg border border-amber-500/20 bg-amber-500/10 overflow-hidden">
+            <div className="h-1.5 bg-white/10">
+              <div
+                className={`h-full transition-all duration-1000 ease-linear ${timeLeft < 60 ? 'bg-amber-400' : 'bg-[#FF3200]'}`}
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between px-3 py-1.5 text-[11px] font-bold text-amber-400">
+              <span>Reserva ativa</span>
+              <span>{formatTime(timeLeft)}</span>
+            </div>
           </div>
+        )}
+
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <h1 className={isCheckoutCompact ? 'text-xl font-bold' : 'text-2xl font-bold'}>Finalizar Compra</h1>
+          {!isCheckoutCompact && (
+            <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 rounded text-amber-500 text-xs font-bold px-3 py-1">
+              <FaClock />
+              <span>Reserva expira em: {formatTime(timeLeft)}</span>
+            </div>
+          )}
         </div>
 
         {error && (
@@ -199,12 +316,12 @@ export default function EventCheckoutPage() {
             </div>
           </Card>
         ) : (
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="md:col-span-2 space-y-6">
+          <form onSubmit={handleSubmit} className={`grid grid-cols-1 md:grid-cols-3 ${isCheckoutCompact ? 'gap-4' : 'gap-6'}`}>
+            <div className={`md:col-span-2 ${isCheckoutCompact ? 'space-y-4' : 'space-y-6'}`}>
               {/* Buyer info card */}
-              <Card className="p-6 bg-neutral-900 border border-white/10 rounded-2xl space-y-4">
-                <h3 className="text-lg font-bold">Dados do Comprador</h3>
-                <div className="space-y-3">
+              <Card className={`${isCheckoutCompact ? 'p-4' : 'p-6'} bg-neutral-900 border border-white/10 rounded-2xl space-y-4`}>
+                <h3 className={isCheckoutCompact ? 'text-base font-bold' : 'text-lg font-bold'}>Dados do Comprador</h3>
+                <div className={isCheckoutCompact ? 'grid grid-cols-1 sm:grid-cols-3 gap-3' : 'space-y-3'}>
                   <label className="block space-y-1">
                     <span className="text-xs font-bold text-neutral-400">Nome Completo</span>
                     <input type="text" value={buyerName} onChange={e => setBuyerName(e.target.value)} required className="w-full h-11 bg-neutral-950 border border-white/10 rounded-lg px-3 text-sm text-white" />
@@ -221,8 +338,8 @@ export default function EventCheckoutPage() {
               </Card>
 
               {/* Payment selection */}
-              <Card className="p-6 bg-neutral-900 border border-white/10 rounded-2xl space-y-4">
-                <h3 className="text-lg font-bold">Forma de Pagamento</h3>
+              <Card className={`${isCheckoutCompact ? 'p-4' : 'p-6'} bg-neutral-900 border border-white/10 rounded-2xl space-y-4`}>
+                <h3 className={isCheckoutCompact ? 'text-base font-bold' : 'text-lg font-bold'}>Forma de Pagamento</h3>
                 
                 <div className="flex gap-4">
                   <button
@@ -246,8 +363,8 @@ export default function EventCheckoutPage() {
                 </div>
 
                 {paymentMethod === 'credit_card' && (
-                  <div className="space-y-3 pt-3">
-                    <label className="block space-y-1">
+                  <div className={isCheckoutCompact ? 'grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3' : 'space-y-3 pt-3'}>
+                    <label className={isCheckoutCompact ? 'block space-y-1 sm:col-span-2' : 'block space-y-1'}>
                       <span className="text-xs font-bold text-neutral-400">Número do Cartão</span>
                       <input type="text" value={cardNumber} onChange={e => setCardNumber(e.target.value)} required className="w-full h-11 bg-neutral-950 border border-white/10 rounded-lg px-3 text-sm text-white" />
                     </label>
@@ -255,7 +372,7 @@ export default function EventCheckoutPage() {
                       <span className="text-xs font-bold text-neutral-400">Nome no Cartão</span>
                       <input type="text" value={cardholderName} onChange={e => setCardholderName(e.target.value)} required className="w-full h-11 bg-neutral-950 border border-white/10 rounded-lg px-3 text-sm text-white" />
                     </label>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className={isCheckoutCompact ? 'grid grid-cols-2 gap-3 sm:col-span-2' : 'grid grid-cols-2 gap-4'}>
                       <label className="block space-y-1">
                         <span className="text-xs font-bold text-neutral-400">Validade</span>
                         <input type="text" placeholder="MM/AA" value={cardExpiry} onChange={e => setCardExpiry(e.target.value)} required className="w-full h-11 bg-neutral-950 border border-white/10 rounded-lg px-3 text-sm text-white" />
@@ -272,21 +389,21 @@ export default function EventCheckoutPage() {
 
             {/* Event Overview Sidebar */}
             <div className="space-y-4">
-              <Card className="p-6 bg-neutral-900 border border-white/10 rounded-2xl space-y-4">
+              <Card className={`${isCheckoutCompact ? 'p-4 space-y-3 md:sticky md:top-4' : 'p-6 space-y-4'} bg-neutral-900 border border-white/10 rounded-2xl`}>
                 <h3 className="text-md font-bold">Resumo do Pedido</h3>
                 {event && (
-                  <div className="space-y-3 text-sm">
+                  <div className={`${isCheckoutCompact ? 'space-y-2' : 'space-y-3'} text-sm`}>
                     <div>
                       <div className="font-bold text-white">{event.title}</div>
-                      <div className="text-xs text-neutral-400 mt-0.5">📅 {new Date(event.date).toLocaleDateString('pt-BR')}</div>
+                      {!isCheckoutCompact && <div className="text-xs text-neutral-400 mt-0.5">Data: {new Date(event.date).toLocaleDateString('pt-BR')}</div>}
                     </div>
-                    <div className="flex justify-between pt-3 border-t border-white/5 text-xs text-neutral-400">
+                    <div className={`${isCheckoutCompact ? 'pt-2' : 'pt-3'} flex justify-between border-t border-white/5 text-xs text-neutral-400`}>
                       <span>Ingressos:</span>
                       <span>{quantity}x</span>
                     </div>
-                    <div className="flex justify-between pt-3 border-t border-white/5 font-bold text-white">
+                    <div className={`${isCheckoutCompact ? 'pt-2' : 'pt-3'} flex justify-between border-t border-white/5 font-bold text-white`}>
                       <span>Total:</span>
-                      <span className="text-lg text-[#FF3200] font-mono">
+                      <span className={`${isCheckoutCompact ? 'text-base' : 'text-lg'} text-[#FF3200] font-mono`}>
                         {event.ticketTypes[0] ? (Number(event.ticketTypes[0].batches[0]?.price) * Number(quantity)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$ 0,00'}
                       </span>
                     </div>

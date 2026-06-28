@@ -6,9 +6,24 @@ async function main() {
   console.log('\n=== SEEDING EVENTS WITH DYNAMIC PRICES ===\n');
 
   // 1. Limpar dados antigos para evitar duplicidade
+  await prisma.checkin.deleteMany({});
+  await (prisma as any).ticketStatusHistory?.deleteMany({});
   await prisma.ticket.deleteMany({});
+  await (prisma as any).saleLog?.deleteMany({});
+  await prisma.payment.deleteMany({});
+  await (prisma as any).reservationItem?.deleteMany({});
+  await (prisma as any).reservation?.deleteMany({});
+  await prisma.order.deleteMany({});
+  await (prisma as any).waitlistEntry?.deleteMany({});
   await prisma.ticketBatch.deleteMany({});
+  await prisma.ticketType.deleteMany({});
+  await (prisma as any).eventAlert?.deleteMany({});
+  await (prisma as any).dailySalesSnapshot?.deleteMany({});
+  await prisma.payout.deleteMany({});
   await prisma.event.deleteMany({});
+  await (prisma as any).auditLog?.deleteMany({});
+  await prisma.outboxEvent.deleteMany({});
+  await (prisma as any).organizationMember?.deleteMany({});
   await prisma.user.deleteMany({});
 
   // 2. Garantir organizador
@@ -31,30 +46,59 @@ async function main() {
     location: string,
     categoryId: number,
     prices: { superior: number; vip: number; premium: number },
-    supportsHalfPrice: boolean = false
+    supportsHalfPrice: boolean = false,
+    status: 'DRAFT' | 'PUBLISHED' = 'PUBLISHED'
   ) {
     const event = await prisma.event.create({
-      data: { title, description, date: new Date(date), location, categoryId, organizerId },
+      data: { 
+        title, 
+        description, 
+        date: new Date(date), 
+        location, 
+        categoryId, 
+        organizerId,
+        status: status as any
+      },
+    });
+
+    const ticketType = await prisma.ticketType.create({
+      data: {
+        eventId: event.id,
+        name: 'General Admission',
+        description: 'Default ticket type',
+        capacity: 1500,
+        visibility: true,
+        transferable: true,
+        refundable: true,
+        purchaseLimit: 5,
+        isActive: true,
+      }
     });
 
     const eventBatches = [
-      { name: 'PLATEIA SUPERIOR', price: prices.superior, totalQuantity: 300, availableQuantity: 300, sectorId: 1, sectorName: 'PLATEIA SUPERIOR', meiaEntrada: false },
-      { name: 'PLATEIA VIP',      price: prices.vip, totalQuantity: 200, availableQuantity: 200, sectorId: 2, sectorName: 'PLATEIA VIP', meiaEntrada: false },
-      { name: 'PLATEIA PREMIUM',  price: prices.premium, totalQuantity: 150, availableQuantity: 150, sectorId: 3, sectorName: 'PLATEIA PREMIUM', meiaEntrada: false },
+      { name: 'PLATEIA SUPERIOR', price: prices.superior, totalQuantity: 300, availableQuantity: 300, sectorId: 1, sectorName: 'PLATEIA SUPERIOR', meiaEntrada: false, status: 'ACTIVE' as const, isActive: true },
+      { name: 'PLATEIA VIP',      price: prices.vip, totalQuantity: 200, availableQuantity: 200, sectorId: 2, sectorName: 'PLATEIA VIP', meiaEntrada: false, status: 'ACTIVE' as const, isActive: true },
+      { name: 'PLATEIA PREMIUM',  price: prices.premium, totalQuantity: 150, availableQuantity: 150, sectorId: 3, sectorName: 'PLATEIA PREMIUM', meiaEntrada: false, status: 'ACTIVE' as const, isActive: true },
     ];
 
     if (supportsHalfPrice) {
       eventBatches.push(
-        { name: 'PLATEIA SUPERIOR - MEIA', price: prices.superior * 0.5, totalQuantity: 300, availableQuantity: 300, sectorId: 1, sectorName: 'PLATEIA SUPERIOR', meiaEntrada: true },
-        { name: 'PLATEIA VIP - MEIA',      price: prices.vip * 0.5, totalQuantity: 200, availableQuantity: 200, sectorId: 2, sectorName: 'PLATEIA VIP', meiaEntrada: true },
-        { name: 'PLATEIA PREMIUM - MEIA',  price: prices.premium * 0.5, totalQuantity: 150, availableQuantity: 150, sectorId: 3, sectorName: 'PLATEIA PREMIUM', meiaEntrada: true }
+        { name: 'PLATEIA SUPERIOR - MEIA', price: prices.superior * 0.5, totalQuantity: 300, availableQuantity: 300, sectorId: 1, sectorName: 'PLATEIA SUPERIOR', meiaEntrada: true, status: 'ACTIVE' as const, isActive: true },
+        { name: 'PLATEIA VIP - MEIA',      price: prices.vip * 0.5, totalQuantity: 200, availableQuantity: 200, sectorId: 2, sectorName: 'PLATEIA VIP', meiaEntrada: true, status: 'ACTIVE' as const, isActive: true },
+        { name: 'PLATEIA PREMIUM - MEIA',  price: prices.premium * 0.5, totalQuantity: 150, availableQuantity: 150, sectorId: 3, sectorName: 'PLATEIA PREMIUM', meiaEntrada: true, status: 'ACTIVE' as const, isActive: true }
       );
     }
 
     for (const batch of eventBatches) {
-      await prisma.ticketBatch.create({ data: { ...batch, eventId: event.id } });
+      await prisma.ticketBatch.create({ 
+        data: { 
+          ...batch, 
+          eventId: event.id,
+          ticketTypeId: ticketType.id
+        } 
+      });
     }
-    console.log(`  ✅ "${title}" cadastrado (Superior: R$ ${prices.superior}, VIP: R$ ${prices.vip}, Premium: R$ ${prices.premium}, Meia: ${supportsHalfPrice ? 'Sim' : 'Não'})`);
+    console.log(`  ✅ "${title}" cadastrado como ${status} (Superior: R$ ${prices.superior}, VIP: R$ ${prices.vip}, Premium: R$ ${prices.premium}, Meia: ${supportsHalfPrice ? 'Sim' : 'Não'})`);
     return event;
   }
 

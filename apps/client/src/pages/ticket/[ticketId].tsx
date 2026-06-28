@@ -242,21 +242,9 @@ export default function PublicTicketPage({ ticket }: PublicTicketPageProps) {
                 <button
                   onClick={async () => {
                     try {
-                      const res = await fetch(`http://localhost:4000/tickets/${ticket.id}/wallet/apple`);
-                      const data = await res.json();
-                      alert(`Apple Wallet Preparada:\n${JSON.stringify(data, null, 2)}`);
+                      window.location.href = `/api/tickets/${ticket.id}/pkpass`;
                     } catch (e) {
-                      alert(`Preparação Apple Wallet:\n` + JSON.stringify({
-                        formatVersion: 1,
-                        passTypeIdentifier: 'pass.com.fluxtickets',
-                        serialNumber: ticket.id,
-                        teamIdentifier: 'FLUX123456',
-                        barcode: {
-                          message: JSON.stringify({ ticketId: ticket.id, version: 1, signature: ticket.hmacSignature }),
-                          format: 'PKBarcodeFormatQR',
-                          messageEncoding: 'iso-8859-1'
-                        }
-                      }, null, 2));
+                      alert('Não foi possível preparar o arquivo Apple Wallet.');
                     }
                   }}
                   className="flex items-center justify-center gap-1.5 py-3 px-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 transition-all font-bold text-[10px] text-slate-300 uppercase tracking-wide cursor-pointer"
@@ -266,19 +254,16 @@ export default function PublicTicketPage({ ticket }: PublicTicketPageProps) {
                 <button
                   onClick={async () => {
                     try {
-                      const res = await fetch(`http://localhost:4000/tickets/${ticket.id}/wallet/google`);
+                      const res = await fetch(`/api/tickets/${ticket.id}/googlepay`);
+                      if (!res.ok) throw new Error('Falha ao preparar Google Wallet');
                       const data = await res.json();
-                      alert(`Google Wallet Preparada:\n${JSON.stringify(data, null, 2)}`);
+                      if (data.saveUrl) {
+                        window.location.href = data.saveUrl;
+                      } else {
+                        alert('Link do Google Wallet indisponível para este ingresso.');
+                      }
                     } catch (e) {
-                      alert(`Preparação Google Wallet:\n` + JSON.stringify({
-                        id: `issuer_id.${ticket.id}`,
-                        classId: `issuer_id.event_class`,
-                        state: 'ACTIVE',
-                        barcode: {
-                          type: 'QR_CODE',
-                          value: JSON.stringify({ ticketId: ticket.id, version: 1, signature: ticket.hmacSignature })
-                        }
-                      }, null, 2));
+                      alert('Não foi possível preparar o Google Wallet.');
                     }
                   }}
                   className="flex items-center justify-center gap-1.5 py-3 px-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 transition-all font-bold text-[10px] text-slate-300 uppercase tracking-wide cursor-pointer"

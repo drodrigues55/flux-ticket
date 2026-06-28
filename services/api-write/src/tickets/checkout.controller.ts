@@ -308,6 +308,7 @@ export class CheckoutController {
       price?: number; 
       isHalfPrice?: boolean; 
       quantity?: number;
+      userId?: string;
       items?: Array<{ batchId?: string; ticketTypeId?: string; price?: number; isHalfPrice?: boolean; quantity: number }>
     },
     @Req() req: any
@@ -402,16 +403,24 @@ export class CheckoutController {
     const expiresAt = new Date(Date.now() + 180 * 1000);
 
     const { user, reservation, reservationItemsByBatchId } = await prisma.$transaction(async (tx) => {
-      const txUser = await tx.user.upsert({
-        where: { email: 'guest@flux.com' },
-        create: {
-          email: 'guest@flux.com',
-          password: 'guest-password-hash-123',
-          name: 'Guest Buyer',
-          role: 'USER',
-        },
-        update: {},
-      });
+      let txUser = null;
+      if (body.userId) {
+        txUser = await tx.user.findUnique({
+          where: { id: body.userId }
+        });
+      }
+      if (!txUser) {
+        txUser = await tx.user.upsert({
+          where: { email: 'guest@flux.com' },
+          create: {
+            email: 'guest@flux.com',
+            password: 'guest-password-hash-123',
+            name: 'Guest Buyer',
+            role: 'USER',
+          },
+          update: {},
+        });
+      }
 
       const txReservation = await (tx as any).reservation.create({
         data: {

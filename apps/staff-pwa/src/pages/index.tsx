@@ -252,6 +252,7 @@ export default function StaffPortal() {
   };
 
   const handleFillMockQR = async (type: 'valid' | 'invalid' | 'tampered') => {
+    setScanResult(null);
     const validMockTicketId = '8ea03604-942c-4597-b1bf-99dc3b1a67fe';
     const validMockSignature = '2b08cf7ae4ec289bca97fc796f321ca1d04d768b567167e4cb3dc0dcb89d8fa3';
 
@@ -420,9 +421,14 @@ export default function StaffPortal() {
                   </CardHeader>
                   <CardContent className="flex flex-col items-center justify-center py-6 space-y-4">
                     {scanResult ? (
-                      <div className={`w-full p-6 border rounded-xl flex items-start space-x-4 ${
+                      <div
+                        role={scanResult.success ? 'status' : 'alert'}
+                        aria-live="polite"
+                        data-testid="scan-result"
+                        className={`w-full p-6 border rounded-xl flex items-start space-x-4 ${
                         scanResult.success ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-400'
-                      }`}>
+                      }`}
+                      >
                         <div className="space-y-1">
                           <h4 className="font-bold text-lg">
                             {scanResult.success ? 'Acesso Liberado!' : 'Acesso Recusado!'}
@@ -439,7 +445,7 @@ export default function StaffPortal() {
                 </Card>
 
                 {/* Simulated QR Input details */}
-                <details className="bg-neutral-900 border border-white/10 rounded-xl overflow-hidden group">
+                <details open className="bg-neutral-900 border border-white/10 rounded-xl overflow-hidden group">
                   <summary className="p-4 cursor-pointer text-xs font-bold text-neutral-400 hover:text-white flex justify-between items-center select-none bg-neutral-950/40">
                     <span>Simulador de QR Code</span>
                     <span>▼</span>
@@ -451,20 +457,21 @@ export default function StaffPortal() {
                         onChange={e => setScannedInput(e.target.value)}
                         placeholder='{ "ticket_id": "...", "signature": "..." }'
                         rows={5}
+                        data-testid="qr-simulator-input"
                         className="w-full bg-neutral-950 border border-white/10 rounded-lg p-4 text-xs font-mono text-white placeholder-neutral-600"
                       />
                       <div className="flex gap-2">
-                        <button type="button" onClick={() => handleFillMockQR('valid')} className="flex-1 py-2 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-bold border border-emerald-500/20 cursor-pointer">
+                        <button type="button" data-testid="qr-valid-button" onClick={() => handleFillMockQR('valid')} className="flex-1 py-2 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-bold border border-emerald-500/20 cursor-pointer">
                           QR Válido
                         </button>
-                        <button type="button" onClick={() => handleFillMockQR('invalid')} className="flex-1 py-2 rounded bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold border border-red-500/20 cursor-pointer">
+                        <button type="button" data-testid="qr-invalid-button" onClick={() => handleFillMockQR('invalid')} className="flex-1 py-2 rounded bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold border border-red-500/20 cursor-pointer">
                           QR Inválido
                         </button>
-                        <button type="button" onClick={() => handleFillMockQR('tampered')} className="flex-1 py-2 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-xs font-bold border border-amber-500/20 cursor-pointer">
+                        <button type="button" data-testid="qr-tampered-button" onClick={() => handleFillMockQR('tampered')} className="flex-1 py-2 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-xs font-bold border border-amber-500/20 cursor-pointer">
                           QR Adulterado
                         </button>
                       </div>
-                      <button type="submit" className="w-full h-11 rounded-lg bg-[#FF3200] hover:bg-[#E62D00] text-white font-bold text-sm cursor-pointer">
+                      <button type="submit" data-testid="validate-simulation-button" className="w-full h-11 rounded-lg bg-[#FF3200] hover:bg-[#E62D00] text-white font-bold text-sm cursor-pointer">
                         Validar Simulação (Check-in)
                       </button>
                     </form>

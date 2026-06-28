@@ -143,10 +143,11 @@ export default function OrderConfirmationPage({ order }: ConfirmationPageProps) 
             </div>
 
             <div className="pt-6 border-t border-white/5 flex gap-4">
-              <Link href="/events" className="flex-1">
-                <button className="w-full h-11 bg-neutral-800 hover:bg-neutral-700 text-white rounded-xl font-bold text-sm cursor-pointer border-none">
-                  Explorar mais eventos
-                </button>
+              <Link
+                href="/events"
+                className="flex-1 h-11 bg-neutral-800 hover:bg-neutral-700 text-white rounded-xl font-bold text-sm cursor-pointer border-none flex items-center justify-center"
+              >
+                Explorar mais eventos
               </Link>
             </div>
           </div>

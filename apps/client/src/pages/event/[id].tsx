@@ -514,11 +514,10 @@ export default function EventPage() {
                 </div>
               )}
 
-              {/* Coupon discount link */}
-              <button className="flex items-center gap-1.5 text-xs text-[#FF3200] hover:text-[#E62D00] font-bold border-none bg-transparent cursor-pointer p-0 transition-colors">
+              <div className="flex items-center gap-1.5 text-xs text-neutral-400 font-bold p-0" aria-disabled="true">
                 <FaTag className="w-3.5 h-3.5" />
-                <span>Inserir cupom de desconto</span>
-              </button>
+                <span>Cupom indisponível no momento</span>
+              </div>
 
               {/* Bottom Buttons Action */}
               <div className="flex flex-col gap-2 pt-2">

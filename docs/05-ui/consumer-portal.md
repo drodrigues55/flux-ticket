@@ -399,6 +399,22 @@ Authenticated or identified customer can access:
 
 ---
 
+# Profile And Payment Settings
+
+Profile and payment settings use an email OTP wall only when the customer changes sensitive data.
+
+Layout rules:
+
+* Do not show a standalone OTP card above the form.
+* Place OTP verification in the final action row of the form.
+* Keep the primary action above the verification note.
+* Keep the verification title, helper text, and OTP field below the action, occupying the full block width.
+* Use the same stacked structure on desktop and mobile, adjusting spacing only to preserve legibility.
+* The primary action advances through the secure flow: `Enviar codigo` -> `Confirmar codigo` -> final save/add/update action.
+* The OTP block appears only after the form has real changes or filled payment data.
+
+---
+
 # Ticket Page
 
 Each ticket displays:

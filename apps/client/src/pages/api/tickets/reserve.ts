@@ -1,4 +1,15 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { verifyToken } from '../../../lib/jwt';
+
+function parseCookies(cookieHeader?: string) {
+  if (!cookieHeader) return {};
+  const list: Record<string, string> = {};
+  cookieHeader.split(';').forEach((cookie) => {
+    const parts = cookie.split('=');
+    list[parts.shift()!.trim()] = decodeURI(parts.join('='));
+  });
+  return list;
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -16,6 +27,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: 'batchId and price, or items list, is required' });
   }
 
+  // Retrieve authenticated user from secure session cookie
+  const cookies = parseCookies(req.headers.cookie);
+  const token = cookies['flux_token'];
+  const decoded = token ? verifyToken(token) : null;
+  const userId = decoded?.id || undefined;
+
   try {
     const apiWriteUrl = process.env.API_WRITE_URL || 'http://localhost:4000';
     const response = await fetch(`${apiWriteUrl}/tickets/reserve`, {
@@ -23,7 +40,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ eventId, batchId, price, isHalfPrice, quantity, items }),
+      body: JSON.stringify({ eventId, batchId, price, isHalfPrice, quantity, items, userId }),
     });
 
     const data = await response.json();

@@ -28,7 +28,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(response.status).json(data);
     }
 
-    return res.status(200).json(data);
+    const ticketIds = Array.isArray(data?.ticketIds)
+      ? data.ticketIds
+      : typeof data?.ticketId === 'string'
+        ? data.ticketId.split(',').filter(Boolean)
+        : [];
+
+    return res.status(200).json({
+      ...data,
+      ticketIds,
+      pixCode: data?.pixCode ?? data?.qrCode,
+      pixQrBase64: data?.pixQrBase64 ?? data?.qrCodeBase64,
+    });
   } catch (error: any) {
     console.error('[PROXY ERROR] Failed to process payment checkout:', error);
     const requestId = Array.isArray(req.headers['x-request-id']) ? req.headers['x-request-id'][0] : req.headers['x-request-id'];

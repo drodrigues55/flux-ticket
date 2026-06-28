@@ -1,9 +1,42 @@
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
 import { Header } from '../../components/header';
-import { FaMusic, FaMasksTheater, FaFutbol, FaFaceSmile } from 'react-icons/fa6';
+import { EventCard } from '../../components/EventCard';
+import { FaFaceSmile, FaFutbol, FaMagnifyingGlass, FaMasksTheater, FaMusic } from 'react-icons/fa6';
+
+const categories = [
+  { id: 1, label: 'Shows', icon: <FaMusic className="text-[13px]" /> },
+  { id: 2, label: 'Teatro', icon: <FaMasksTheater className="text-[13px]" /> },
+  { id: 3, label: 'Esportes', icon: <FaFutbol className="text-[13px]" /> },
+  { id: 4, label: 'Infantil', icon: <FaFaceSmile className="text-[13px]" /> },
+];
+
+const categoryFallbackImages: Record<number, string> = {
+  1: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&q=80&w=600',
+  2: 'https://images.unsplash.com/photo-1503095391755-1414e86720d0?auto=format&fit=crop&q=80&w=600',
+  3: 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&q=80&w=600',
+  4: 'https://images.unsplash.com/photo-1516627145497-ae6968895b74?auto=format&fit=crop&q=80&w=600',
+};
+
+const formatPrice = (event: any) => {
+  if (event.startingPrice !== null && event.startingPrice !== undefined) {
+    return Number(event.startingPrice).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  if (event.batches?.length) {
+    const price = Math.min(...event.batches.map((batch: any) => Number(batch.price)));
+    return price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  return 'Consultar';
+};
+
+const getEventImage = (event: any) => {
+  return event.imageUrl || categoryFallbackImages[event.categoryId] || 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?auto=format&fit=crop&q=80&w=600';
+};
 
 export default function PublicEventsCatalog() {
+  const router = useRouter();
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
@@ -31,103 +64,129 @@ export default function PublicEventsCatalog() {
     fetchEvents();
   }, [selectedCategory]);
 
-  const filteredEvents = events.filter(e => {
+  useEffect(() => {
+    if (!router.isReady) return;
+    const search = typeof router.query.search === 'string' ? router.query.search : '';
+    setSearchTerm(search);
+    setActiveSearch(search);
+  }, [router.isReady, router.query.search]);
+
+  const handleSearch = () => {
+    const sanitized = searchTerm.replace(/[<>'"&/]/g, '').trim();
+    setActiveSearch(sanitized);
+  };
+
+  const filteredEvents = events.filter((event) => {
     if (!activeSearch) return true;
     const query = activeSearch.toLowerCase();
     return (
-      e.title.toLowerCase().includes(query) ||
-      (e.location && e.location.toLowerCase().includes(query))
+      event.title?.toLowerCase().includes(query) ||
+      event.venue?.toLowerCase().includes(query) ||
+      event.location?.toLowerCase().includes(query)
     );
   });
 
-  return (
-    <div className="min-h-screen flex flex-col bg-[#03060B] font-sans antialiased text-white relative overflow-hidden">
-      <Header />
-      
-      <main className="flex-grow max-w-7xl mx-auto px-6 py-12 w-full space-y-8 z-10">
-        <div className="text-center space-y-4">
-          <h1 className="text-4xl font-extrabold tracking-tight">Eventos em Destaque</h1>
-          <p className="text-neutral-400 text-sm max-w-md mx-auto">Compre seus ingressos com total segurança e praticidade.</p>
-        </div>
+  const heading = activeSearch
+    ? `Resultados para "${activeSearch}"`
+    : selectedCategory
+      ? categories.find((category) => category.id === selectedCategory)?.label || 'Eventos encontrados'
+      : 'Todos os eventos';
 
-        {/* Search & Categories */}
-        <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-          <div className="flex bg-neutral-900 border border-white/10 rounded-full px-4 py-2 w-full max-w-md">
-            <input
-              type="text"
-              placeholder="Buscar eventos..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') setActiveSearch(searchTerm); }}
-              className="bg-transparent border-none outline-none text-sm w-full placeholder-neutral-500"
-            />
-            <button onClick={() => setActiveSearch(searchTerm)} className="text-xs font-bold text-[#FF3200]">Buscar</button>
+  return (
+    <div className="min-h-screen flex flex-col flux-page font-sans antialiased">
+      <Header />
+
+      <main className="flex-grow max-w-7xl mx-auto w-full px-6 py-12 space-y-8">
+        <section className="flux-card p-6 md:p-8 rounded-[20px] shadow-xl space-y-6">
+          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
+            <div className="space-y-2">
+              <span className="text-[10px] font-bold tracking-wide text-[#FF3200]">Catalogo</span>
+              <h1 className="text-3xl font-black tracking-tight text-[var(--text)]">Eventos</h1>
+              <p className="text-sm text-[var(--text-muted)] max-w-2xl">
+                Encontre eventos publicados, filtre por categoria e continue para a pagina de ingressos.
+              </p>
+            </div>
+
+            <div className="w-full lg:max-w-md">
+              <div className="relative">
+                <FaMagnifyingGlass className="absolute left-4 top-3.5 w-4 h-4 text-[var(--text-subtle)]" />
+                <input
+                  type="text"
+                  placeholder="Buscar eventos, locais ou artistas"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') handleSearch();
+                  }}
+                  className="flux-input w-full pl-11 pr-24 py-3 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={handleSearch}
+                  className="absolute right-1.5 top-1.5 bg-[#FF3200] hover:bg-[#E62D00] text-white px-4 py-2 rounded-[10px] text-xs font-bold transition-colors"
+                >
+                  Buscar
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div className="flex gap-2 flex-wrap">
-            {[
-              { id: 1, label: 'Shows', icon: <FaMusic /> },
-              { id: 2, label: 'Teatro', icon: <FaMasksTheater /> },
-              { id: 3, label: 'Esportes', icon: <FaFutbol /> },
-              { id: 4, label: 'Infantil', icon: <FaFaceSmile /> },
-            ].map(cat => {
-              const isActive = selectedCategory === cat.id;
+          <div className="flex flex-wrap gap-2">
+            {categories.map((category) => {
+              const isActive = selectedCategory === category.id;
               return (
                 <button
-                  key={cat.id}
-                  onClick={() => setSelectedCategory(isActive ? null : cat.id)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold border transition-all cursor-pointer ${
-                    isActive ? 'bg-[#FF3200] text-white border-[#FF3200]' : 'bg-transparent border-white/10 text-neutral-400'
+                  key={category.id}
+                  type="button"
+                  onClick={() => setSelectedCategory(isActive ? null : category.id)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-[10px] text-xs font-semibold border transition-colors cursor-pointer ${
+                    isActive
+                      ? 'bg-[#FF3200] text-white border-[#FF3200]'
+                      : 'bg-[var(--surface)] text-[var(--text-muted)] border-[var(--border)] hover:text-[var(--text)] hover:bg-[var(--surface-muted)]'
                   }`}
                 >
-                  {cat.icon}
-                  {cat.label}
+                  {category.icon}
+                  {category.label}
                 </button>
               );
             })}
           </div>
-        </div>
+        </section>
 
-        {/* Event List */}
-        {loading ? (
-          <div className="text-center text-sm text-neutral-400 py-12">Carregando eventos...</div>
-        ) : filteredEvents.length === 0 ? (
-          <div className="text-center text-sm text-neutral-500 py-12">Nenhum evento localizado.</div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredEvents.map(event => (
-              <div key={event.id} className="group bg-neutral-900 border border-white/10 rounded-2xl overflow-hidden hover:border-[#FF3200]/50 transition-all duration-300">
-                {event.imageUrl && (
-                  <div className="h-44 w-full overflow-hidden bg-neutral-950">
-                    <img src={event.imageUrl} alt={event.title} className="w-full h-full object-cover group-hover:scale-105 transition-all duration-500" />
-                  </div>
-                )}
-                <div className="p-6 space-y-4">
-                  <div className="space-y-1">
-                    <h3 className="text-lg font-bold text-white group-hover:text-[#FF3200] transition-colors">{event.title}</h3>
-                    <p className="text-xs text-neutral-400">📅 {new Date(event.date).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
-                    <p className="text-xs text-neutral-400">📍 {event.venue || event.location}</p>
-                  </div>
-                  <div className="flex justify-between items-center pt-2 border-t border-white/5">
-                    {event.startingPrice !== null ? (
-                      <div>
-                        <span className="text-[10px] text-neutral-500 block uppercase">A partir de</span>
-                        <span className="text-sm font-bold font-mono text-[#FF3200]">{event.startingPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-neutral-500">Gratuito / Esgotado</span>
-                    )}
-                    <Link href={`/events/${event.slug}`}>
-                      <button className="bg-neutral-800 hover:bg-[#FF3200] hover:text-white text-neutral-300 px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer">
-                        Ver Ingressos
-                      </button>
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            ))}
+        <section className="space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
+            <div>
+              <h2 className="text-2xl font-black text-[var(--text)]">{heading}</h2>
+              <p className="text-xs font-semibold text-[var(--text-muted)]">
+                {loading ? 'Atualizando catalogo...' : `${filteredEvents.length} evento${filteredEvents.length === 1 ? '' : 's'} encontrado${filteredEvents.length === 1 ? '' : 's'}`}
+              </p>
+            </div>
           </div>
-        )}
+
+          {loading ? (
+            <div className="flux-card p-8 rounded-[20px] text-center text-sm font-semibold text-[var(--text-muted)]">
+              Carregando eventos...
+            </div>
+          ) : filteredEvents.length === 0 ? (
+            <div className="flux-card p-8 rounded-[20px] text-center text-sm font-semibold text-[var(--text-muted)]">
+              Nenhum evento localizado.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+              {filteredEvents.map((event) => (
+                <EventCard
+                  key={event.id}
+                  title={event.title}
+                  date={new Date(event.date).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  location={event.venue || event.location || 'Local a confirmar'}
+                  price={formatPrice(event)}
+                  imageUrl={getEventImage(event)}
+                  onBuy={() => router.push(event.slug ? `/events/${event.slug}` : `/event/${event.id}`)}
+                />
+              ))}
+            </div>
+          )}
+        </section>
       </main>
     </div>
   );

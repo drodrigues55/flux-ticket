@@ -23,6 +23,14 @@ export async function syncOfflineMutations(eventId: string): Promise<{ success: 
     const allowedSectorIds = getAllowedSectorIds();
     console.log(`[SYNC] Tentando sincronizar ${checkins.length} check-ins para o evento ${eventId}...`);
 
+    if (pending.length === 0) {
+      return {
+        success: true,
+        count: 0,
+        message: 'Sem check-ins pendentes. Carga offline pode ser atualizada.',
+      };
+    }
+
     // Obter ou gerar identificador do dispositivo no localStorage
     let deviceId = '';
     let deviceName = '';

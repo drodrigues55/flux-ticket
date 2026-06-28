@@ -134,7 +134,7 @@ export default function EventsCatalog() {
       <section className="flux-surface pt-24 pb-12 px-6 relative border-b">
         <div className="max-w-4xl mx-auto text-center flex flex-col items-center justify-center space-y-6">
           <div className="space-y-4">
-            <span className="text-xs font-semibold tracking-widest text-[#FF3200] uppercase block">
+            <span className="text-xs font-semibold tracking-wide text-[#FF3200] block">
               Descubra & Viva
             </span>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-black tracking-tight leading-[1.2] text-[var(--text)]">
@@ -146,7 +146,7 @@ export default function EventsCatalog() {
           </div>
 
           {/* SEARCH BAR - Light theme standard input */}
-          <div className="flex items-center bg-[var(--surface-muted)] p-1.5 rounded-full shadow-sm w-full max-w-2xl border border-[var(--border-strong)] mx-auto transition-all focus-within:border-[#FF3200] focus-within:ring-2 focus-within:ring-[#FF3200]/10">
+          <div className="flex items-center bg-[var(--surface-muted)] p-1.5 rounded-[14px] shadow-sm w-full max-w-2xl border border-[var(--border-strong)] mx-auto transition-all focus-within:border-[#FF3200] focus-within:ring-2 focus-within:ring-[#FF3200]/10">
             <svg className="w-5 h-5 text-[var(--text-subtle)] ml-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
@@ -164,7 +164,7 @@ export default function EventsCatalog() {
             />
             <button
               onClick={handleSearchSubmit}
-              className="bg-[#FF3200] hover:bg-[#E62D00] text-white px-8 py-3 rounded-full font-bold transition-all shadow-sm active:scale-95 cursor-pointer text-sm"
+              className="bg-[#FF3200] hover:bg-[#E62D00] text-white px-8 py-3 rounded-[10px] font-bold transition-all shadow-sm active:scale-95 cursor-pointer text-sm"
             >
               Buscar
             </button>
@@ -196,7 +196,7 @@ export default function EventsCatalog() {
                       }
                     }
                   }}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold transition-all border cursor-pointer ${isActive
+                  className={`flex items-center gap-2 px-4 py-2 rounded-[10px] text-xs font-semibold transition-all border cursor-pointer ${isActive
                     ? 'bg-[#FF3200] text-white border-[#FF3200] shadow-sm scale-105'
                     : 'bg-[var(--surface)] hover:bg-[var(--surface-muted)] text-[var(--text-muted)] border-[var(--border)] hover:text-[var(--text)]'
                     }`}

@@ -6,6 +6,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
   
-  res.setHeader('Set-Cookie', 'flux_token=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0');
+  const secureCookie = process.env.NODE_ENV === 'production' || process.env.APP_ENV === 'production' ? '; Secure' : '';
+  res.setHeader('Set-Cookie', `flux_token=; Path=/; HttpOnly${secureCookie}; SameSite=Lax; Max-Age=0`);
   return res.status(200).json({ success: true });
 }

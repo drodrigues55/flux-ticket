@@ -42,6 +42,12 @@ export const Header = () => {
   };
 
   const totalCartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const navItems = [
+    { label: 'Eventos', href: '/events' },
+    { label: 'Shows', href: '/events?search=Shows' },
+    { label: 'Teatro', href: '/events?search=Teatro' },
+    { label: 'Esportes', href: '/events?search=Esportes' },
+  ];
 
   return (
     <header className="h-[72px] px-8 flex items-center justify-between flux-surface border-b sticky top-0 z-50 shadow-sm transition-all duration-200">
@@ -55,9 +61,9 @@ export const Header = () => {
 
       {/* NAVIGATION MENU */}
       <nav className="hidden md:flex items-center gap-8 text-sm font-semibold text-[var(--text-muted)]">
-        {['Eventos', 'Shows', 'Teatro', 'Esportes'].map((item) => (
-          <a key={item} href="/" className="hover:text-[#FF3200] transition-colors">
-            {item}
+        {navItems.map((item) => (
+          <a key={item.label} href={item.href} className="hover:text-[#FF3200] transition-colors">
+            {item.label}
           </a>
         ))}
       </nav>
@@ -65,7 +71,13 @@ export const Header = () => {
       {/* RIGHT ACTIONS */}
       <div className="flex items-center gap-5">
         {/* Search Icon */}
-        <button className="text-[var(--text-subtle)] hover:text-[#FF3200] transition-colors bg-transparent border-none cursor-pointer p-1">
+        <button
+          type="button"
+          onClick={() => window.location.href = '/events'}
+          className="text-[var(--text-subtle)] hover:text-[#FF3200] transition-colors bg-transparent border-none cursor-pointer p-1"
+          aria-label="Buscar eventos"
+          title="Buscar eventos"
+        >
           <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
