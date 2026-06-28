@@ -39,7 +39,7 @@ type TicketForm = {
 };
 
 type ApiEnvelope<T> = { data: T; meta: { requestId: string } };
-type ApiError = { message: string; requestId?: string };
+type ApiError = { message: string; requestId?: string; details?: any };
 
 const steps = ['Basic Information', 'Tickets', 'Review', 'Publish Entry Point'];
 
@@ -100,6 +100,7 @@ export async function readEnvelope<T>(response: Response): Promise<ApiEnvelope<T
     throw {
       message: error.message || json.message || 'Request failed.',
       requestId: error.requestId || json.requestId,
+      details: error.details || json.details,
     } satisfies ApiError;
   }
   return json;
@@ -370,8 +371,17 @@ export default function CreateEventPage() {
           <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             <div className="flex items-start gap-2">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-              <div>
+              <div className="w-full">
                 <p className="font-semibold">{error.message}</p>
+                {error.details && typeof error.details === 'object' && (
+                  <ul className="mt-2 list-inside list-disc space-y-1 text-xs text-red-600">
+                    {Object.entries(error.details.fieldErrors || {}).map(([field, msgs]: any) => (
+                      <li key={field}>
+                        <strong>{field}</strong>: {msgs.join(', ')}
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 {error.requestId && <p className="mt-1 text-xs text-red-500">Request ID: {error.requestId}</p>}
               </div>
             </div>

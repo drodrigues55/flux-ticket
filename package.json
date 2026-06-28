@@ -52,5 +52,8 @@
     "next": {
       "postcss": "$postcss"
     }
+  },
+  "prisma": {
+    "seed": "tsx packages/database/seed-categories.ts"
   }
 }

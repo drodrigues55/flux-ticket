@@ -217,6 +217,299 @@ async function main() {
     false
   );
 
+  console.log('\n=== SEEDING DRAFT, READY, SOLD-OUT AND PAST EVENTS ===\n');
+
+  // Draft event with publishing blocker
+  await prisma.event.create({
+    data: {
+      title: 'Draft Event Blocked',
+      slug: 'draft-event-blocked',
+      shortDescription: 'This is a draft event with publishing blockers.',
+      description: 'Missing ticket types and active batches.',
+      date: new Date('2026-09-01T20:00:00Z'),
+      location: 'Teatro São Francisco',
+      timezone: 'America/Cuiaba',
+      locationType: 'PHYSICAL',
+      venue: 'Teatro São Francisco',
+      country: 'BR',
+      imageUrl: 'https://picsum.photos/seed/flux-draft-blocked/1200/630',
+      capacityTarget: 1500,
+      categoryId: 1,
+      organizerId,
+      status: 'DRAFT',
+    },
+  });
+  console.log('  ✅ "Draft Event Blocked" cadastrado como DRAFT (Sem ingressos)');
+
+  // Ready-to-publish event
+  const readyEvent = await prisma.event.create({
+    data: {
+      title: 'Ready to Publish Event',
+      slug: 'ready-to-publish-event',
+      shortDescription: 'This event is ready to be validated and published.',
+      description: 'Fully configured basic info and ticket types.',
+      date: new Date('2026-09-10T20:00:00Z'),
+      location: 'Teatro São Francisco',
+      timezone: 'America/Cuiaba',
+      locationType: 'PHYSICAL',
+      venue: 'Teatro São Francisco',
+      country: 'BR',
+      imageUrl: 'https://picsum.photos/seed/flux-ready/1200/630',
+      capacityTarget: 1500,
+      categoryId: 1,
+      organizerId,
+      status: 'READY_FOR_VALIDATION',
+    },
+  });
+  const readyTicket = await prisma.ticketType.create({
+    data: {
+      eventId: readyEvent.id,
+      name: 'General Admission',
+      description: 'Default ticket type',
+      capacity: 1000,
+      visibility: true,
+      isActive: true,
+    },
+  });
+  await prisma.ticketBatch.create({
+    data: {
+      eventId: readyEvent.id,
+      ticketTypeId: readyTicket.id,
+      name: 'Lote Único',
+      price: 150.00,
+      totalQuantity: 1000,
+      availableQuantity: 1000,
+      status: 'ACTIVE',
+      isActive: true,
+    },
+  });
+  console.log('  ✅ "Ready to Publish Event" cadastrado como READY_FOR_VALIDATION');
+
+  // Sold-out event
+  const soldOutEvent = await prisma.event.create({
+    data: {
+      title: 'Sold Out Concert',
+      slug: 'sold-out-concert',
+      shortDescription: 'This event is completely sold out.',
+      description: 'All tickets for this event have been sold.',
+      date: new Date('2026-10-15T20:00:00Z'),
+      location: 'Arena Carioca - Rio de Janeiro RJ',
+      timezone: 'America/Cuiaba',
+      locationType: 'PHYSICAL',
+      venue: 'Arena Carioca',
+      country: 'BR',
+      imageUrl: 'https://picsum.photos/seed/flux-sold-out/1200/630',
+      capacityTarget: 500,
+      categoryId: 1,
+      organizerId,
+      status: 'PUBLISHED',
+    },
+  });
+  const soldOutTicket = await prisma.ticketType.create({
+    data: {
+      eventId: soldOutEvent.id,
+      name: 'VIP Experience',
+      description: 'VIP Admission',
+      capacity: 500,
+      visibility: true,
+      isActive: true,
+    },
+  });
+  await prisma.ticketBatch.create({
+    data: {
+      eventId: soldOutEvent.id,
+      ticketTypeId: soldOutTicket.id,
+      name: 'Lote 1',
+      price: 300.00,
+      totalQuantity: 500,
+      availableQuantity: 0,
+      status: 'ACTIVE',
+      isActive: true,
+    },
+  });
+  console.log('  ✅ "Sold Out Concert" cadastrado como PUBLISHED (Esgotado)');
+
+  // Past event with checkout data
+  const pastEvent = await prisma.event.create({
+    data: {
+      title: 'Yesterday Past Expo',
+      slug: 'yesterday-past-expo',
+      shortDescription: 'A retro expo that occurred yesterday.',
+      description: 'Great exhibition event.',
+      date: new Date('2026-06-27T20:00:00Z'),
+      location: 'Teatro São Francisco',
+      timezone: 'America/Cuiaba',
+      locationType: 'PHYSICAL',
+      venue: 'Teatro São Francisco',
+      country: 'BR',
+      imageUrl: 'https://picsum.photos/seed/flux-past/1200/630',
+      capacityTarget: 100,
+      categoryId: 1,
+      organizerId,
+      status: 'PUBLISHED',
+    },
+  });
+  const pastTicket = await prisma.ticketType.create({
+    data: {
+      eventId: pastEvent.id,
+      name: 'Standard Entry',
+      capacity: 100,
+      visibility: true,
+      isActive: true,
+    },
+  });
+  const pastBatch = await prisma.ticketBatch.create({
+    data: {
+      eventId: pastEvent.id,
+      ticketTypeId: pastTicket.id,
+      name: 'Lote Final',
+      price: 50.00,
+      totalQuantity: 100,
+      availableQuantity: 95,
+      status: 'ACTIVE',
+      isActive: true,
+    },
+  });
+  console.log('  ✅ "Yesterday Past Expo" cadastrado como PUBLISHED (Passado)');
+
+  // Seed a buyer user
+  const buyerUser = await prisma.user.create({
+    data: {
+      id: 'buyer-mock',
+      email: 'demo-buyer@example.com',
+      password: 'password123',
+      name: 'Demo Buyer',
+      role: 'USER',
+    },
+  });
+
+  // Seed approved order/payment/ticket
+  const orderApproved = await prisma.order.create({
+    data: {
+      eventId: pastEvent.id,
+      buyerId: buyerUser.id,
+      status: 'PAID',
+      grossAmount: 100.00,
+      discountAmount: 0.00,
+      netAmount: 100.00,
+    },
+  });
+  await prisma.payment.create({
+    data: {
+      eventId: pastEvent.id,
+      buyerId: buyerUser.id,
+      orderId: orderApproved.id,
+      method: 'PIX',
+      status: 'APPROVED',
+      amount: 100.00,
+      provider: 'MOCK',
+    },
+  });
+  await prisma.ticket.create({
+    data: {
+      eventId: pastEvent.id,
+      batchId: pastBatch.id,
+      buyerId: buyerUser.id,
+      orderId: orderApproved.id,
+      buyerCpf: '11122233344',
+      holderName: 'Demo Buyer Approved',
+      status: 'VALID',
+      hmacSignature: 'secret_valid_123',
+      expiresAt: new Date('2026-12-31T23:59:59Z'),
+      price: pastBatch.price,
+    },
+  });
+
+  // Seed pending order/payment
+  const orderPending = await prisma.order.create({
+    data: {
+      eventId: pastEvent.id,
+      buyerId: buyerUser.id,
+      status: 'CREATED',
+      grossAmount: 50.00,
+      discountAmount: 0.00,
+      netAmount: 50.00,
+    },
+  });
+  await prisma.payment.create({
+    data: {
+      eventId: pastEvent.id,
+      buyerId: buyerUser.id,
+      orderId: orderPending.id,
+      method: 'CREDIT_CARD',
+      status: 'PENDING',
+      amount: 50.00,
+      provider: 'MOCK',
+    },
+  });
+
+  // Seed failed order/payment
+  const orderFailed = await prisma.order.create({
+    data: {
+      eventId: pastEvent.id,
+      buyerId: buyerUser.id,
+      status: 'FAILED',
+      grossAmount: 50.00,
+      discountAmount: 0.00,
+      netAmount: 50.00,
+    },
+  });
+  await prisma.payment.create({
+    data: {
+      eventId: pastEvent.id,
+      buyerId: buyerUser.id,
+      orderId: orderFailed.id,
+      method: 'PIX',
+      status: 'FAILED',
+      amount: 50.00,
+      provider: 'MOCK',
+    },
+  });
+
+  // Seed consumed order/payment/ticket/checkin
+  const orderConsumed = await prisma.order.create({
+    data: {
+      eventId: pastEvent.id,
+      buyerId: buyerUser.id,
+      status: 'PAID',
+      grossAmount: 50.00,
+      discountAmount: 0.00,
+      netAmount: 50.00,
+    },
+  });
+  await prisma.payment.create({
+    data: {
+      eventId: pastEvent.id,
+      buyerId: buyerUser.id,
+      orderId: orderConsumed.id,
+      method: 'PIX',
+      status: 'APPROVED',
+      amount: 50.00,
+      provider: 'MOCK',
+    },
+  });
+  const ticketConsumed = await prisma.ticket.create({
+    data: {
+      eventId: pastEvent.id,
+      batchId: pastBatch.id,
+      buyerId: buyerUser.id,
+      orderId: orderConsumed.id,
+      buyerCpf: '22233344455',
+      holderName: 'Demo Buyer Consumed',
+      status: 'CONSUMED',
+      hmacSignature: 'secret_consumed_123',
+      expiresAt: new Date('2026-12-31T23:59:59Z'),
+      price: pastBatch.price,
+    },
+  });
+  await prisma.checkin.create({
+    data: {
+      eventId: pastEvent.id,
+      ticketId: ticketConsumed.id,
+      status: 'ACCEPTED',
+    },
+  });
+
   console.log('\n✅ Novo Seed Concluído com Sucesso!');
 }
 
