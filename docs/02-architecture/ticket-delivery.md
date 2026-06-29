@@ -12,6 +12,12 @@ To keep resource footprint low, we utilize a printable HTML route (`/ticket/:tic
 - Only tickets with valid statuses (`VALID`, `PENDING_VALIDATION`, `CONSUMED`) are allowed to print or render QRs.
 - Unpaid, cancelled, or revoked tickets show an "Invalid Ticket for Printing" block and suppress automated print dialogs.
 
+> [!WARNING]
+> Under no circumstances should order confirmation views (`/orders/[orderId]/confirmation`) expose direct ticket link bindings or QR code generators unless the associated order status is verified server-side as `PAID`. 
+
+> [!IMPORTANT]
+> Non-actionable ticket states (like `REVOKED` or `PENDING_PAYMENT`) must fail verification at edge portals and block UI-side download and printable views immediately.
+
 ## 3. Email Delivery
 - Triggered by outbox events on `ORDER_PAID`.
 - Safe retry and idempotency are tracked using `AuditLog` records.

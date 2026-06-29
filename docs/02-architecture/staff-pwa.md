@@ -6,6 +6,9 @@ The Staff Portal / PWA is designed to allow gate operators to validate issued ti
 - Operator Name and CPF are queried on first entrance and saved to `localStorage` for session/device persistence.
 - Identity credentials are embedded into check-in metadata and mutation queue items for audit trailing.
 
+> [!IMPORTANT]
+> Operator logins must identify valid names and CPFs. Anonymous check-ins must be blocked server-side by checking the validation metadata envelopes during sync operations.
+
 ## 2. Offline Bundle Storage
 - Cryptographic ticket signatures (`hmacSignature`) and allowed sector IDs are synced when online and saved locally using Dexie.js (IndexedDB).
 - Caches store timestamps to calculate bundle age and trigger warnings when the dataset grows older than 3 hours.
@@ -13,3 +16,6 @@ The Staff Portal / PWA is designed to allow gate operators to validate issued ti
 ## 3. Camera Scanner Mechanics
 - Relies on HTML5 QR Code library to interface native camera frames.
 - Permission requests, permission denied alerts, and missing camera issues are captured and handled dynamically to display clean user warnings.
+
+> [!WARNING]
+> Synchronization requests from devices marked as `disabled` in the central Redis blocklist must be immediately terminated and thrown as `UnauthorizedException`. Offline mutations from disabled devices are rejected and must not merge with database check-in histories.

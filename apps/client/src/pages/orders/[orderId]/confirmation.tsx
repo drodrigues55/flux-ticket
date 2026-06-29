@@ -131,27 +131,36 @@ export default function OrderConfirmationPage({ order }: ConfirmationPageProps) 
               </div>
             </div>
 
-            <div className="space-y-3">
-              <h4 className="font-bold text-neutral-300">Seus Ingressos</h4>
-              <p className="text-xs text-neutral-400">Clique em um ingresso para visualizar e imprimir seu QR Code.</p>
-              <div className="space-y-2">
-                {order.tickets.map(t => (
-                  <Link key={t.id} href={`/tickets/${t.id}`} className="block group">
-                    <div className="p-4 bg-neutral-950/35 border border-white/5 group-hover:border-[#FF3200] rounded-xl flex justify-between items-center transition-all cursor-pointer">
-                      <div className="space-y-1">
-                        <div className="font-bold flex items-center gap-1.5 text-xs text-neutral-300 group-hover:text-[#FF3200]">
-                          <FaTicket /> {t.batch.name}
+            {order.status === 'PAID' ? (
+              <div className="space-y-3">
+                <h4 className="font-bold text-neutral-300">Seus Ingressos</h4>
+                <p className="text-xs text-neutral-400">Clique em um ingresso para visualizar e imprimir seu QR Code.</p>
+                <div className="space-y-2">
+                  {order.tickets.map(t => (
+                    <Link key={t.id} href={`/tickets/${t.id}`} className="block group">
+                      <div className="p-4 bg-neutral-950/35 border border-white/5 group-hover:border-[#FF3200] rounded-xl flex justify-between items-center transition-all cursor-pointer">
+                        <div className="space-y-1">
+                          <div className="font-bold flex items-center gap-1.5 text-xs text-neutral-300 group-hover:text-[#FF3200]">
+                            <FaTicket /> {t.batch.name}
+                          </div>
+                          <div className="text-[11px] text-neutral-500">Portador: {t.holderName || 'Convidado'} (CPF: {t.holderCpf || 'N/A'})</div>
                         </div>
-                        <div className="text-[11px] text-neutral-500">Portador: {t.holderName || 'Convidado'} (CPF: {t.holderCpf || 'N/A'})</div>
+                        <span className="text-xs font-bold text-[#FF3200] flex items-center gap-1">
+                          Visualizar <FaDownload className="text-[10px]" />
+                        </span>
                       </div>
-                      <span className="text-xs font-bold text-[#FF3200] flex items-center gap-1">
-                        Visualizar <FaDownload className="text-[10px]" />
-                      </span>
-                    </div>
-                  </Link>
-                ))}
+                    </Link>
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl space-y-1">
+                <h4 className="font-bold text-sm text-amber-400">Aguardando Confirmação de Pagamento</h4>
+                <p className="text-xs text-neutral-400">
+                  O pagamento do seu pedido está com o status "{order.status}". Seus ingressos serão liberados para visualização e download assim que o pagamento for concluído.
+                </p>
+              </div>
+            )}
 
             <div className="pt-6 border-t border-white/5 flex gap-4">
               <Link
