@@ -10,6 +10,13 @@ import { track } from '../analytics';
 export class OrgWriteController {
 
   private async getMembership(userId: string) {
+    const inactiveMembership = await prisma.organizationMember.findFirst({
+      where: { userId, status: { not: 'ACTIVE' } }
+    });
+    if (inactiveMembership) {
+      throw new ForbiddenException('Acesso suspenso ou desativado.');
+    }
+
     let membership = await prisma.organizationMember.findFirst({
       where: { userId, status: 'ACTIVE' },
       include: { organization: true },

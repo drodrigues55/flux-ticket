@@ -82,7 +82,7 @@ Feature status definitions:
 
 | Feature                           | Status |
 | --------------------------------- | :----: |
-| Organizer Authentication          |   🚧   |
+| Organizer Authentication          |    ✅   |
 | Staff Identification (Name + CPF) |    ✅   |
 | Customer Checkout Without Account |    ✅   |
 | JWT Authentication                |    ✅   |
