@@ -354,7 +354,7 @@ Feature status definitions:
 | Overview KPIs      |    ✅   |
 | Priority Event     |    ✅   |
 | Operational Alerts |    ✅   |
-| Revenue Metrics    |   🚧   |
+| Revenue Metrics    |    ✅   |
 | Occupancy Metrics  |    ✅   |
 | PostHog Analytics  |    ✅   |
 | Sales Trends       |   📋   |
